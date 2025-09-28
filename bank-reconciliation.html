@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bank Reconciliation - Bilal Ehtasham Traders</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            color: #333;
+        }
+        .report-container {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            border: 1px solid #ccc;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #003366;
+            padding-bottom: 10px;
+        }
+        .header h1 {
+            font-size: 24px;
+            margin: 0;
+            color: #003366;
+        }
+        .business-info {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .business-info p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        .business-info h2 {
+            color: #003366;
+        }
+        .controls {
+            margin-bottom: 20px;
+            text-align: right;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #003366;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .amount-column {
+            text-align: right;
+            font-weight: bold;
+        }
+        .sub-heading {
+            font-weight: bold;
+            background-color: #e9e9e9;
+        }
+        .bank-balance-row input {
+            width: 150px;
+            padding: 5px;
+            border: 1px solid #ccc;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <script src="data.js"></script>
+    <div class="report-container">
+        <div class="header">
+            <h1>Bank Reconciliation</h1>
+        </div>
+        <div class="business-info">
+            <h2 style="color: #003366;">(BET) Bilal Ehtasham Traders</h2>
+            <p>Deals in all kinds of Cotton and Polyester Yarn</p>
+            <p>Email: bilalehtashamtraders@gmail.com</p>
+            <p>Cell: (+92)-324-2479096</p>
+        </div>
+        
+        <div class="controls">
+            <button onclick="generatePDF()">Generate PDF</button>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th class="amount-column">Amount (Rs.)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="bank-balance-row">
+                    <td>Bank Statement Balance</td>
+                    <td><input type="number" id="bank-statement-balance" placeholder="Enter Ending Balance" oninput="calculateDifference()"></td>
+                </tr>
+                <tr class="sub-heading">
+                    <td colspan="2">Company Books Balance</td>
+                </tr>
+                <tr>
+                    <td>Starting Balance</td>
+                    <td class="amount-column"><input type="number" id="starting-balance" placeholder="Enter Starting Balance" oninput="updateBooksBalance()"></td>
+                </tr>
+                <tr>
+                    <td>Total Deposits (from Receipts)</td>
+                    <td id="total-deposits" class="amount-column">0</td>
+                </tr>
+                <tr>
+                    <td>Total Withdrawals (from Vendor Payments)</td>
+                    <td id="total-withdrawals" class="amount-column">0</td>
+                </tr>
+                <tr style="font-weight: bold;">
+                    <td>Ending Bank Balance (as per books)</td>
+                    <td id="ending-books-balance" class="amount-column">0</td>
+                </tr>
+                <tr style="font-weight: bold;">
+                    <td>Difference</td>
+                    <td id="reconciliation-difference" class="amount-column">0</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            loadData();
+            calculateBooksBalance();
+        });
+
+        function calculateBooksBalance() {
+            const deposits = ledger.filter(entry => entry.accountType === 'Cash' && entry.debit > 0).reduce((sum, entry) => sum + entry.debit, 0);
+            const withdrawals = ledger.filter(entry => entry.accountType === 'Cash' && entry.credit > 0).reduce((sum, entry) => sum + entry.credit, 0);
+            
+            document.getElementById('total-deposits').textContent = deposits.toLocaleString('en-US');
+            document.getElementById('total-withdrawals').textContent = withdrawals.toLocaleString('en-US');
+
+            updateBooksBalance();
+        }
+
+        function updateBooksBalance() {
+            const startingBalance = parseFloat(document.getElementById('starting-balance').value) || 0;
+            const deposits = parseFloat(document.getElementById('total-deposits').textContent.replace(/,/g, '')) || 0;
+            const withdrawals = parseFloat(document.getElementById('total-withdrawals').textContent.replace(/,/g, '')) || 0;
+
+            const endingBooksBalance = startingBalance + deposits - withdrawals;
+            document.getElementById('ending-books-balance').textContent = endingBooksBalance.toLocaleString('en-US');
+
+            calculateDifference();
+        }
+
+        function calculateDifference() {
+            const endingBooksBalance = parseFloat(document.getElementById('ending-books-balance').textContent.replace(/,/g, '')) || 0;
+            const bankStatementBalance = parseFloat(document.getElementById('bank-statement-balance').value) || 0;
+            
+            const difference = bankStatementBalance - endingBooksBalance;
+            document.getElementById('reconciliation-difference').textContent = difference.toLocaleString('en-US');
+        }
+
+        function generatePDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            doc.text("Bank Reconciliation", 14, 15);
+
+            doc.autoTable({
+                html: 'table',
+                startY: 20
+            });
+
+            doc.save(`Bank-Reconciliation.pdf`);
+        }
+    </script>
+</body>
+</html>
