@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Vendor Payment Receipt - BET</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            color: #000;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .company-info {
+            text-align: right;
+        }
+        .company-info h2 {
+            margin: 0;
+            color: #003366;
+        }
+        .invoice-heading {
+            font-size: 28px;
+            font-weight: bold;
+            color: #003366;
+            line-height: 1.5;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        table, th, td {
+            border: 2px solid #000;
+        }
+        th, td {
+            padding: 10px;
+            text-align: center;
+        }
+        .totals {
+            margin-top: 20px;
+            width: 100%;
+        }
+        .totals td {
+            padding: 8px;
+        }
+        .totals .label {
+            text-align: right;
+            font-weight: bold;
+        }
+        .signature {
+            margin-top: 50px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .signature-left {
+            font-size: 14px;
+        }
+        .signature-right {
+            text-align: right;
+            font-weight: bold;
+        }
+        .e-signature-img {
+            max-width: 100px;
+            height: auto;
+            display: block;
+            margin-left: auto;
+            margin-bottom: -15px;
+        }
+        input {
+            border: none;
+            width: 100%;
+            text-align: center;
+        }
+        input:focus {
+            outline: none;
+            background: #eef6ff;
+        }
+        button {
+            padding: 10px;
+            margin: 10px 0;
+            cursor: pointer;
+            background-color: #003366;
+            color: white;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <script src="data.js"></script>
+    <div class="header">
+        <div class="invoice-heading">
+            VENDOR PAYMENT RECEIPT <br>
+            Receipt Number: <input type="text" id="receiptNumber" placeholder="e.g., 00133" style="width: 150px;"><br>
+            Date: <input type="text" id="receiptDate" placeholder="e.g., 27-09-2025" style="width: 150px;"><br>
+            Vendor Name: <input type="text" id="vendorName" placeholder="Enter Vendor Name">
+        </div>
+        <div class="company-info">
+            <h2>(BET) Bilal Ehtasham Traders</h2>
+            <p><i>We deal in all kinds of Cotton and Polyester Yarn</i></p>
+            <p>Cell: (+92)-324-2479096</p>
+            <p>Email: bilalehtashamtraders@gmail.com</p>
+        </div>
+    </div>
+    
+    <table id="receipt-table">
+        <thead>
+            <tr>
+                <th>Description</th>
+                <th>Amount</th>
+            </tr>
+        </thead>
+        <tbody id="receipt-body">
+            <tr>
+                <td><input type="text" class="description" value="Payment against purchase invoice"></td>
+                <td><input type="number" class="amount" value="0"></td>
+            </tr>
+            </tbody>
+    </table>
+    
+    <button onclick="addRow()">Add New Row</button>
+    <button onclick="saveReceipt()">Save Receipt</button>
+    <button onclick="generatePDF()">Generate PDF</button>
+
+    <table class="totals">
+        <tr>
+            <td class="label"><b>Total:</b></td>
+            <td><input type="text" id="totalAmount" style="font-weight:bold;" readonly></td>
+        </tr>
+    </table>
+
+    <div class="signature">
+        <div class="signature-left">
+            Notes: <input type="text" placeholder="Add any additional notes">
+        </div>
+        <div class="signature-right">
+            <img src="signature.jpg" alt="E-signature" class="e-signature-img"><br>
+            (EHTASHAM BILAL)
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            loadData();
+            document.getElementById('receiptNumber').value = '00' + (++lastVendorPaymentNumber);
+            document.getElementById('receiptDate').value = new Date().toLocaleDateString('en-GB');
+            calculateTotal();
+        });
+
+        const receiptBody = document.getElementById('receipt-body');
+        const totalAmountInput = document.getElementById('totalAmount');
+
+        function addRow() {
+            const newRow = document.createElement('tr');
+            newRow.innerHTML = `
+                <td><input type="text" class="description"></td>
+                <td><input type="number" class="amount" value="0"></td>
+            `;
+            receiptBody.appendChild(newRow);
+            attachEventListeners(newRow);
+        }
+
+        function attachEventListeners(row) {
+            const amountInput = row.querySelector('.amount');
+            amountInput.addEventListener('input', calculateTotal);
+        }
+
+        function calculateTotal() {
+            let total = 0;
+            document.querySelectorAll('.amount').forEach(amountInput => {
+                total += parseFloat(amountInput.value) || 0;
+            });
+            totalAmountInput.value = total.toLocaleString('en-US');
+        }
+
+        function saveReceipt() {
+            const receiptNumber = document.getElementById('receiptNumber').value;
+            const receiptDate = document.getElementById('receiptDate').value;
+            const vendorName = document.getElementById('vendorName').value;
+            const totalAmount = parseFloat(totalAmountInput.value.replace(/,/g, '')) || 0;
+            
+            const newVendorPayment = {
+                number: receiptNumber,
+                date: receiptDate,
+                vendor: vendorName,
+                total: totalAmount,
+                type: 'Vendor Payment',
+                lineItems: []
+            };
+
+            document.querySelectorAll('#receipt-body tr').forEach(row => {
+                newVendorPayment.lineItems.push({
+                    description: row.querySelector('.description').value,
+                    amount: parseFloat(row.querySelector('.amount').value) || 0
+                });
+            });
+
+            documents.push(newVendorPayment);
+
+            const newLedgerEntry = {
+                date: receiptDate,
+                description: `Payment to ${vendorName} #${receiptNumber}`,
+                debit: 0,
+                credit: totalAmount,
+                accountType: 'Cash',
+                doc_number: receiptNumber
+            };
+            ledger.push(newLedgerEntry);
+            saveData();
+
+            alert('Vendor Payment saved and ledger updated!');
+        }
+
+        function generatePDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            const receiptNumber = document.getElementById('receiptNumber').value;
+            const content = document.body;
+
+            doc.html(content, {
+                callback: function (doc) {
+                    doc.save(`Vendor-Payment-#${receiptNumber}.pdf`);
+                },
+                x: 10,
+                y: 10,
+                html2canvas: { scale: 0.5 }
+            });
+        }
+    </script>
+</body>
+</html>

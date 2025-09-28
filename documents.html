@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>View Documents - Bilal Ehtasham Traders</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            color: #333;
+        }
+        .report-container {
+            width: 100%;
+            max-width: 1000px;
+            margin: 0 auto;
+            border: 1px solid #ccc;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #003366;
+            padding-bottom: 10px;
+        }
+        .header h1 {
+            font-size: 24px;
+            margin: 0;
+            color: #003366;
+        }
+        .business-info {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .business-info p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        .business-info h2 {
+            color: #003366;
+        }
+        .search-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+            gap: 10px;
+        }
+        .search-container input {
+            padding: 8px;
+            width: 50%;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .search-container button {
+            padding: 8px 12px;
+            background-color: #003366;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .document-view {
+            border: 1px solid #ddd;
+            padding: 20px;
+            margin-top: 20px;
+            min-height: 400px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <script src="data.js"></script>
+    <div class="report-container">
+        <div class="header">
+            <h1>View and Print Documents</h1>
+        </div>
+        <div class="business-info">
+            <h2 style="color: #003366;">(BET) Bilal Ehtasham Traders</h2>
+            <p>Deals in all kinds of Cotton and Polyester Yarn</p>
+            <p>Email: bilalehtashamtraders@gmail.com</p>
+            <p>Cell: (+92)-324-2479096</p>
+        </div>
+        
+        <div class="search-container">
+            <input type="text" id="document-search" placeholder="Search by Document Number or Party/Vendor Name...">
+            <button onclick="searchDocument()">Search</button>
+        </div>
+
+        <div class="document-view" id="document-view">
+            <p>Search for a document by number (e.g., "00134") or a party/vendor name to view it here.</p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            loadData();
+        });
+
+        function searchDocument() {
+            const searchTerm = document.getElementById('document-search').value.toLowerCase();
+            const result = documents.find(doc => 
+                (doc.number && doc.number.toLowerCase().includes(searchTerm)) || 
+                (doc.party && doc.party.toLowerCase().includes(searchTerm)) ||
+                (doc.vendor && doc.vendor.toLowerCase().includes(searchTerm))
+            );
+
+            const documentView = document.getElementById('document-view');
+            documentView.innerHTML = '';
+
+            if (result) {
+                renderDocument(result, documentView);
+            } else {
+                documentView.innerHTML = '<p>No document found. Please check the number or name and try again.</p>';
+            }
+        }
+
+        function renderDocument(doc, container) {
+            container.innerHTML = `
+                <div class="document-header">
+                    <h2>${doc.type} #${doc.number}</h2>
+                    <p>Date: ${doc.date}</p>
+                    <p>${doc.party ? 'Party' : 'Vendor'}: ${doc.party || doc.vendor}</p>
+                    <p>Net Total: ${doc.netTotal ? doc.netTotal.toLocaleString('en-US') : doc.total.toLocaleString('en-US')}</p>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Description</th>
+                            <th>Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${doc.lineItems.map(item => `
+                            <tr>
+                                <td>${item.description}</td>
+                                <td>${item.amount.toLocaleString('en-US')}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+                <button onclick="generatePDFFromDocument('${doc.number}')">Generate PDF</button>
+            `;
+        }
+
+        function generatePDFFromDocument(docNumber) {
+            const docData = documents.find(doc => doc.number === docNumber);
+            if (!docData) return;
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            doc.html(document.getElementById('document-view'), {
+                callback: function (pdf) {
+                    pdf.save(`${docData.type}-${docNumber}.pdf`);
+                },
+                x: 10,
+                y: 10,
+                html2canvas: { scale: 0.5 }
+            });
+        }
+    </script>
+</body>
+</html>
