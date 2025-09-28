@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>General Journal - Bilal Ehtasham Traders</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            color: #333;
+        }
+        .report-container {
+            width: 100%;
+            max-width: 1000px;
+            margin: 0 auto;
+            border: 1px solid #ccc;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #003366;
+            padding-bottom: 10px;
+        }
+        .header h1 {
+            font-size: 24px;
+            margin: 0;
+            color: #003366;
+        }
+        .business-info {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .business-info p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        .business-info h2 {
+            color: #003366;
+        }
+        .controls {
+            margin-bottom: 20px;
+            text-align: right;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #003366;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .form-container {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .form-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .form-row input, .form-row select {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .debit-column, .credit-column {
+            text-align: right;
+        }
+
+        /* --- Mobile-Specific Styling --- */
+        @media (max-width: 600px) {
+            body {
+                margin: 10px;
+            }
+            .report-container {
+                padding: 10px;
+            }
+            .form-row {
+                flex-direction: column;
+                gap: 5px;
+            }
+            .form-row input, .form-row select {
+                width: 100%;
+            }
+            table, th, td {
+                font-size: 12px;
+                padding: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <script src="data.js"></script>
+    <div class="report-container">
+        <div class="header">
+            <h1>General Journal</h1>
+        </div>
+        <div class="business-info">
+            <h2 style="color: #003366;">(BET) Bilal Ehtasham Traders</h2>
+            <p>Deals in all kinds of Cotton and Polyester Yarn</p>
+            <p>Email: bilalehtashamtraders@gmail.com</p>
+            <p>Cell: (+92)-324-2479096</p>
+        </div>
+        
+        <div class="controls">
+            <button onclick="generatePDF()">Generate PDF</button>
+        </div>
+
+        <div class="form-container">
+            <h3>Add New Journal Entry</h3>
+            <div class="form-row">
+                <input type="text" id="entry-date" placeholder="Date">
+                <input type="text" id="entry-description" placeholder="Description">
+                <select id="entry-account-type">
+                    <option value="Cash">Cash</option>
+                    <option value="Revenue">Revenue</option>
+                    <option value="Expense">Expense</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <input type="number" id="entry-debit" placeholder="Debit (Rs.)">
+                <input type="number" id="entry-credit" placeholder="Credit (Rs.)">
+            </div>
+            <button onclick="addJournalEntry()">Add Entry</button>
+        </div>
+        
+        <table id="journal-entries-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th>Account</th>
+                    <th>Debit (Rs.)</th>
+                    <th>Credit (Rs.)</th>
+                </tr>
+            </thead>
+            <tbody id="journal-entries-body">
+                </tbody>
+        </table>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            loadData();
+            displayJournalEntries();
+            document.getElementById('entry-date').value = new Date().toLocaleDateString('en-GB');
+        });
+
+        function addJournalEntry() {
+            const date = document.getElementById('entry-date').value;
+            const description = document.getElementById('entry-description').value;
+            const accountType = document.getElementById('entry-account-type').value;
+            const debit = parseFloat(document.getElementById('entry-debit').value) || 0;
+            const credit = parseFloat(document.getElementById('entry-credit').value) || 0;
+
+            if (date && description && (debit > 0 || credit > 0)) {
+                ledger.push({
+                    date: date,
+                    description: description,
+                    accountType: accountType,
+                    debit: debit,
+                    credit: credit
+                });
+                saveData();
+                displayJournalEntries();
+                alert('Journal entry added successfully!');
+            } else {
+                alert('Please fill in all fields and provide either a debit or credit amount.');
+            }
+        }
+
+        function displayJournalEntries() {
+            const journalBody = document.getElementById('journal-entries-body');
+            journalBody.innerHTML = '';
+
+            ledger.forEach(entry => {
+                const mainRow = journalBody.insertRow();
+                mainRow.innerHTML = `
+                    <td>${entry.date}</td>
+                    <td>${entry.description}</td>
+                    <td>${entry.accountType}</td>
+                    <td class="debit-column">${entry.debit ? entry.debit.toLocaleString('en-US') : ''}</td>
+                    <td class="credit-column">${entry.credit ? entry.credit.toLocaleString('en-US') : ''}</td>
+                `;
+
+                if (entry.debit > 0) {
+                    const offsetRow = journalBody.insertRow();
+                    offsetRow.innerHTML = `
+                        <td></td>
+                        <td></td>
+                        <td>Cash/Bank</td>
+                        <td class="debit-column"></td>
+                        <td class="credit-column">${entry.debit.toLocaleString('en-US')}</td>
+                    `;
+                } else if (entry.credit > 0) {
+                    const offsetRow = journalBody.insertRow();
+                    offsetRow.innerHTML = `
+                        <td></td>
+                        <td></td>
+                        <td>Cash/Bank</td>
+                        <td class="debit-column">${entry.credit.toLocaleString('en-US')}</td>
+                        <td class="credit-column"></td>
+                    `;
+                }
+            });
+        }
+        
+        function generatePDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            doc.text("Journal Entries", 14, 15);
+
+            doc.autoTable({
+                html: '#journal-entries-table',
+                startY: 20
+            });
+
+            doc.save(`Journal-Entries.pdf`);
+        }
+    </script>
+</body>
+</html>
