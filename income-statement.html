@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Income Statement - Bilal Ehtasham Traders</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            color: #333;
+        }
+        .report-container {
+            width: 100%;
+            max-width: 900px;
+            margin: 0 auto;
+            border: 1px solid #ccc;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #003366;
+            padding-bottom: 10px;
+        }
+        .header h1 {
+            font-size: 24px;
+            margin: 0;
+            color: #003366;
+        }
+        .controls {
+            margin-bottom: 20px;
+            text-align: right;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #003366;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+            border-bottom: 2px solid #000;
+        }
+        .section-header {
+            font-weight: bold;
+            background-color: #e6e6e6;
+        }
+        .subtotal {
+            font-weight: bold;
+        }
+        .final-total {
+            font-weight: bold;
+            border-top: 2px solid #000;
+            padding-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <script src="data.js"></script>
+    <div class="report-container">
+        <div class="header">
+            <h1>Income Statement</h1>
+        </div>
+
+        <div class="controls">
+            <button onclick="generatePDF()">Generate PDF</button>
+        </div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th>Amount (Rs.)</th>
+                </tr>
+            </thead>
+            <tbody id="income-statement-body">
+                <tr>
+                    <td class="section-header" colspan="2">Revenue</td>
+                </tr>
+                <tr>
+                    <td>Sales Revenue</td>
+                    <td id="sales-revenue">0</td>
+                </tr>
+                <tr>
+                    <td class="section-header" colspan="2">Cost of Goods Sold (COGS)</td>
+                </tr>
+                <tr>
+                    <td>Purchases</td>
+                    <td id="purchases-cogs">0</td>
+                </tr>
+                <tr>
+                    <td class="subtotal">Gross Profit</td>
+                    <td class="subtotal" id="gross-profit">0</td>
+                </tr>
+                <tr>
+                    <td class="section-header" colspan="2">Other Operating Expenses</td>
+                </tr>
+                <tr>
+                    <td>Vendor Payments</td>
+                    <td id="vendor-payments-expense">0</td>
+                </tr>
+                <tr>
+                    <td>Other Expenses (e.g., Rent, Salaries)</td>
+                    <td><input type="number" id="other-expenses-input" value="0" style="width: 100%; border: none; text-align: right;"></td>
+                </tr>
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td class="final-total">Net Income</td>
+                    <td class="final-total" id="net-income">0</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            loadData();
+            calculateIncomeStatement();
+            document.getElementById('other-expenses-input').addEventListener('input', calculateIncomeStatement);
+        });
+
+        function calculateIncomeStatement() {
+            let salesRevenue = 0;
+            let purchasesCogs = 0;
+            let vendorPaymentsExpense = 0;
+            const otherExpenses = parseFloat(document.getElementById('other-expenses-input').value) || 0;
+
+            ledger.forEach(entry => {
+                if (entry.accountType === 'Revenue' && entry.debit) {
+                    salesRevenue += entry.debit;
+                }
+                if (entry.accountType === 'Expense' && entry.credit) {
+                    purchasesCogs += entry.credit;
+                }
+                if (entry.accountType === 'Expense' && entry.debit) {
+                    vendorPaymentsExpense += entry.debit;
+                }
+            });
+
+            const grossProfit = salesRevenue - purchasesCogs;
+            const totalOperatingExpenses = vendorPaymentsExpense + otherExpenses;
+            const netIncome = grossProfit - totalOperatingExpenses;
+
+            document.getElementById('sales-revenue').textContent = salesRevenue.toLocaleString('en-US');
+            document.getElementById('purchases-cogs').textContent = purchasesCogs.toLocaleString('en-US');
+            document.getElementById('gross-profit').textContent = grossProfit.toLocaleString('en-US');
+            document.getElementById('vendor-payments-expense').textContent = vendorPaymentsExpense.toLocaleString('en-US');
+            document.getElementById('net-income').textContent = netIncome.toLocaleString('en-US');
+        }
+
+        function generatePDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            const content = document.body;
+
+            doc.html(content, {
+                callback: function (doc) {
+                    doc.save(`Income-Statement.pdf`);
+                },
+                x: 10,
+                y: 10,
+                html2canvas: { scale: 0.5 }
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Purchase Invoice - BET</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            color: #000;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .company-info {
+            text-align: right;
+        }
+        .company-info h2 {
+            margin: 0;
+            color: #003366;
+        }
+        .invoice-heading {
+            font-size: 28px;
+            font-weight: bold;
+            color: #003366;
+            line-height: 1.5;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        table, th, td {
+            border: 2px solid #000;
+        }
+        th, td {
+            padding: 10px;
+            text-align: center;
+        }
+        .totals {
+            margin-top: 20px;
+            width: 100%;
+        }
+        .totals td {
+            padding: 8px;
+        }
+        .totals .label {
+            text-align: right;
+            font-weight: bold;
+        }
+        .signature {
+            margin-top: 50px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .signature-left {
+            font-size: 14px;
+        }
+        .signature-right {
+            text-align: right;
+            font-weight: bold;
+        }
+        input {
+            border: none;
+            width: 100%;
+            text-align: center;
+        }
+        input:focus {
+            outline: none;
+            background: #eef6ff;
+        }
+        button {
+            padding: 10px;
+            margin: 10px 0;
+            cursor: pointer;
+            background-color: #003366;
+            color: white;
+            border: none;
+        }
+        .payment-method {
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <script src="data.js"></script>
+    <div class="header">
+        <div class="invoice-heading">
+            PURCHASE INVOICE <br>
+            Invoice Number: <input type="text" id="invoiceNumber" placeholder="e.g., 00133" style="width: 150px;"><br>
+            Date: <input type="text" id="invoiceDate" placeholder="e.g., 27-09-2025" style="width: 150px;"><br>
+            Vendor Name: <input type="text" id="vendorName" placeholder="Enter Vendor Name">
+        </div>
+        <div class="company-info">
+            <h2>(BET) Bilal Ehtasham Traders</h2>
+            <p><i>We deal in all kinds of Cotton and Polyester Yarn</i></p>
+            <p>Cell: (+92)-324-2479096</p>
+            <p>Email: bilalehtashamtraders@gmail.com</p>
+        </div>
+    </div>
+    
+    <div class="payment-method">
+        <label for="paymentMethod">Payment Method:</label>
+        <select id="paymentMethod">
+            <option value="Bank Transfer">Bank Transfer</option>
+            <option value="Cash">Cash</option>
+        </select>
+    </div>
+
+    <table id="invoice-table">
+        <thead>
+            <tr>
+                <th>Quantity</th>
+                <th>Description</th>
+                <th>Packing (kg)</th>
+                <th>Weight (kg)</th>
+                <th>Weight (lbs)</th>
+                <th>Price</th>
+                <th>Amount</th>
+            </tr>
+        </thead>
+        <tbody id="invoice-body">
+            </tbody>
+    </table>
+    
+    <button onclick="addRow()">Add New Row</button>
+    <button onclick="saveInvoice()">Save Invoice</button>
+    <button onclick="generatePDF()">Generate PDF</button>
+
+    <table class="totals">
+        <tr>
+            <td class="label">Gross Total:</td>
+            <td><input type="text" id="grossTotal" readonly></td>
+        </tr>
+        <tr>
+            <td class="label">Less Commission (%):</td>
+            <td><input type="text" id="commissionRate" placeholder="e.g., 0.45"></td>
+        </tr>
+        <tr>
+            <td class="label"><b>Net Total:</b></td>
+            <td><input type="text" id="netTotal" style="font-weight:bold;" readonly></td>
+        </tr>
+    </table>
+
+    <div class="signature">
+        <div class="signature-left">
+            Payment Terms: <input type="text" placeholder="Enter Payment Terms">
+        </div>
+        <div class="signature-right">
+            (Ehtasham Bilal)
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('invoiceNumber').value = '00' + (++lastInvoiceNumber);
+            document.getElementById('invoiceDate').value = new Date().toLocaleDateString('en-GB');
+            addRow();
+        });
+
+        const invoiceBody = document.getElementById('invoice-body');
+        const commissionRateInput = document.getElementById('commissionRate');
+        const grossTotalInput = document.getElementById('grossTotal');
+        const netTotalInput = document.getElementById('netTotal');
+
+        function addRow() {
+            const newRow = document.createElement('tr');
+            newRow.innerHTML = `
+                <td><input type="number" class="quantity" value="0"></td>
+                <td><input type="text" class="description"></td>
+                <td><input type="number" class="packing-kg" value="0"></td>
+                <td><input type="text" class="weight-kg" readonly></td>
+                <td><input type="text" class="weight-lbs" readonly></td>
+                <td><input type="number" class="price" value="0"></td>
+                <td><input type="text" class="amount" readonly></td>
+            `;
+            invoiceBody.appendChild(newRow);
+            attachEventListeners(newRow);
+            calculateTotals();
+        }
+
+        function attachEventListeners(row) {
+            const quantityInput = row.querySelector('.quantity');
+            const packingKgInput = row.querySelector('.packing-kg');
+            const priceInput = row.querySelector('.price');
+            
+            [quantityInput, packingKgInput, priceInput].forEach(input => {
+                input.addEventListener('input', updateRow);
+            });
+            commissionRateInput.addEventListener('input', calculateTotals);
+        }
+        
+        function updateRow(event) {
+            const row = event.target.closest('tr');
+            const quantity = parseFloat(row.querySelector('.quantity').value) || 0;
+            const packingKg = parseFloat(row.querySelector('.packing-kg').value) || 0;
+            const price = parseFloat(row.querySelector('.price').value) || 0;
+
+            const weightKg = quantity * packingKg;
+            const weightLbs = weightKg * 2.2046;
+            const amount = weightLbs * price;
+
+            row.querySelector('.weight-kg').value = weightKg.toFixed(2);
+            row.querySelector('.weight-lbs').value = weightLbs.toFixed(2);
+            row.querySelector('.amount').value = amount.toFixed(2);
+            
+            calculateTotals();
+        }
+
+        function calculateTotals() {
+            let grossTotal = 0;
+            document.querySelectorAll('.amount').forEach(amountInput => {
+                grossTotal += parseFloat(amountInput.value) || 0;
+            });
+            
+            grossTotalInput.value = Math.round(grossTotal).toLocaleString();
+
+            const commissionRate = parseFloat(commissionRateInput.value) || 0;
+            const commissionAmount = grossTotal * (commissionRate / 100);
+            
+            const netTotal = Math.round(grossTotal) - Math.round(commissionAmount);
+            netTotalInput.value = netTotal.toLocaleString();
+        }
+
+        function saveInvoice() {
+            const invoiceNumber = document.getElementById('invoiceNumber').value;
+            const invoiceDate = document.getElementById('invoiceDate').value;
+            const vendorName = document.getElementById('vendorName').value;
+            const netTotal = parseFloat(netTotalInput.value.replace(/,/g, '')) || 0;
+            const paymentMethod = document.getElementById('paymentMethod').value;
+            
+            const newLedgerEntry = {
+                date: invoiceDate,
+                description: `Purchase from ${vendorName} #${invoiceNumber}`,
+                debit: 0,
+                credit: netTotal,
+                accountType: 'Expense',
+                paymentMethod: paymentMethod
+            };
+            ledger.push(newLedgerEntry);
+            saveData();
+
+            alert('Purchase Invoice saved and ledger updated!');
+        }
+
+        function generatePDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            const invoiceNumber = document.getElementById('invoiceNumber').value;
+            const content = document.body;
+
+            doc.html(content, {
+                callback: function (doc) {
+                    doc.save(`Purchase-Invoice-#${invoiceNumber}.pdf`);
+                },
+                x: 10,
+                y: 10,
+                html2canvas: { scale: 0.5 } 
+            });
+        }
+    </script>
+</body>
+</html>
