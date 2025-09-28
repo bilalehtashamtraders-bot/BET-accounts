@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sales Invoice - Bilal Ehtasham Traders</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            color: #333;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 2px solid #003366;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .company-info {
+            text-align: right;
+        }
+        .company-info h2 {
+            margin: 0;
+            color: #003366;
+        }
+        .invoice-heading {
+            font-size: 28px;
+            font-weight: bold;
+            color: #003366;
+            line-height: 1.5;
+        }
+        .customer-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .customer-info div {
+            flex: 1;
+        }
+        .customer-info input {
+            border: none;
+            border-bottom: 1px solid #ccc;
+            width: 90%;
+            margin-top: 5px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #000;
+            padding: 10px;
+            text-align: center;
+        }
+        .add-row {
+            cursor: pointer;
+            text-align: center;
+            padding: 5px;
+            font-weight: bold;
+        }
+        .amount-section {
+            border: 1px solid #000;
+            padding: 10px;
+            margin-top: 20px;
+            text-align: right;
+        }
+        .amount-section div {
+            margin: 5px 0;
+        }
+        button {
+            padding: 10px;
+            margin: 10px 0;
+            cursor: pointer;
+            background-color: #003366;
+            color: white;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <script src="data.js"></script>
+    <div class="header">
+        <div class="invoice-heading">
+            SALES INVOICE <br>
+            Invoice No: <input type="text" id="invoiceNo" placeholder="e.g., 00156" style="width: 100px;">
+        </div>
+        <div class="company-info">
+            <h2>(BET) Bilal Ehtasham Traders</h2>
+            <p><i>We deal in all kinds of Cotton and Polyester Yarn</i></p>
+            <p>Cell: (+92)-324-2479096</p>
+            <p>Email: bilalehtashamtraders@gmail.com</p>
+        </div>
+    </div>
+    
+    <div class="customer-info">
+        <div>
+            <label for="customerName">M/S:</label>
+            <input type="text" id="customerName" placeholder="e.g., Doctor Faisal">
+        </div>
+        <div>
+            <label for="invoiceDate">Date:</label>
+            <input type="text" id="invoiceDate" placeholder="e.g., 27-09-2025">
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>S/No</th>
+                <th>Description</th>
+                <th>Quantity (KG)</th>
+                <th>Rate (Rs.)</th>
+                <th>Amount (Rs.)</th>
+            </tr>
+        </thead>
+        <tbody id="invoice-body">
+            <tr>
+                <td>1</td>
+                <td><input type="text" placeholder="e.g., Cotton Yarn 30/1" oninput="calculateRow(this)"></td>
+                <td><input type="number" value="0" oninput="calculateRow(this)"></td>
+                <td><input type="number" value="0" oninput="calculateRow(this)"></td>
+                <td><span class="amount">0</span></td>
+            </tr>
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="5" class="add-row" onclick="addRow()">+ Add a new row</td>
+            </tr>
+        </tfoot>
+    </table>
+    
+    <div class="amount-section">
+        <div>Subtotal: <span id="subtotal">0</span></div>
+        <div>Total: <span id="total">0</span></div>
+    </div>
+
+    <button onclick="saveInvoice()">Save Invoice</button>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('invoiceNo').value = '00' + (++lastInvoiceNumber);
+            document.getElementById('invoiceDate').value = new Date().toLocaleDateString('en-GB');
+            calculateTotals();
+        });
+
+        function addRow() {
+            const table = document.getElementById('invoice-body');
+            const newRow = table.insertRow();
+            const rowNumber = table.rows.length;
+            newRow.innerHTML = `
+                <td>${rowNumber}</td>
+                <td><input type="text" oninput="calculateRow(this)"></td>
+                <td><input type="number" value="0" oninput="calculateRow(this)"></td>
+                <td><input type="number" value="0" oninput="calculateRow(this)"></td>
+                <td><span class="amount">0</span></td>
+            `;
+        }
+
+        function calculateRow(input) {
+            const row = input.closest('tr');
+            const quantity = parseFloat(row.cells[2].querySelector('input').value) || 0;
+            const rate = parseFloat(row.cells[3].querySelector('input').value) || 0;
+            const amount = quantity * rate;
+            row.cells[4].querySelector('.amount').textContent = amount.toLocaleString('en-US');
+            calculateTotals();
+        }
+
+        function calculateTotals() {
+            let subtotal = 0;
+            document.querySelectorAll('#invoice-body .amount').forEach(amountEl => {
+                subtotal += parseFloat(amountEl.textContent.replace(/,/g, '')) || 0;
+            });
+            document.getElementById('subtotal').textContent = subtotal.toLocaleString('en-US');
+            document.getElementById('total').textContent = subtotal.toLocaleString('en-US');
+        }
+
+        function saveInvoice() {
+            const invoiceNumber = document.getElementById('invoiceNo').value;
+            const customerName = document.getElementById('customerName').value;
+            const invoiceDate = document.getElementById('invoiceDate').value;
+            const totalAmount = parseFloat(document.getElementById('total').textContent.replace(/,/g, '')) || 0;
+
+            const invoiceDetails = {
+                invoiceNumber: invoiceNumber,
+                customerName: customerName,
+                invoiceDate: invoiceDate,
+                totalAmount: totalAmount
+            };
+
+            invoices.push(invoiceDetails);
+
+            const ledgerEntry = {
+                date: invoiceDate,
+                description: `Sales from invoice #${invoiceNumber} for ${customerName}`,
+                debit: totalAmount,
+                credit: 0,
+                accountType: 'Revenue',
+                paymentMethod: 'N/A' // Assuming cash/bank will be recorded in a separate receipt
+            };
+
+            ledger.push(ledgerEntry);
+            
+            // This is the new line of code that saves the data
+            saveData(); 
+
+            alert('Invoice saved and ledger updated!');
+        }
+    </script>
+</body>
+</html>
