@@ -1,0 +1,243 @@
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+<script>
+    // --- START: Placeholder/Mock data.js content for functionality ---
+    let documents = []; // Mock array for receipts
+    let ledger = [];    // Mock array for ledger
+    
+    function saveData() {
+        // In a real application, this would save to a database or file.
+        // For this local example, we'll just log or use localStorage for the receipt number.
+        console.log("Data saved (documents and ledger)");
+    }
+
+    function loadData() {
+        // In a real application, this would load data.
+        console.log("Data loaded (documents and ledger)");
+    }
+    // --- END: Placeholder/Mock data.js content for functionality ---
+
+
+    let isEditing = false;
+    let originalDocNumber = null;
+    const STARTING_RECEIPT_NUMBER = 155; // Next will be 156
+
+    // Function to get the next receipt number
+    function getNextReceiptNumber() {
+        let lastNumber = parseInt(localStorage.getItem('lastReceiptNumber'), 10);
+        
+        // If it's the first time, set the initial value
+        if (isNaN(lastNumber) || lastNumber < STARTING_RECEIPT_NUMBER) {
+            lastNumber = STARTING_RECEIPT_NUMBER;
+        }
+
+        const nextNumber = lastNumber + 1;
+        
+        // Format with leading zeros (e.g., 156 -> '0156')
+        return String(nextNumber).padStart(4, '0');
+    }
+
+    // Function to set the last used receipt number
+    function setLastReceiptNumber(number) {
+        localStorage.setItem('lastReceiptNumber', number);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadData(); // Load any mock data
+        
+        const docToEdit = JSON.parse(localStorage.getItem('docToEdit'));
+        
+        if (docToEdit) {
+            populateForm(docToEdit);
+            isEditing = true;
+            originalDocNumber = docToEdit.number;
+            localStorage.removeItem('docToEdit');
+            // Display the delete button when editing an existing document
+            document.getElementById('deleteButton').style.display = 'inline-block';
+        } else {
+            // Generate the next sequential receipt number
+            const nextReceiptNo = getNextReceiptNumber();
+            document.getElementById('receipt-no').value = nextReceiptNo;
+            document.getElementById('receipt-date').value = new Date().toLocaleDateString('en-GB');
+            // Hide the delete button when creating a new document
+            document.getElementById('deleteButton').style.display = 'none';
+        }
+        
+        document.getElementById('previous-balance').addEventListener('input', formatAndCalculate);
+        document.getElementById('amount-received').addEventListener('input', formatAndCalculate);
+        calculateAccountReceivable();
+    });
+
+    function populateForm(doc) {
+        document.getElementById('receipt-no').value = doc.number;
+        document.getElementById('receipt-date').value = doc.date;
+        document.getElementById('received-from').value = doc.receivedFrom;
+        document.getElementById('business-ledger').value = doc.businessLedger;
+        document.getElementById('paymentMethod').value = doc.paymentMethod;
+        
+        document.getElementById('previous-balance').value = (doc.previousBalance || 0).toLocaleString('en-US', {maximumFractionDigits: 0});
+        document.getElementById('cheque-ref').value = doc.chequeRef;
+        document.getElementById('cheque-bank').value = doc.chequeBank;
+        document.getElementById('account-title').value = doc.accountTitle;
+        document.getElementById('amount-received').value = (doc.amountReceived || 0).toLocaleString('en-US', {maximumFractionDigits: 0});
+        
+        updateAmountInWords();
+        calculateAccountReceivable();
+    }
+
+    function formatAndCalculate(event) {
+        const input = event.target;
+        let value = input.value.replace(/[^0-9.]/g, ''); 
+
+        if (value !== "") {
+            // Ensure no decimal points for currency formatting
+            value = parseFloat(value).toLocaleString('en-US', {maximumFractionDigits: 0});
+        }
+        input.value = value;
+        
+        updateAmountInWords();
+        calculateAccountReceivable();
+    }
+
+    function updateAmountInWords() {
+        const amountReceivedInput = document.getElementById('amount-received');
+        const amountInWordsInput = document.getElementById('amount-in-words');
+        let amountValue = parseFloat(amountReceivedInput.value.replace(/,/g, '')) || 0;
+        
+        const words = numberToWords(amountValue);
+        amountInWordsInput.value = words ? words + " only" : "";
+    }
+
+    function numberToWords(num) {
+        if (num === 0) return 'Zero';
+        const a = ['', 'one ', 'two ', 'three ', 'four ', 'five ', 'six ', 'seven ', 'eight ', 'nine ', 'ten ', 'eleven ', 'twelve ', 'thirteen ', 'fourteen ', 'fifteen ', 'sixteen ', 'seventeen ', 'eighteen ', 'nineteen '];
+        const b = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+        let n = ('000000000' + Math.floor(num)).substr(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
+        if (!n) return '';
+        let str = '';
+        str += (n[1] != 0) ? (a[Number(n[1])] || b[n[1][0]] + ' ' + a[n[1][1]]) + 'crore ' : '';
+        str += (n[2] != 0) ? (a[Number(n[2])] || b[n[2][0]] + ' ' + a[n[2][1]]) + 'lakh ' : '';
+        str += (n[3] != 0) ? (a[Number(n[3])] || b[n[3][0]] + ' ' + a[n[3][1]]) + 'thousand ' : '';
+        str += (n[4] != 0) ? (a[Number(n[4])] || b[n[4][0]] + ' ' + a[n[4][1]]) + 'hundred ' : '';
+        str += (n[5] != 0) ? ((str != '' && n[4] == 0) ? 'and ' : '') + (a[Number(n[5])] || b[n[5][0]] + ' ' + a[n[5][1]]) : '';
+        return str.trim().charAt(0).toUpperCase() + str.trim().slice(1);
+    }
+
+    function calculateAccountReceivable() {
+        const previousBalance = parseFloat(document.getElementById('previous-balance').value.replace(/,/g, '')) || 0;
+        const amountReceived = parseFloat(document.getElementById('amount-received').value.replace(/,/g, '')) || 0;
+        
+        const accountReceivable = previousBalance - amountReceived;
+        
+        document.getElementById('account-receivable').textContent = `PKR: ${accountReceivable.toLocaleString('en-US')}/=`;
+    }
+
+    function savePayment() {
+        const receiptNumber = document.getElementById('receipt-no').value;
+        const receiptDate = document.getElementById('receipt-date').value;
+        const receivedFrom = document.getElementById('received-from').value;
+        const businessLedger = document.getElementById('business-ledger').value;
+        const paymentMethod = document.getElementById('paymentMethod').value;
+        
+        const previousBalance = parseFloat(document.getElementById('previous-balance').value.replace(/,/g, '')) || 0;
+        const amountReceived = parseFloat(document.getElementById('amount-received').value.replace(/,/g, '')) || 0;
+
+        const chequeRef = document.getElementById('cheque-ref').value;
+        const chequeBank = document.getElementById('cheque-bank').value;
+        const accountTitle = document.getElementById('account-title').value;
+        const amountInWords = document.getElementById('amount-in-words').value;
+        const accountReceivable = parseFloat(document.getElementById('account-receivable').textContent.replace(/PKR: |\/=|,/g, '')) || 0;
+
+        const newReceipt = {
+            number: receiptNumber,
+            date: receiptDate,
+            receivedFrom: receivedFrom,
+            businessLedger: businessLedger,
+            paymentMethod: paymentMethod,
+            previousBalance: previousBalance,
+            chequeRef: chequeRef,
+            chequeBank: chequeBank,
+            accountTitle: accountTitle,
+            amountReceived: amountReceived,
+            amountInWords: amountInWords,
+            accountReceivable: accountReceivable,
+            type: 'Customer Payment'
+        };
+
+        if (isEditing) {
+            const docIndex = documents.findIndex(doc => doc.number === originalDocNumber);
+            if (docIndex > -1) {
+                documents[docIndex] = newReceipt;
+                updateLedgerEntry(originalDocNumber, newReceipt);
+                alert('Receipt updated successfully!');
+            }
+        } else {
+            documents.push(newReceipt);
+            const newLedgerEntry = {
+                date: receiptDate,
+                description: `Payment from ${businessLedger} #${receiptNumber}`,
+                debit: amountReceived,
+                credit: 0,
+                accountType: 'Accounts Receivable',
+                doc_number: receiptNumber
+            };
+            ledger.push(newLedgerEntry);
+            
+            // --- AUTOMATION STEP: Increment the receipt number for the next new document ---
+            const currentReceiptNumberInt = parseInt(receiptNumber, 10);
+            setLastReceiptNumber(currentReceiptNumberInt);
+            // ----------------------------------------------------------------------------
+
+            alert('Payment saved and ledger updated!');
+        }
+        saveData();
+    }
+    
+    function updateLedgerEntry(oldDocNumber, newReceipt) {
+        const ledgerIndex = ledger.findIndex(entry => entry.doc_number === oldDocNumber);
+        if (ledgerIndex > -1) {
+            ledger[ledgerIndex].date = newReceipt.date;
+            ledger[ledgerIndex].description = `Payment from ${newReceipt.businessLedger} #${newReceipt.number}`;
+            ledger[ledgerIndex].debit = newReceipt.amountReceived;
+        }
+    }
+
+    function deletePayment() {
+        if (confirm(`Are you sure you want to delete receipt number ${document.getElementById('receipt-no').value}? This cannot be undone.`)) {
+            const docNumber = document.getElementById('receipt-no').value;
+
+            // Delete from documents
+            const docIndex = documents.findIndex(doc => doc.number === docNumber);
+            if (docIndex > -1) {
+                documents.splice(docIndex, 1);
+            }
+
+            // Delete from ledger
+            const ledgerIndex = ledger.findIndex(entry => entry.doc_number === docNumber);
+            if (ledgerIndex > -1) {
+                ledger.splice(ledgerIndex, 1);
+            }
+            
+            saveData(); 
+            alert('Receipt and associated ledger entry deleted successfully. Redirecting to new receipt page.');
+            window.location.reload(); // Reload to start a new receipt
+        }
+    }
+    
+    function generatePDF() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        const content = document.querySelector('.receipt-container'); 
+        const receiptNumber = document.getElementById('receipt-no').value;
+
+        doc.html(content, {
+            callback: function (doc) {
+                doc.save(`Receipt-#${receiptNumber}.pdf`);
+            },
+            x: 10,
+            y: 10,
+            html2canvas: { scale: 0.5 }
+        });
+    }
+</script>
