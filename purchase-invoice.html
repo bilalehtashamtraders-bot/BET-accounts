@@ -67,7 +67,7 @@
             border: none;
             width: 100%;
             text-align: center;
-            background: transparent; 
+            background: transparent;
         }
         input:focus {
             outline: none;
@@ -93,8 +93,6 @@
     </style>
 </head>
 <body>
-    <script src="data.js"></script> 
-
     <div class="action-buttons" style="max-width: 800px; margin: 0 auto 20px;">
         <button onclick="saveInvoice()">Save/Update Invoice</button>
         <button onclick="deleteInvoice()" id="deleteButton" class="delete-button" style="display: none;">Delete Invoice</button>
@@ -181,6 +179,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <script>
         // --- START: Mock functions for missing data.js ---
+        // These are needed so the script doesn't throw errors if data.js is missing.
         let documents = []; 
         let ledger = [];    
         function saveData() { console.log("Data saved mock."); }
@@ -190,7 +189,7 @@
         let isEditing = false;
         let originalDocNumber = null;
         const LBS_IN_KG = 2.20462; 
-        
+
         // **SALES INVOICE NUMBERING LOGIC**
         const INVOICE_NUMBER_KEY = 'lastSalesInvoiceNumber'; 
         const STARTING_INVOICE_NUMBER = 132; // Next will be 133 (for 00133)
@@ -247,7 +246,7 @@
         function populateForm(doc) {
             document.getElementById('invoiceNumber').value = doc.number;
             document.getElementById('invoiceDate').value = doc.date;
-            document.getElementById('partyName').value = doc.party;
+            document.getElementById('partyName').value = doc.party; 
             document.getElementById('paymentMethod').value = doc.paymentMethod;
             
             const tbody = document.getElementById('invoice-body');
@@ -402,6 +401,7 @@
             return lineItems;
         }
 
+
         function saveInvoice() {
             const invoiceNumber = document.getElementById('invoiceNumber').value;
             const invoiceDate = document.getElementById('invoiceDate').value;
@@ -422,7 +422,7 @@
             const newInvoice = {
                 number: invoiceNumber,
                 date: invoiceDate,
-                party: partyName,
+                party: partyName, 
                 paymentMethod: paymentMethod,
                 grossTotal: grossTotal,
                 cartage: cartage,
