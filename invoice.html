@@ -122,7 +122,6 @@
         
         // --- Numbering Functions (Defensive GitHub Fix) ---
         function getNextInvoiceNumber() {
-            // Check if data.js defined the counter, otherwise use the default
             let lastNumber = window.lastInvoiceNumber || DEFAULT_STARTING_NUMBER;
             const nextNumber = lastNumber + 1;
             return String(nextNumber).padStart(5, '0');
@@ -215,48 +214,116 @@
             calculateTotals();
         }
         
-        // --- Data Handlers (Placeholder for your full save/load logic) ---
+        // --- Data Handlers ---
         function populateForm(doc) {
-            // Placeholder: Replace with your actual implementation
             document.getElementById('invoiceNumber').value = doc.number;
+            document.getElementById('invoiceNumber').removeAttribute('placeholder');
             document.getElementById('invoiceDate').value = doc.date;
             document.getElementById('partyName').value = doc.party;
             document.getElementById('paymentMethod').value = doc.paymentMethod;
-            
+
             const tbody = document.getElementById('invoice-body');
             tbody.innerHTML = ''; // Clear existing rows
-            doc.lineItems.forEach(item => { /* Add logic to populate rows and attach listeners */ });
 
-            document.getElementById('cartage').value = doc.cartage ? doc.cartage.toLocaleString('en-US', {maximumFractionDigits: 0}) : '';
+            doc.lineItems.forEach(item => {
+                const newRow = document.createElement('tr');
+                newRow.innerHTML = `
+                    <td><input type="text" class="quantity" value="${item.quantity.toLocaleString('en-US', {maximumFractionDigits: 0})}"></td>
+                    <td><input type="text" class="description" value="${item.description}"></td>
+                    <td><input type="text" class="packing" value="${item.packing.toLocaleString('en-US', {maximumFractionDigits: 0})}"></td>
+                    <td><input type="text" class="weightKg" value="${item.weightKg.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}" readonly></td>
+                    <td><input type="text" class="weightLbs" value="${item.weightLbs.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}" readonly></td>
+                    <td><input type="text" class="price" value="${item.price.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 2})}"></td>
+                    <td><input type="text" class="amount total-amount-input" value="${item.amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}" readonly></td>
+                `;
+                tbody.appendChild(newRow);
+                attachEventListeners(newRow);
+            });
+            const cartageValue = doc.cartage > 0 ? doc.cartage.toLocaleString('en-US', {maximumFractionDigits: 0}) : '';
+            document.getElementById('cartage').value = cartageValue;
+
             calculateTotals();
         }
 
         function getLineItemsData() {
-            // Placeholder: Replace with your actual implementation
-            return []; 
+            const lineItems = [];
+            document.querySelectorAll('#invoice-body tr').forEach(row => {
+                lineItems.push({
+                    quantity: parseFloat(row.querySelector('.quantity').value.replace(/,/g, '')) || 0,
+                    description: row.querySelector('.description').value,
+                    packing: parseFloat(row.querySelector('.packing').value.replace(/,/g, '')) || 0,
+                    weightKg: parseFloat(row.querySelector('.weightKg').value.replace(/,/g, '')) || 0,
+                    weightLbs: parseFloat(row.querySelector('.weightLbs').value.replace(/,/g, '')) || 0,
+                    price: parseFloat(row.querySelector('.price').value.replace(/,/g, '')) || 0,
+                    amount: parseFloat(row.querySelector('.amount').value.replace(/,/g, '')) || 0
+                });
+            });
+            return lineItems;
         }
 
         function saveInvoice() {
-            // Placeholder: Replace with your actual implementation
             const invoiceNumber = document.getElementById('invoiceNumber').value;
-            // ... (rest of data collection)
+            const invoiceDate = document.getElementById('invoiceDate').value;
+            const partyName = document.getElementById('partyName').value;
+            const paymentMethod = document.getElementById('paymentMethod').value;
             
-            if (!isEditing) {
+            const cartage = parseFloat(document.getElementById('cartage').value.replace(/,/g, '')) || 0;
+            const grossTotal = parseFloat(document.getElementById('grossTotal').value.replace(/,/g, '')) || 0;
+            const netTotal = parseFloat(document.getElementById('netTotal').value.replace(/,/g, '')) || 0;
+            const lineItems = getLineItemsData();
+
+            if (!invoiceNumber || !invoiceDate || !partyName || lineItems.every(item => item.amount === 0)) {
+                alert("Please fill in Invoice Number, Date, Party Name, and at least one line item with a non-zero amount.");
+                return;
+            }
+
+            const newInvoice = {
+                type: 'Invoice',
+                number: invoiceNumber,
+                date: invoiceDate,
+                party: partyName,
+                paymentMethod: paymentMethod,
+                lineItems: lineItems,
+                cartage: cartage,
+                grossTotal: grossTotal,
+                netTotal: netTotal
+            };
+
+            if (isEditing) {
+                const docIndex = documents.findIndex(doc => doc.number === originalDocNumber && doc.type === 'Invoice');
+                if (docIndex > -1) { documents[docIndex] = newInvoice; alert(`Invoice ${invoiceNumber} updated successfully!`); }
+            } else {
                 const currentNumberInt = parseInt(invoiceNumber, 10);
                 setLastInvoiceNumber(currentNumberInt); 
+                documents.push(newInvoice);
+                alert(`New Invoice ${invoiceNumber} saved successfully!`);
             }
-            
+
             if (typeof saveData === 'function') saveData(); 
-            // window.location.href = 'documents.html'; // Uncomment when ready
+            window.location.href = 'documents.html';
         }
 
-        function deleteInvoice() { /* ... implementation ... */ }
-        function generatePDF() { /* ... implementation ... */ }
+        function deleteInvoice() {
+            const invoiceNumber = document.getElementById('invoiceNumber').value;
+            if (confirm(`Are you sure you want to delete Invoice ${invoiceNumber}? This action cannot be undone.`)) {
+                const docIndex = documents.findIndex(doc => doc.number === invoiceNumber && doc.type === 'Invoice');
+                if (docIndex > -1) {
+                    documents.splice(docIndex, 1);
+                    if (typeof saveData === 'function') saveData();
+                    alert(`Invoice ${invoiceNumber} deleted successfully.`);
+                    window.location.href = 'documents.html';
+                }
+            }
+        }
+
+        function generatePDF() {
+            alert('PDF Generation not implemented in this snippet.');
+        }
 
         // --- INITIALIZATION (Defensive Check for Load Order) ---
         document.addEventListener('DOMContentLoaded', () => {
             if (typeof loadData === 'function') {
-                loadData(); // Ensure data is loaded from localStorage
+                loadData(); 
             }
             
             const docToEdit = JSON.parse(localStorage.getItem('docToEdit'));
@@ -268,7 +335,6 @@
                 localStorage.removeItem('docToEdit');
                 document.getElementById('deleteButton').style.display = 'inline-block';
             } else {
-                // Get number *after* loadData runs
                 document.getElementById('invoiceNumber').value = getNextInvoiceNumber(); 
                 document.getElementById('invoiceNumber').removeAttribute('placeholder');
                 document.getElementById('invoiceDate').value = new Date().toLocaleDateString('en-GB');
