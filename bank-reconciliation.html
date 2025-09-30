@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bank Reconciliation - Bilal Ehtasham Traders</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            color: #333;
+        }
+        .report-container {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            border: 1px solid #ccc;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #003366;
+            padding-bottom: 10px;
+        }
+        .header h1 {
+            font-size: 24px;
+            margin: 0;
+            color: #003366;
+        }
+        .business-info {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .business-info p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        .business-info h2 {
+            color: #003366;
+        }
+        .controls {
+            margin-bottom: 20px;
+            text-align: right;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #003366;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .amount-column {
+            text-align: right;
+            width: 25%; /* Give amount column enough width */
+        }
+        .sub-heading {
+            font-weight: bold;
+            background-color: #e9e9e9;
+        }
+        .highlight-row td {
+            font-weight: bold;
+            background-color: #d1e5ff; /* Light blue highlight */
+        }
+        .input-field {
+            width: 90%;
+            padding: 5px;
+            border: 1px solid #ccc;
+            text-align: right;
+            box-sizing: border-box; /* Include padding/border in width */
+        }
+    </style>
+</head>
+<body>
+    <script src="data.js"></script>
+    <div class="report-container">
+        <div class="header">
+            <h1>Bank Reconciliation</h1>
+        </div>
+        <div class="business-info">
+            <h2 style="color: #003366;">(BET) Bilal Ehtasham Traders</h2>
+            <p>Deals in all kinds of Cotton and Polyester Yarn</p>
+            <p>Email: bilalehtashamtraders@gmail.com</p>
+            <p>Cell: (+92)-324-2479096</p>
+        </div>
+        
+        <div class="controls">
+            <button onclick="generatePDF()">Generate PDF</button>
+        </div>
+
+        <table id="reconciliation-table">
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th class="amount-column">Amount (Rs.)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="sub-heading">
+                    <td colspan="2">Balance as per Company Books (Cash Account)</td>
+                </tr>
+                <tr>
+                    <td>Starting Balance (User Input)</td>
+                    <td class="amount-column">
+                        <input type="text" id="starting-balance" class="input-field" placeholder="0.00" oninput="formatAndRecalculate()">
+                    </td>
+                </tr>
+                <tr>
+                    <td>Add: Total Deposits (from Receipts)</td>
+                    <td id="total-deposits" class="amount-column">0.00</td>
+                </tr>
+                <tr>
+                    <td>Less: Total Withdrawals (from Vendor Payments)</td>
+                    <td id="total-withdrawals" class="amount-column">0.00</td>
+                </tr>
+                <tr class="highlight-row">
+                    <td>**Calculated Ending Books Balance**</td>
+                    <td id="ending-books-balance" class="amount-column">0.00</td>
+                </tr>
+
+                <tr class="sub-heading">
+                    <td colspan="2">Adjustments for Bank Statement</td>
+                </tr>
+                <tr>
+                    <td>Add: Deposits in Transit (Outstanding Deposits)</td>
+                    <td class="amount-column">
+                        <input type="text" id="deposits-in-transit" class="input-field" value="0.00" oninput="formatAndRecalculate()">
+                    </td>
+                </tr>
+                <tr>
+                    <td>Less: Outstanding Checks (Unpresented Payments)</td>
+                    <td class="amount-column">
+                        <input type="text" id="outstanding-checks" class="input-field" value="0.00" oninput="formatAndRecalculate()">
+                    </td>
+                </tr>
+                <tr class="highlight-row">
+                    <td>**Adjusted Bank Statement Balance**</td>
+                    <td id="adjusted-bank-balance" class="amount-column">0.00</td>
+                </tr>
+                
+                <tr class="sub-heading">
+                    <td colspan="2">Final Comparison</td>
+                </tr>
+                <tr>
+                    <td>Bank Statement Ending Balance (User Input)</td>
+                    <td class="amount-column">
+                        <input type="text" id="bank-statement-balance" class="input-field" placeholder="0.00" oninput="formatAndRecalculate()">
+                    </td>
+                </tr>
+                
+                <tr class="highlight-row" style="background-color: #ffe0e0;">
+                    <td>**Reconciliation Difference (Should be 0)**</td>
+                    <td id="reconciliation-difference" class="amount-column">0.00</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // loadData(); // NOTE: Uncomment when integrating with data.js
+            calculateLedgerTotals();
+        });
+        
+        // Helper function to convert formatted text to number
+        function getNumber(id) {
+            const element = document.getElementById(id);
+            if (element.tagName === 'INPUT') {
+                return parseFloat(element.value.replace(/,/g, '')) || 0;
+            }
+            return parseFloat(element.textContent.replace(/,/g, '')) || 0;
+        }
+
+        // Helper function to format and display number
+        function setFormattedText(id, value) {
+            document.getElementById(id).textContent = value.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        }
+        
+        // Helper function for input formatting
+        function formatAndRecalculate(event) {
+            if (event && event.target.tagName === 'INPUT') {
+                const input = event.target;
+                let value = input.value.replace(/[^0-9.]/g, ''); 
+                
+                if (value !== "") {
+                    value = parseFloat(value).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                }
+                input.value = value;
+            }
+            // Recalculate everything after any input change
+            calculateBooksBalance();
+        }
+
+        function calculateLedgerTotals() {
+            // Assume Cash account represents the Bank Account
+            // Debit (increase in Asset) = Deposits
+            const deposits = ledger.filter(entry => entry.accountType === 'Cash' && entry.debit > 0).reduce((sum, entry) => sum + entry.debit, 0);
+            // Credit (decrease in Asset) = Withdrawals
+            const withdrawals = ledger.filter(entry => entry.accountType === 'Cash' && entry.credit > 0).reduce((sum, entry) => sum + entry.credit, 0);
+            
+            setFormattedText('total-deposits', deposits);
+            setFormattedText('total-withdrawals', withdrawals);
+
+            // Initial calculation
+            calculateBooksBalance();
+        }
+
+        function calculateBooksBalance() {
+            const startingBalance = getNumber('starting-balance');
+            const totalDeposits = getNumber('total-deposits');
+            const totalWithdrawals = getNumber('total-withdrawals');
+
+            const endingBooksBalance = startingBalance + totalDeposits - totalWithdrawals;
+            setFormattedText('ending-books-balance', endingBooksBalance);
+
+            calculateAdjustedBankBalance(endingBooksBalance);
+        }
+
+        function calculateAdjustedBankBalance(endingBooksBalance) {
+            const depositsInTransit = getNumber('deposits-in-transit');
+            const outstandingChecks = getNumber('outstanding-checks');
+            const bankStatementBalance = getNumber('bank-statement-balance');
+            
+            // Standard Bank Reconciliation: Bank Statement Balance + Deposits in Transit - Outstanding Checks
+            const adjustedBankBalance = bankStatementBalance + depositsInTransit - outstandingChecks;
+            setFormattedText('adjusted-bank-balance', adjustedBankBalance);
+
+            // Difference calculation: Adjusted Bank Balance (which should be the true balance) MINUS the Books Balance
+            const difference = adjustedBankBalance - endingBooksBalance;
+            setFormattedText('reconciliation-difference', difference);
+            
+            // Apply conditional formatting to the difference row
+            const diffRow = document.getElementById('reconciliation-difference').closest('tr');
+            if (Math.abs(difference) < 0.01) { // Check for near-zero difference
+                diffRow.style.backgroundColor = '#d4edda'; // Green for success
+                document.getElementById('reconciliation-difference').textContent = '0.00';
+            } else {
+                diffRow.style.backgroundColor = '#ffe0e0'; // Red for error
+            }
+        }
+
+        function generatePDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'pt', 'a4');
+            
+            doc.text("Bank Reconciliation Report", 40, 40);
+            doc.text(`Date Generated: ${new Date().toLocaleDateString('en-GB')}`, 40, 60);
+
+            // Prepare table data for PDF (excluding input fields)
+            const tableBody = [];
+            document.querySelectorAll('#reconciliation-table tbody tr').forEach(row => {
+                const rowData = [];
+                const descriptionCell = row.cells[0];
+                const amountCell = row.cells[1];
+
+                // Get Description (handling input case)
+                let description = descriptionCell.textContent.trim();
+                
+                // Get Amount (handling input case and display text case)
+                let amountText;
+                const input = amountCell.querySelector('input');
+                if (input) {
+                    amountText = input.value;
+                } else {
+                    amountText = amountCell.textContent.trim();
+                }
+
+                rowData.push(description);
+                rowData.push(amountText);
+                tableBody.push(rowData);
+            });
+
+
+            doc.autoTable({
+                head: [['Description', 'Amount (Rs.)']],
+                body: tableBody,
+                startY: 80,
+                theme: 'striped',
+                headStyles: { fillColor: [242, 242, 242], textColor: [0, 0, 0] },
+                columnStyles: {
+                    1: { halign: 'right' },
+                },
+                didDrawCell: function (data) {
+                    // Highlight the important rows in the PDF
+                    const row = data.row.raw;
+                    if (row && (row[0].includes('Calculated Ending Books Balance') || row[0].includes('Adjusted Bank Statement Balance'))) {
+                        doc.setFillColor(209, 229, 255); // Light blue
+                        doc.rect(data.settings.margin.left, data.cell.y, data.table.width, data.cell.height, 'F');
+                        doc.setTextColor(0, 0, 0);
+                        doc.setFont('helvetica', 'bold');
+                    } else if (row && row[0].includes('Reconciliation Difference')) {
+                        const difference = getNumber('reconciliation-difference');
+                        const color = Math.abs(difference) < 0.01 ? [212, 237, 218] : [255, 224, 224]; // Green or Red
+                        doc.setFillColor.apply(doc, color);
+                        doc.rect(data.settings.margin.left, data.cell.y, data.table.width, data.cell.height, 'F');
+                        doc.setTextColor(0, 0, 0);
+                        doc.setFont('helvetica', 'bold');
+                    }
+                }
+            });
+
+            doc.save(`Bank-Reconciliation.pdf`);
+        }
+    </script>
+</body>
+</html>
