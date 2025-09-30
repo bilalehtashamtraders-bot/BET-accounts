@@ -444,6 +444,13 @@
                 // *** END NUMBERING SAVE FIX ***
 
                 documents.push(newInvoice);
+            } else {
+                // *** NUMBERING SAVE FIX ***
+                const currentNumberInt = parseInt(invoiceNumber, 10);
+                setLastInvoiceNumber(currentNumberInt); 
+                // *** END NUMBERING SAVE FIX ***
+
+                documents.push(newInvoice);
                 alert('New Invoice saved!');
             }
             
@@ -476,3 +483,4 @@
     </script>
 </body>
 </html>
+
