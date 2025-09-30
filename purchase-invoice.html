@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Sales Invoice - BET</title>
+    <title>Purchase Invoice - BET</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -79,6 +79,7 @@
         .payment-method {
             margin-bottom: 15px;
         }
+        /* Style for the blank signature line */
         .signature {
             display: flex;
             justify-content: space-between;
@@ -86,9 +87,8 @@
             padding: 0 10px;
         }
         .signature-right {
+            border-top: 1px solid #000;
             padding-top: 5px;
-            font-weight: bold;
-            text-transform: uppercase; 
         }
     </style>
 </head>
@@ -101,10 +101,10 @@
     <div style="max-width: 800px; margin: 0 auto;">
         <div class="header">
             <div class="invoice-heading">
-                SALES INVOICE <br>
-                Invoice Number: <input type="text" id="invoiceNumber" placeholder="e.g., 00133" style="width: 150px;" readonly><br>
+                PURCHASE INVOICE <br>
+                Invoice Number: <input type="text" id="invoiceNumber" placeholder="e.g., 00120" style="width: 150px;" readonly><br>
                 Date: <input type="text" id="invoiceDate" placeholder="e.g., 27-09-2025" style="width: 150px;"><br>
-                Party Name: <input type="text" id="partyName" placeholder="Enter Party Name">
+                Vendor Name: <input type="text" id="partyName" placeholder="Enter Vendor Name">
             </div>
             <div class="company-info">
                 <h2>(BET) Bilal Ehtasham Traders</h2>
@@ -156,8 +156,12 @@
                 <td><input type="text" id="grossTotal" class="total-amount-input" style="font-weight:bold;" readonly></td>
             </tr>
             <tr>
-                <td class="label">Cartage:</td>
-                <td><input type="text" id="cartage" class="total-amount-input" value="0"></td>
+                <td class="label">Commission (%):</td> 
+                <td><input type="text" id="commissionPercentage" class="total-amount-input" value="0"></td>
+            </tr>
+             <tr>
+                <td class="label">Commission Amount:</td>
+                <td><input type="text" id="commissionAmount" class="total-amount-input" value="0.00" readonly></td>
             </tr>
             <tr>
                 <td class="label"><b>Net Total:</b></td>
@@ -170,7 +174,7 @@
                 Payment Terms: <input type="text" placeholder="Enter Payment Terms">
             </div>
             <div class="signature-right">
-                (EHTASHAM BILAL)
+                &nbsp;
             </div>
         </div>
     </div>
@@ -190,9 +194,9 @@
         let originalDocNumber = null;
         const LBS_IN_KG = 2.20462; 
 
-        // **SALES INVOICE NUMBERING LOGIC**
-        const INVOICE_NUMBER_KEY = 'lastSalesInvoiceNumber'; 
-        const STARTING_INVOICE_NUMBER = 132; // Next will be 133 (for 00133)
+        // **PURCHASE INVOICE NUMBERING LOGIC**
+        const INVOICE_NUMBER_KEY = 'lastPurchaseInvoiceNumber'; 
+        const STARTING_INVOICE_NUMBER = 119; // Next will be 120 (for 00120)
 
         function getNextInvoiceNumber() {
             let lastNumber = parseInt(localStorage.getItem(INVOICE_NUMBER_KEY), 10);
@@ -203,14 +207,14 @@
 
             const nextNumber = lastNumber + 1;
             
-            // Format to 5 digits (e.g., 133 -> '00133')
+            // Format to 5 digits (e.g., 120 -> '00120')
             return String(nextNumber).padStart(5, '0');
         }
 
         function setLastInvoiceNumber(number) {
             localStorage.setItem(INVOICE_NUMBER_KEY, number);
         }
-        // **END SALES INVOICE NUMBERING LOGIC**
+        // **END PURCHASE INVOICE NUMBERING LOGIC**
 
         document.addEventListener('DOMContentLoaded', () => {
             if (typeof loadData === 'function') {
@@ -237,8 +241,8 @@
             
             document.querySelectorAll('#invoice-body tr').forEach(row => attachEventListeners(row));
             
-            // Attach event listener to Cartage field
-            document.getElementById('cartage').addEventListener('input', formatCartageAndRecalculate);
+            // Attach event listener to Commission % field
+            document.getElementById('commissionPercentage').addEventListener('input', formatCommissionAndRecalculate);
             
             calculateTotals(); 
         });
@@ -267,7 +271,7 @@
                 attachEventListeners(newRow); 
             });
             
-            document.getElementById('cartage').value = (doc.cartage || 0).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 2});
+            document.getElementById('commissionPercentage').value = (doc.commissionPercentage || 0).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 2});
             calculateTotals();
         }
 
@@ -327,7 +331,7 @@
             calculateRowAndTotals(input.closest('tr'));
         }
 
-        function formatCartageAndRecalculate(event) {
+        function formatCommissionAndRecalculate(event) {
             const input = event.target;
             let value = input.value.replace(/,/g, ''); 
             value = value.replace(/[^0-9.]/g, ''); 
@@ -376,12 +380,15 @@
                 grossTotal += parseFloat(amountInput.value.replace(/,/g, '')) || 0;
             });
             
-            const rawCartageInput = document.getElementById('cartage').value.replace(/,/g, '');
-            let cartage = parseFloat(rawCartageInput) || 0;
+            const rawCommissionInput = document.getElementById('commissionPercentage').value.replace(/,/g, '');
+            let commissionPercent = parseFloat(rawCommissionInput) || 0;
             
-            const netTotal = grossTotal + cartage;
+            const commissionAmount = grossTotal * (commissionPercent / 100);
+            
+            const netTotal = grossTotal - commissionAmount;
 
             document.getElementById('grossTotal').value = grossTotal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            document.getElementById('commissionAmount').value = commissionAmount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
             document.getElementById('netTotal').value = netTotal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         }
 
@@ -408,14 +415,15 @@
             const partyName = document.getElementById('partyName').value;
             const paymentMethod = document.getElementById('paymentMethod').value;
             
-            const cartage = parseFloat(document.getElementById('cartage').value.replace(/,/g, '')) || 0;
+            const commissionPercentage = parseFloat(document.getElementById('commissionPercentage').value.replace(/,/g, '')) || 0;
+            const commissionAmount = parseFloat(document.getElementById('commissionAmount').value.replace(/,/g, '')) || 0;
             const grossTotal = parseFloat(document.getElementById('grossTotal').value.replace(/,/g, '')) || 0;
             const netTotal = parseFloat(document.getElementById('netTotal').value.replace(/,/g, '')) || 0;
             
             const lineItems = getLineItemsData();
 
             if (!invoiceNumber || !invoiceDate || !partyName || lineItems.every(item => item.amount === 0)) {
-                alert("Please fill in Invoice Number, Date, Party Name, and at least one line item with a non-zero amount.");
+                alert("Please fill in Invoice Number, Date, Vendor Name, and at least one line item with a non-zero amount.");
                 return;
             }
 
@@ -425,17 +433,18 @@
                 party: partyName, 
                 paymentMethod: paymentMethod,
                 grossTotal: grossTotal,
-                cartage: cartage,
+                commissionPercentage: commissionPercentage, 
+                commissionAmount: commissionAmount,         
                 netTotal: netTotal,
-                type: 'Invoice',
+                type: 'Purchase Invoice',
                 lineItems: lineItems
             };
 
             if (isEditing) {
-                const docIndex = documents.findIndex(doc => doc.number === originalDocNumber && doc.type === 'Invoice');
+                const docIndex = documents.findIndex(doc => doc.number === originalDocNumber && doc.type === 'Purchase Invoice');
                 if (docIndex > -1) {
                     documents[docIndex] = newInvoice;
-                    alert(`Invoice ${invoiceNumber} updated successfully!`);
+                    alert(`Purchase Invoice ${invoiceNumber} updated successfully!`);
                 }
             } else {
                 // *** NUMBERING SAVE FIX ***
@@ -444,27 +453,27 @@
                 // *** END NUMBERING SAVE FIX ***
 
                 documents.push(newInvoice);
-                alert('New Invoice saved!');
+                alert('New Purchase Invoice saved!');
             }
             
             if (typeof saveData === 'function') {
                 saveData(); // Save data.js mock/real persistence
             }
             
-            window.location.href = 'documents.html'; 
+             // window.location.href = 'documents.html'; 
         }
 
         function deleteInvoice() {
              const invoiceNumber = document.getElementById('invoiceNumber').value;
-             if (confirm(`Are you sure you want to delete Invoice ${invoiceNumber}?`)) {
-                const docIndex = documents.findIndex(doc => doc.number === invoiceNumber && doc.type === 'Invoice');
+             if (confirm(`Are you sure you want to delete Purchase Invoice ${invoiceNumber}?`)) {
+                const docIndex = documents.findIndex(doc => doc.number === invoiceNumber && doc.type === 'Purchase Invoice');
                 if (docIndex > -1) {
                     documents.splice(docIndex, 1);
                     if (typeof saveData === 'function') {
                         saveData();
                     }
-                    alert(`Invoice ${invoiceNumber} deleted successfully.`);
-                    window.location.href = 'documents.html'; 
+                    alert(`Purchase Invoice ${invoiceNumber} deleted successfully.`);
+                    // window.location.href = 'documents.html'; 
                 }
              }
         }
