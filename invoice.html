@@ -197,6 +197,7 @@
         function getNextInvoiceNumber() {
             let lastNumber = parseInt(localStorage.getItem(INVOICE_NUMBER_KEY), 10);
             
+            // This logic is designed to ensure the number is at least 132 before incrementing
             if (isNaN(lastNumber) || lastNumber < STARTING_INVOICE_NUMBER) {
                 lastNumber = STARTING_INVOICE_NUMBER;
             }
@@ -211,6 +212,14 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
+            
+            // --- FIX FOR STARTING NUMBER AUTOMATION ---
+            // If the key is not set in localStorage, initialize it to STARTING_INVOICE_NUMBER (132).
+            // This ensures the first call to getNextInvoiceNumber() returns 133.
+            if (localStorage.getItem(INVOICE_NUMBER_KEY) === null) {
+                localStorage.setItem(INVOICE_NUMBER_KEY, STARTING_INVOICE_NUMBER); 
+            }
+            // ------------------------------------------
             
             const docToEdit = JSON.parse(localStorage.getItem('docToEdit'));
             
