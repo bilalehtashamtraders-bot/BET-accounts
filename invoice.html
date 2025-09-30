@@ -191,9 +191,8 @@
         let originalDocNumber = null;
         const LBS_IN_KG = 2.20462; 
         
-        // **SALES INVOICE NUMBERING LOGIC**
-        const INVOICE_NUMBER_KEY = 'lastSalesInvoiceNumber'; 
-        const STARTING_INVOICE_NUMBER = 132; // Next will be 133 (for 00133)
+        const INVOICE_NUMBER_KEY = 'lastSalesInvoiceNumber_BET'; 
+        const STARTING_INVOICE_NUMBER = 132; 
 
         function getNextInvoiceNumber() {
             let lastNumber = parseInt(localStorage.getItem(INVOICE_NUMBER_KEY), 10);
@@ -204,48 +203,58 @@
 
             const nextNumber = lastNumber + 1;
             
-            // Format to 5 digits (e.g., 133 -> '00133')
             return String(nextNumber).padStart(5, '0');
         }
 
         function setLastInvoiceNumber(number) {
             localStorage.setItem(INVOICE_NUMBER_KEY, number);
         }
-        // **END SALES INVOICE NUMBERING LOGIC**
 
         document.addEventListener('DOMContentLoaded', () => {
-            if (typeof loadData === 'function') {
-                loadData(); 
-            }
             
             const docToEdit = JSON.parse(localStorage.getItem('docToEdit'));
+            
             if (docToEdit) {
+                // If editing, load the data first, then populate the form
+                if (typeof loadData === 'function') {
+                    loadData(); 
+                }
                 populateForm(docToEdit);
                 isEditing = true;
                 originalDocNumber = docToEdit.number;
                 localStorage.removeItem('docToEdit');
                 document.getElementById('deleteButton').style.display = 'inline-block';
             } else {
-                // Generate the next sequential number
+                // If NEW, generate the number *immediately* and show it.
                 const nextInvoiceNo = getNextInvoiceNumber();
-                document.getElementById('invoiceNumber').value = nextInvoiceNo;
+                const invoiceInput = document.getElementById('invoiceNumber');
+                
+                // Set the generated value and remove placeholder to guarantee visibility
+                invoiceInput.value = nextInvoiceNo; 
+                invoiceInput.removeAttribute('placeholder'); 
                 
                 document.getElementById('invoiceDate').value = new Date().toLocaleDateString('en-GB');
+                
                 document.getElementById('deleteButton').style.display = 'none';
-
-                calculateTotals(); 
+                
+                // Then, load other data if needed
+                if (typeof loadData === 'function') {
+                    loadData(); 
+                }
             }
             
             document.querySelectorAll('#invoice-body tr').forEach(row => attachEventListeners(row));
             
-            // Attach event listener to Cartage field
             document.getElementById('cartage').addEventListener('input', formatCartageAndRecalculate);
             
-            calculateTotals(); 
+            calculateTotals();
         });
 
         function populateForm(doc) {
-            document.getElementById('invoiceNumber').value = doc.number;
+            const invoiceInput = document.getElementById('invoiceNumber');
+            invoiceInput.value = doc.number;
+            invoiceInput.removeAttribute('placeholder'); 
+            
             document.getElementById('invoiceDate').value = doc.date;
             document.getElementById('partyName').value = doc.party;
             document.getElementById('paymentMethod').value = doc.paymentMethod;
@@ -268,8 +277,7 @@
                 attachEventListeners(newRow); 
             });
             
-            document.getElementById('cartage').value = (doc.cartage || 0).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 2});
-            calculateTotals();
+            document.getElementById('cartage').value = doc.cartage.toLocaleString('en-US', {maximumFractionDigits: 0});
         }
 
         const invoiceBody = document.getElementById('invoice-body');
@@ -303,10 +311,8 @@
 
         function formatRowInputAndRecalculate(event) {
             const input = event.target;
-            
             let value = input.value.replace(/,/g, ''); 
             value = value.replace(/[^0-9.]/g, ''); 
-            
             let parsedValue = parseFloat(value);
 
             if (isNaN(parsedValue)) {
@@ -333,23 +339,15 @@
             let value = input.value.replace(/,/g, ''); 
             value = value.replace(/[^0-9.]/g, ''); 
             
-            const endsWithDot = value.endsWith('.');
-            const hasMultipleDots = (value.match(/\./g) || []).length > 1;
-
-            if (hasMultipleDots) {
-                value = value.substring(0, value.lastIndexOf('.')) + value.substring(value.lastIndexOf('.') + 1).replace('.', '');
-            }
-
-            let parsedValue = parseFloat(value);
-            
-            if (isNaN(parsedValue)) {
-                input.value = endsWithDot && value.length === 1 ? '.' : '0';
-            } else {
-                if (endsWithDot) {
-                    input.value = value;
+            if (value !== "") {
+                const parsedValue = parseFloat(value);
+                if (!isNaN(parsedValue)) {
+                    input.value = parsedValue.toLocaleString('en-US', {maximumFractionDigits: 0});
                 } else {
-                    input.value = parsedValue.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 2});
+                    input.value = '';
                 }
+            } else {
+                input.value = '0'; 
             }
             
             calculateTotals();
@@ -362,7 +360,7 @@
             
             const weightKg = quantity * packingKg;
             const weightLbs = weightKg * LBS_IN_KG;
-            const amount = weightKg * price; 
+            const amount = weightKg * price;
 
             row.querySelector('.weightKg').value = weightKg.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
             row.querySelector('.weightLbs').value = weightLbs.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -377,11 +375,9 @@
                 grossTotal += parseFloat(amountInput.value.replace(/,/g, '')) || 0;
             });
             
-            const rawCartageInput = document.getElementById('cartage').value.replace(/,/g, '');
-            let cartage = parseFloat(rawCartageInput) || 0;
-            
+            const cartage = parseFloat(document.getElementById('cartage').value.replace(/,/g, '')) || 0;
             const netTotal = grossTotal + cartage;
-
+            
             document.getElementById('grossTotal').value = grossTotal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
             document.getElementById('netTotal').value = netTotal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         }
@@ -407,11 +403,9 @@
             const invoiceDate = document.getElementById('invoiceDate').value;
             const partyName = document.getElementById('partyName').value;
             const paymentMethod = document.getElementById('paymentMethod').value;
-            
             const cartage = parseFloat(document.getElementById('cartage').value.replace(/,/g, '')) || 0;
             const grossTotal = parseFloat(document.getElementById('grossTotal').value.replace(/,/g, '')) || 0;
             const netTotal = parseFloat(document.getElementById('netTotal').value.replace(/,/g, '')) || 0;
-            
             const lineItems = getLineItemsData();
 
             if (!invoiceNumber || !invoiceDate || !partyName || lineItems.every(item => item.amount === 0)) {
@@ -420,17 +414,17 @@
             }
 
             const newInvoice = {
+                type: 'Invoice',
                 number: invoiceNumber,
                 date: invoiceDate,
                 party: partyName,
                 paymentMethod: paymentMethod,
-                grossTotal: grossTotal,
+                lineItems: lineItems,
                 cartage: cartage,
-                netTotal: netTotal,
-                type: 'Invoice',
-                lineItems: lineItems
+                grossTotal: grossTotal,
+                netTotal: netTotal
             };
-
+            
             if (isEditing) {
                 const docIndex = documents.findIndex(doc => doc.number === originalDocNumber && doc.type === 'Invoice');
                 if (docIndex > -1) {
@@ -438,32 +432,23 @@
                     alert(`Invoice ${invoiceNumber} updated successfully!`);
                 }
             } else {
-                // *** NUMBERING SAVE FIX ***
+                // CRITICAL: Permanent increment and save the new counter value
                 const currentNumberInt = parseInt(invoiceNumber, 10);
                 setLastInvoiceNumber(currentNumberInt); 
-                // *** END NUMBERING SAVE FIX ***
-
-                documents.push(newInvoice);
-            } else {
-                // *** NUMBERING SAVE FIX ***
-                const currentNumberInt = parseInt(invoiceNumber, 10);
-                setLastInvoiceNumber(currentNumberInt); 
-                // *** END NUMBERING SAVE FIX ***
-
-                documents.push(newInvoice);
-                alert('New Invoice saved!');
+                documents.push(newInvoice); 
+                alert(`New Invoice ${invoiceNumber} saved successfully!`);
             }
             
             if (typeof saveData === 'function') {
-                saveData(); // Save data.js mock/real persistence
+                saveData(); 
             }
             
             window.location.href = 'documents.html'; 
         }
-
+        
         function deleteInvoice() {
              const invoiceNumber = document.getElementById('invoiceNumber').value;
-             if (confirm(`Are you sure you want to delete Invoice ${invoiceNumber}?`)) {
+             if (confirm(`Are you sure you want to delete Invoice ${invoiceNumber}? This action cannot be undone.`)) {
                 const docIndex = documents.findIndex(doc => doc.number === invoiceNumber && doc.type === 'Invoice');
                 if (docIndex > -1) {
                     documents.splice(docIndex, 1);
@@ -483,4 +468,3 @@
     </script>
 </body>
 </html>
-
