@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sales Invoice - BET</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; color: #000; }
+        .header { display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+        .company-info { text-align: right; }
+        .company-info h2 { margin: 0; color: #003366; }
+        .invoice-heading { font-size: 28px; font-weight: bold; color: #003366; line-height: 1.5; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        table, th, td { border: 2px solid #000; }
+        th, td { padding: 10px; text-align: center; }
+        .totals { margin-top: 20px; width: 100%; }
+        .totals td { padding: 8px; }
+        .totals .label { text-align: right; font-weight: bold; }
+        .action-buttons button { padding: 10px; margin: 10px 5px 10px 0; cursor: pointer; background-color: #003366; color: white; border: none; }
+        .delete-button { background-color: #cc0000 !important; }
+        input { border: none; width: 100%; text-align: center; background: transparent; }
+        input:focus { outline: none; background: #eef6ff; }
+        .total-amount-input { text-align: right !important; }
+        .payment-method { margin-bottom: 15px; }
+        .signature { display: flex; justify-content: space-between; margin-top: 50px; padding: 0 10px; }
+        .signature-right { padding-top: 5px; font-weight: bold; text-transform: uppercase; }
+    </style>
+</head>
+<body>
+    <script src="data.js"></script>
+    
+    <div class="action-buttons" style="max-width: 800px; margin: 0 auto 20px;">
+        <button onclick="saveInvoice()">Save/Update Invoice</button>
+        <button onclick="deleteInvoice()" id="deleteButton" class="delete-button" style="display: none;">Delete Invoice</button>
+        <button onclick="generatePDF()">Generate PDF</button>
+    </div>
+    <div style="max-width: 800px; margin: 0 auto;">
+        <div class="header">
+            <div class="invoice-heading">
+                SALES INVOICE <br>
+                Invoice Number: <input type="text" id="invoiceNumber" placeholder="e.g., 00133" style="width: 150px;" readonly><br>
+                Date: <input type="text" id="invoiceDate" placeholder="e.g., 27-09-2025" style="width: 150px;"><br>
+                Party Name: <input type="text" id="partyName" placeholder="Enter Party Name">
+            </div>
+            <div class="company-info">
+                <h2>(BET) Bilal Ehtasham Traders</h2>
+                <p><i>We deal in all kinds of Cotton and Polyester Yarn</i></p>
+                <p>Cell: (+92)-324-2479096</p>
+                <p>Email: bilalehtashamtraders@gmail.com</p>
+            </div>
+        </div>
+
+        <div class="payment-method">
+            <label for="paymentMethod">Payment Method:</label>
+            <select id="paymentMethod">
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="Cash">Cash</option>
+                <option value="Cheque">Cheque</option>
+            </select>
+        </div>
+
+        <button onclick="addRow()">Add New Row</button>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Quantity</th>
+                    <th>Description</th>
+                    <th>Packing (kg)</th>
+                    <th>Weight (kg)</th>
+                    <th>Weight (lbs)</th>
+                    <th>Price</th>
+                    <th>Amount</th>
+                </tr>
+            </thead>
+            <tbody id="invoice-body">
+                <tr>
+                    <td><input type="text" class="quantity" value="0"></td>
+                    <td><input type="text" class="description"></td>
+                    <td><input type="text" class="packing" value="0"></td>
+                    <td><input type="text" class="weightKg" value="0.00" readonly></td>
+                    <td><input type="text" class="weightLbs" value="0.00" readonly></td>
+                    <td><input type="text" class="price" value="0"></td>
+                    <td><input type="text" class="amount total-amount-input" value="0.00" readonly></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <table class="totals">
+            <tr>
+                <td class="label" style="width: 80%;">Gross Total:</td>
+                <td><input type="text" id="grossTotal" class="total-amount-input" style="font-weight:bold;" readonly></td>
+            </tr>
+            <tr>
+                <td class="label">Cartage:</td>
+                <td><input type="text" id="cartage" class="total-amount-input" value=""></td>
+            </tr>
+            <tr>
+                <td class="label"><b>Net Total:</b></td>
+                <td><input type="text" id="netTotal" class="total-amount-input" style="font-weight:bold;" readonly></td>
+            </tr>
+        </table>
+
+        <div class="signature">
+            <div class="signature-left">
+                Payment Terms: <input type="text" placeholder="Enter Payment Terms">
+            </div>
+            <div class="signature-right">
+                (EHTASHAM BILAL)
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script>
+        // --- Global dependencies are assumed to be set by data.js ---
+        let documents = window.documents || [];
+        let isEditing = false;
+        let originalDocNumber = null;
+        const LBS_IN_KG = 2.20462;
+        const DEFAULT_STARTING_NUMBER = 132; 
+        
+        // --- Numbering Functions (Standardized to use data.js globals) ---
+        function getNextInvoiceNumber() {
+            let lastNumber = window.lastInvoiceNumber || DEFAULT_STARTING_NUMBER;
+            const nextNumber = lastNumber + 1;
+            return String(nextNumber).padStart(5, '0');
+        }
+
+        function setLastInvoiceNumber(number) {
+            window.lastInvoiceNumber = number;
+        }
+
+        // --- Core Calculation Logic ---
+        function calculateRowAndTotals(row) {
+            const quantity = parseFloat(row.querySelector('.quantity').value.replace(/,/g, '')) || 0;
+            const packingKg = parseFloat(row.querySelector('.packing').value.replace(/,/g, '')) || 0;
+            const price = parseFloat(row.querySelector('.price').value.replace(/,/g, '')) || 0;
+
+            const weightKg = quantity * packingKg;
+            const weightLbs = weightKg * LBS_IN_KG;
+            
+            // Amount = Weight (lbs) * Price
+            const amount = weightLbs * price; 
+
+            row.querySelector('.weightKg').value = weightKg.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            row.querySelector('.weightLbs').value = weightLbs.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            row.querySelector('.amount').value = amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+            calculateTotals();
+        }
+
+        function calculateTotals() {
+            let grossTotal = 0;
+            document.querySelectorAll('.amount').forEach(amountInput => {
+                grossTotal += parseFloat(amountInput.value.replace(/,/g, '')) || 0;
+            });
+
+            const cartage = parseFloat(document.getElementById('cartage').value.replace(/,/g, '')) || 0;
+            
+            // Net Total = Gross Total + Cartage 
+            const netTotal = grossTotal + cartage;
+
+            document.getElementById('grossTotal').value = grossTotal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            document.getElementById('netTotal').value = netTotal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        }
+
+        // --- Event Listener Setup ---
+        function attachEventListeners(row) {
+            const quantityInput = row.querySelector('.quantity');
+            const packingInput = row.querySelector('.packing');
+            const priceInput = row.querySelector('.price');
+
+            const inputsToListen = [quantityInput, packingInput, priceInput];
+            inputsToListen.forEach(input => {
+                input.addEventListener('input', formatRowInputAndRecalculate);
+            });
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            // Check for loadData existence (GitHub fix)
+            if (typeof loadData === 'function') {
+                loadData(); 
+            }
+            
+            const docToEdit = JSON.parse(localStorage.getItem('docToEdit'));
+
+            if (docToEdit) {
+                populateForm(docToEdit);
+                isEditing = true;
+                originalDocNumber = docToEdit.number;
+                localStorage.removeItem('docToEdit');
+                document.getElementById('deleteButton').style.display = 'inline-block';
+            } else {
+                // New Invoice setup: Uses the global window.lastInvoiceNumber
+                document.getElementById('invoiceNumber').value = getNextInvoiceNumber(); 
+                document.getElementById('invoiceNumber').removeAttribute('placeholder');
+                document.getElementById('invoiceDate').value = new Date().toLocaleDateString('en-GB');
+                document.getElementById('deleteButton').style.display = 'none';
+            }
+
+            // Attach listeners to initial rows and cartage
+            document.querySelectorAll('#invoice-body tr').forEach(row => attachEventListeners(row));
+            document.getElementById('cartage').addEventListener('input', formatCartageAndRecalculate);
+
+            calculateTotals();
+        });
+
+        // --- Helper/UI Functions (Retained from previous working version) ---
+        function formatRowInputAndRecalculate(event) {
+            const input = event.target;
+            let value = input.value.replace(/,/g, '').replace(/[^0-9.]/g, '');
+            let parsedValue = parseFloat(value);
+            if (isNaN(parsedValue)) { input.value = ''; calculateRowAndTotals(input.closest('tr')); return; }
+
+            if (input.classList.contains('price')) {
+                input.value = value.endsWith('.') && value.indexOf('.') === value.length - 1 ? value : parsedValue.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 2});
+            } else {
+                input.value = parsedValue.toLocaleString('en-US', {maximumFractionDigits: 0});
+            }
+            calculateRowAndTotals(input.closest('tr'));
+        }
+
+        function formatCartageAndRecalculate(event) {
+            const input = event.target;
+            let value = input.value.replace(/,/g, '').replace(/[^0-9]/g, '');
+            if (value === "" || isNaN(parseInt(value, 10))) { input.value = ''; } 
+            else { input.value = parseInt(value, 10).toLocaleString('en-US', {maximumFractionDigits: 0}); }
+            calculateTotals();
+        }
+
+        function addRow() {
+            const newRow = document.createElement('tr');
+            newRow.innerHTML = `
+                <td><input type="text" class="quantity" value="0"></td>
+                <td><input type="text" class="description"></td>
+                <td><input type="text" class="packing" value="0"></td>
+                <td><input type="text" class="weightKg" value="0.00" readonly></td>
+                <td><input type="text" class="weightLbs" value="0.00" readonly></td>
+                <td><input type="text" class="price" value="0"></td>
+                <td><input type="text" class="amount total-amount-input" value="0.00" readonly></td>
+            `;
+            document.getElementById('invoice-body').appendChild(newRow);
+            attachEventListeners(newRow);
+            calculateTotals();
+        }
+        
+        function populateForm(doc) {
+            document.getElementById('invoiceNumber').value = doc.number;
+            document.getElementById('invoiceNumber').removeAttribute('placeholder');
+            document.getElementById('invoiceDate').value = doc.date;
+            document.getElementById('partyName').value = doc.party;
+            document.getElementById('paymentMethod').value = doc.paymentMethod;
+
+            const tbody = document.getElementById('invoice-body');
+            tbody.innerHTML = '';
+
+            doc.lineItems.forEach(item => {
+                const newRow = document.createElement('tr');
+                newRow.innerHTML = `
+                    <td><input type="text" class="quantity" value="${item.quantity.toLocaleString('en-US', {maximumFractionDigits: 0})}"></td>
+                    <td><input type="text" class="description" value="${item.description}"></td>
+                    <td><input type="text" class="packing" value="${item.packing.toLocaleString('en-US', {maximumFractionDigits: 0})}"></td>
+                    <td><input type="text" class="weightKg" value="${item.weightKg.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}" readonly></td>
+                    <td><input type="text" class="weightLbs" value="${item.weightLbs.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}" readonly></td>
+                    <td><input type="text" class="price" value="${item.price.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 2})}"></td>
+                    <td><input type="text" class="amount total-amount-input" value="${item.amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}" readonly></td>
+                `;
+                tbody.appendChild(newRow);
+                attachEventListeners(newRow);
+            });
+            const cartageValue = doc.cartage > 0 ? doc.cartage.toLocaleString('en-US', {maximumFractionDigits: 0}) : '';
+            document.getElementById('cartage').value = cartageValue;
+
+            calculateTotals();
+        }
+
+        function getLineItemsData() {
+            const lineItems = [];
+            document.querySelectorAll('#invoice-body tr').forEach(row => {
+                lineItems.push({
+                    quantity: parseFloat(row.querySelector('.quantity').value.replace(/,/g, '')) || 0,
+                    description: row.querySelector('.description').value,
+                    packing: parseFloat(row.querySelector('.packing').value.replace(/,/g, '')) || 0,
+                    weightKg: parseFloat(row.querySelector('.weightKg').value.replace(/,/g, '')) || 0,
+                    weightLbs: parseFloat(row.querySelector('.weightLbs').value.replace(/,/g, '')) || 0,
+                    price: parseFloat(row.querySelector('.price').value.replace(/,/g, '')) || 0,
+                    amount: parseFloat(row.querySelector('.amount').value.replace(/,/g, '')) || 0
+                });
+            });
+            return lineItems;
+        }
+
+        function saveInvoice() {
+            const invoiceNumber = document.getElementById('invoiceNumber').value;
+            const invoiceDate = document.getElementById('invoiceDate').value;
+            const partyName = document.getElementById('partyName').value;
+            const paymentMethod = document.getElementById('paymentMethod').value;
+            
+            const cartage = parseFloat(document.getElementById('cartage').value.replace(/,/g, '')) || 0;
+            const grossTotal = parseFloat(document.getElementById('grossTotal').value.replace(/,/g, '')) || 0;
+            const netTotal = parseFloat(document.getElementById('netTotal').value.replace(/,/g, '')) || 0;
+            const lineItems = getLineItemsData();
+
+            if (!invoiceNumber || !invoiceDate || !partyName || lineItems.every(item => item.amount === 0)) {
+                alert("Please fill in Invoice Number, Date, Party Name, and at least one line item with a non-zero amount.");
+                return;
+            }
+
+            const newInvoice = {
+                type: 'Invoice',
+                number: invoiceNumber,
+                date: invoiceDate,
+                party: partyName,
+                paymentMethod: paymentMethod,
+                lineItems: lineItems,
+                cartage: cartage,
+                grossTotal: grossTotal,
+                netTotal: netTotal
+            };
+
+            if (isEditing) {
+                const docIndex = documents.findIndex(doc => doc.number === originalDocNumber && doc.type === 'Invoice');
+                if (docIndex > -1) { documents[docIndex] = newInvoice; alert(`Invoice ${invoiceNumber} updated successfully!`); }
+            } else {
+                const currentNumberInt = parseInt(invoiceNumber, 10);
+                setLastInvoiceNumber(currentNumberInt); 
+                documents.push(newInvoice);
+                alert(`New Invoice ${invoiceNumber} saved successfully!`);
+            }
+
+            if (typeof saveData === 'function') saveData(); 
+            window.location.href = 'documents.html';
+        }
+
+        function deleteInvoice() {
+            const invoiceNumber = document.getElementById('invoiceNumber').value;
+            if (confirm(`Are you sure you want to delete Invoice ${invoiceNumber}? This action cannot be undone.`)) {
+                const docIndex = documents.findIndex(doc => doc.number === invoiceNumber && doc.type === 'Invoice');
+                if (docIndex > -1) {
+                    documents.splice(docIndex, 1);
+                    if (typeof saveData === 'function') saveData();
+                    alert(`Invoice ${invoiceNumber} deleted successfully.`);
+                    window.location.href = 'documents.html';
+                }
+            }
+        }
+
+        function generatePDF() {
+            alert('PDF Generation not implemented in this snippet.');
+        }
+
+    </script>
+</body>
+</html>
