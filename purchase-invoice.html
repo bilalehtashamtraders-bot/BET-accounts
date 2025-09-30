@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Purchase Invoice - BET</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            color: #000;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .company-info {
+            text-align: right;
+        }
+        .company-info h2 {
+            margin: 0;
+            color: #003366;
+        }
+        .invoice-heading {
+            font-size: 28px;
+            font-weight: bold;
+            color: #003366;
+            line-height: 1.5;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        table, th, td {
+            border: 2px solid #000;
+        }
+        th, td {
+            padding: 10px;
+            text-align: center;
+        }
+        .totals {
+            margin-top: 20px;
+            width: 100%;
+        }
+        .totals td {
+            padding: 8px;
+        }
+        .totals .label {
+            text-align: right;
+            font-weight: bold;
+        }
+        .action-buttons button { 
+            padding: 10px;
+            margin: 10px 5px 10px 0;
+            cursor: pointer;
+            background-color: #003366;
+            color: white;
+            border: none;
+        }
+        .delete-button {
+            background-color: #cc0000 !important;
+        }
+        input {
+            border: none;
+            width: 100%;
+            text-align: center;
+            background: transparent;
+        }
+        input:focus {
+            outline: none;
+            background: #eef6ff;
+        }
+        .total-amount-input { 
+            text-align: right !important; 
+        }
+        .payment-method {
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <script src="data.js"></script>
+
+    <div class="action-buttons" style="max-width: 800px; margin: 0 auto 20px;">
+        <button onclick="saveInvoice()">Save/Update Invoice</button>
+        <button onclick="deleteInvoice()" id="deleteButton" class="delete-button" style="display: none;">Delete Invoice</button>
+        <button onclick="generatePDF()">Generate PDF</button>
+    </div>
+    <div style="max-width: 800px; margin: 0 auto;">
+        <div class="header">
+            <div class="invoice-heading">
+                PURCHASE INVOICE <br>
+                Invoice Number: <input type="text" id="invoiceNumber" placeholder="e.g., 00133" style="width: 150px;" readonly><br>
+                Date: <input type="text" id="invoiceDate" placeholder="e.g., 27-09-2025" style="width: 150px;"><br>
+                Vendor Name: <input type="text" id="partyName" placeholder="Enter Vendor Name">
+            </div>
+            <div class="company-info">
+                <h2>(BET) Bilal Ehtasham Traders</h2>
+                <p><i>We deal in all kinds of Cotton and Polyester Yarn</i></p>
+                <p>Cell: (+92)-324-2479096</p>
+                <p>Email: bilalehtashamtraders@gmail.com</p>
+            </div>
+        </div>
+        
+        <div class="payment-method">
+            <label for="paymentMethod">Payment Method:</label>
+            <select id="paymentMethod">
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="Cash">Cash</option>
+                <option value="Cheque">Cheque</option>
+            </select>
+        </div>
+
+        <button onclick="addRow()">Add New Row</button>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Quantity</th>
+                    <th>Description</th>
+                    <th>Packing (kg)</th>
+                    <th>Weight (kg)</th>
+                    <th>Weight (lbs)</th>
+                    <th>Price</th>
+                    <th>Amount</th>
+                </tr>
+            </thead>
+            <tbody id="invoice-body">
+                <tr>
+                    <td><input type="text" class="quantity" value="0"></td>
+                    <td><input type="text" class="description"></td>
+                    <td><input type="text" class="packing" value="0"></td>
+                    <td><input type="text" class="weightKg" value="0.00" readonly></td>
+                    <td><input type="text" class="weightLbs" value="0.00" readonly></td>
+                    <td><input type="text" class="price" value="0"></td>
+                    <td><input type="text" class="amount total-amount-input" value="0.00" readonly></td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <table class="totals">
+            <tr>
+                <td class="label" style="width: 80%;">Gross Total:</td>
+                <td><input type="text" id="grossTotal" class="total-amount-input" style="font-weight:bold;" readonly></td>
+            </tr>
+            <tr>
+                <td class="label">Commission (%):</td> 
+                <td><input type="text" id="commissionPercentage" class="total-amount-input" value="0"></td>
+            </tr>
+             <tr>
+                <td class="label">Commission Amount:</td>
+                <td><input type="text" id="commissionAmount" class="total-amount-input" value="0.00" readonly></td>
+            </tr>
+            <tr>
+                <td class="label"><b>Net Total:</b></td>
+                <td><input type="text" id="netTotal" class="total-amount-input" style="font-weight:bold;" readonly></td>
+            </tr>
+        </table>
+
+        <div class="signature">
+            <div class="signature-left">
+                Payment Terms: <input type="text" placeholder="Enter Payment Terms">
+            </div>
+            <div class="signature-right">
+                (EHTASHAM BILAL)
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script>
+        let isEditing = false;
+        let originalDocNumber = null;
+        const LBS_IN_KG = 2.20462;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // NOTE: Uncomment loadData() and adjust lastPurchaseInvoiceNumber logic when integrating with data.js
+            // loadData(); 
+            
+            const docToEdit = JSON.parse(localStorage.getItem('docToEdit'));
+            if (docToEdit) {
+                populateForm(docToEdit);
+                isEditing = true;
+                originalDocNumber = docToEdit.number;
+                localStorage.removeItem('docToEdit');
+                document.getElementById('deleteButton').style.display = 'inline-block';
+            } else {
+                // Initial Invoice Number and Date generation (adjusted for Purchase Invoice)
+                if (typeof lastPurchaseInvoiceNumber !== 'undefined') {
+                    // Increment first, then use it for the new invoice. Format to 5 digits (e.g., 00134)
+                    const newNumber = (++lastPurchaseInvoiceNumber).toString().padStart(5, '0');
+                    document.getElementById('invoiceNumber').value = newNumber;
+                    // Reset the counter back so saveInvoice can handle the final increment/save
+                    lastPurchaseInvoiceNumber--; 
+                }
+                document.getElementById('invoiceDate').value = new Date().toLocaleDateString('en-GB');
+                document.getElementById('deleteButton').style.display = 'none';
+
+                // Initial calculation setup
+                calculateTotals(); 
+            }
+            
+            // CRITICAL FIX: Attach listeners to all currently visible rows (initial row or populated rows)
+            document.querySelectorAll('#invoice-body tr').forEach(row => attachEventListeners(row));
+            
+            // Attach event listener to the new Commission % field
+            document.getElementById('commissionPercentage').addEventListener('input', formatCommissionAndRecalculate);
+            
+            // Initial calculation call to set the totals when the page loads
+            calculateTotals(); 
+        });
+
+        function populateForm(doc) {
+            document.getElementById('invoiceNumber').value = doc.number;
+            document.getElementById('invoiceDate').value = doc.date;
+            document.getElementById('partyName').value = doc.party; // Now Vendor Name
+            document.getElementById('paymentMethod').value = doc.paymentMethod;
+            
+            const tbody = document.getElementById('invoice-body');
+            tbody.innerHTML = '';
+            
+            doc.lineItems.forEach(item => {
+                const newRow = document.createElement('tr');
+                newRow.innerHTML = `
+                    <td><input type="text" class="quantity" value="${item.quantity.toLocaleString('en-US', {maximumFractionDigits: 0})}"></td>
+                    <td><input type="text" class="description" value="${item.description}"></td>
+                    <td><input type="text" class="packing" value="${item.packing.toLocaleString('en-US', {maximumFractionDigits: 0})}"></td>
+                    <td><input type="text" class="weightKg" value="${item.weightKg.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}" readonly></td>
+                    <td><input type="text" class="weightLbs" value="${item.weightLbs.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}" readonly></td>
+                    <td><input type="text" class="price" value="${item.price.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 2})}"></td>
+                    <td><input type="text" class="amount total-amount-input" value="${item.amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}" readonly></td>
+                `;
+                tbody.appendChild(newRow);
+                attachEventListeners(newRow); 
+            });
+            
+            // Use commissionPercentage and set initial value from doc data, format correctly
+            document.getElementById('commissionPercentage').value = (doc.commissionPercentage || 0).toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 2});
+            calculateTotals();
+        }
+
+        const invoiceBody = document.getElementById('invoice-body');
+        
+        function addRow() {
+            const newRow = document.createElement('tr');
+            newRow.innerHTML = `
+                <td><input type="text" class="quantity" value="0"></td>
+                <td><input type="text" class="description"></td>
+                <td><input type="text" class="packing" value="0"></td>
+                <td><input type="text" class="weightKg" value="0.00" readonly></td>
+                <td><input type="text" class="weightLbs" value="0.00" readonly></td>
+                <td><input type="text" class="price" value="0"></td>
+                <td><input type="text" class="amount total-amount-input" value="0.00" readonly></td>
+            `;
+            invoiceBody.appendChild(newRow);
+            attachEventListeners(newRow); 
+            calculateTotals();
+        }
+
+        function attachEventListeners(row) {
+            const quantityInput = row.querySelector('.quantity');
+            const packingInput = row.querySelector('.packing');
+            const priceInput = row.querySelector('.price');
+
+            const inputsToListen = [quantityInput, packingInput, priceInput];
+            inputsToListen.forEach(input => {
+                input.addEventListener('input', formatRowInputAndRecalculate);
+            });
+        }
+
+        function formatRowInputAndRecalculate(event) {
+            const input = event.target;
+            
+            // 1. Clean the value for parsing
+            let value = input.value.replace(/,/g, ''); 
+            value = value.replace(/[^0-9.]/g, ''); 
+            
+            let parsedValue = parseFloat(value);
+
+            if (isNaN(parsedValue)) {
+                input.value = '';
+                calculateRowAndTotals(input.closest('tr'));
+                return;
+            }
+
+            // 2. Apply formatting
+            if (input.classList.contains('price')) {
+                // Price can have up to 2 decimal places
+                if (value.endsWith('.') && value.indexOf('.') === value.length - 1) {
+                    input.value = value;
+                } else {
+                    input.value = parsedValue.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 2});
+                }
+            } else {
+                // Quantity/Packing are integers
+                input.value = parsedValue.toLocaleString('en-US', {maximumFractionDigits: 0});
+            }
+            
+            // 3. Trigger Calculation
+            calculateRowAndTotals(input.closest('tr'));
+        }
+
+        /**
+         * CORRECTED LOGIC for Commission Percentage input.
+         * Allows user to enter decimal points without immediate formatting if the input ends with '.'.
+         */
+        function formatCommissionAndRecalculate(event) {
+            const input = event.target;
+            // Get the current raw value
+            let value = input.value.replace(/,/g, ''); 
+            value = value.replace(/[^0-9.]/g, ''); 
+            
+            // Check if the input ends with a dot or is just a dot
+            const endsWithDot = value.endsWith('.');
+            const hasMultipleDots = (value.match(/\./g) || []).length > 1;
+
+            if (hasMultipleDots) {
+                // Prevent multiple dots by removing extra ones
+                value = value.substring(0, value.lastIndexOf('.')) + value.substring(value.lastIndexOf('.') + 1).replace('.', '');
+            }
+
+            let parsedValue = parseFloat(value);
+            
+            if (isNaN(parsedValue)) {
+                input.value = endsWithDot && value.length === 1 ? '.' : '0';
+            } else {
+                if (endsWithDot) {
+                    // If the user is typing a decimal, keep the raw look (e.g., '0.45' or '1.')
+                    input.value = value;
+                } else {
+                    // If it's a complete number, format it for display (e.g., '0.45' becomes '0.45', '1' becomes '1.00')
+                    input.value = parsedValue.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 2});
+                }
+            }
+            
+            calculateTotals();
+        }
+        
+        function calculateRowAndTotals(row) {
+            // Get raw numerical values from inputs (remove commas before calculation)
+            const quantity = parseFloat(row.querySelector('.quantity').value.replace(/,/g, '')) || 0;
+            const packingKg = parseFloat(row.querySelector('.packing').value.replace(/,/g, '')) || 0;
+            const price = parseFloat(row.querySelector('.price').value.replace(/,/g, '')) || 0;
+            
+            // Calculation steps
+            const weightKg = quantity * packingKg;
+            const weightLbs = weightKg * LBS_IN_KG;
+            const amount = weightKg * price; // Weight kg * Price = Amount
+
+            // Display calculated values, formatted
+            row.querySelector('.weightKg').value = weightKg.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            row.querySelector('.weightLbs').value = weightLbs.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            row.querySelector('.amount').value = amount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            
+            calculateTotals();
+        }
+        
+        function calculateTotals() {
+            let grossTotal = 0;
+            // 1. Calculate Gross Total
+            document.querySelectorAll('.amount').forEach(amountInput => {
+                grossTotal += parseFloat(amountInput.value.replace(/,/g, '')) || 0;
+            });
+            
+            // 2. Get Commission Percentage (Must handle raw input like '0.45' or '0.')
+            const rawCommissionInput = document.getElementById('commissionPercentage').value.replace(/,/g, '');
+            let commissionPercent = parseFloat(rawCommissionInput) || 0;
+            
+            // 3. Calculate Commission Amount (Deduction)
+            const commissionAmount = grossTotal * (commissionPercent / 100);
+            
+            // 4. Calculate Net Total (Gross Total - Commission Amount)
+            const netTotal = grossTotal - commissionAmount;
+
+            // 5. Display Totals
+            document.getElementById('grossTotal').value = grossTotal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            document.getElementById('commissionAmount').value = commissionAmount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            document.getElementById('netTotal').value = netTotal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        }
+
+        function getLineItemsData() {
+            const lineItems = [];
+            document.querySelectorAll('#invoice-body tr').forEach(row => {
+                // Save raw numbers
+                lineItems.push({
+                    quantity: parseFloat(row.querySelector('.quantity').value.replace(/,/g, '')) || 0,
+                    description: row.querySelector('.description').value,
+                    packing: parseFloat(row.querySelector('.packing').value.replace(/,/g, '')) || 0,
+                    weightKg: parseFloat(row.querySelector('.weightKg').value.replace(/,/g, '')) || 0,
+                    weightLbs: parseFloat(row.querySelector('.weightLbs').value.replace(/,/g, '')) || 0,
+                    price: parseFloat(row.querySelector('.price').value.replace(/,/g, '')) || 0,
+                    amount: parseFloat(row.querySelector('.amount').value.replace(/,/g, '')) || 0
+                });
+            });
+            return lineItems;
+        }
+
+
+        function saveInvoice() {
+            const invoiceNumber = document.getElementById('invoiceNumber').value;
+            const invoiceDate = document.getElementById('invoiceDate').value;
+            const partyName = document.getElementById('partyName').value;
+            const paymentMethod = document.getElementById('paymentMethod').value;
+            
+            // Get raw numerical values for saving
+            const commissionPercentage = parseFloat(document.getElementById('commissionPercentage').value.replace(/,/g, '')) || 0;
+            const commissionAmount = parseFloat(document.getElementById('commissionAmount').value.replace(/,/g, '')) || 0;
+            const grossTotal = parseFloat(document.getElementById('grossTotal').value.replace(/,/g, '')) || 0;
+            const netTotal = parseFloat(document.getElementById('netTotal').value.replace(/,/g, '')) || 0;
+            
+            const lineItems = getLineItemsData();
+
+            if (!invoiceNumber || !invoiceDate || !partyName || lineItems.every(item => item.amount === 0)) {
+                alert("Please fill in Invoice Number, Date, Vendor Name, and at least one line item with a non-zero amount.");
+                return;
+            }
+
+            const newInvoice = {
+                number: invoiceNumber,
+                date: invoiceDate,
+                party: partyName, // Saved as 'party' for consistency with data structure
+                paymentMethod: paymentMethod,
+                grossTotal: grossTotal,
+                commissionPercentage: commissionPercentage, 
+                commissionAmount: commissionAmount,         
+                netTotal: netTotal,
+                type: 'Purchase Invoice',
+                lineItems: lineItems
+            };
+
+            if (isEditing) {
+                // Find and replace the existing document
+                const docIndex = documents.findIndex(doc => doc.number === originalDocNumber && doc.type === 'Purchase Invoice');
+                if (docIndex > -1) {
+                    documents[docIndex] = newInvoice;
+                    // updateLedgerEntry(originalDocNumber, newInvoice); 
+                    alert(`Purchase Invoice ${invoiceNumber} updated successfully!`);
+                }
+            } else {
+                // Increment and push the new document
+                lastPurchaseInvoiceNumber++; 
+                documents.push(newInvoice);
+                
+                // Ledger logic (placeholders)
+                alert('New Purchase Invoice saved!');
+            }
+            // saveData(); 
+             window.location.href = 'documents.html'; // Redirect
+        }
+
+        // Placeholder functions for completeness
+        function deleteInvoice() {
+             const invoiceNumber = document.getElementById('invoiceNumber').value;
+             if (confirm(`Are you sure you want to delete Purchase Invoice ${invoiceNumber}?`)) {
+                // Logic to find and delete from the 'documents' array and ledger
+                // ...
+                alert(`Purchase Invoice ${invoiceNumber} deleted successfully.`);
+                // window.location.href = 'documents.html'; 
+             }
+        }
+        
+        function generatePDF() {
+            alert('PDF Generation not implemented in this snippet.');
+        }
+
+    </script>
+</body>
+</html>
