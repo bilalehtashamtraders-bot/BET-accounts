@@ -123,18 +123,21 @@
         let isEditing = false;
         let originalDocNumber = null;
         const LBS_IN_KG = 2.20462;
-        const DEFAULT_STARTING_NUMBER = 132; 
+        const DEFAULT_STARTING_NUMBER = 142; // Changed to 142 as requested
         
-        // --- Numbering Functions (Defensive GitHub Fix) ---
+        // --- Numbering Functions (Fixed for GitHub) ---
         function getNextInvoiceNumber() {
-            // Check if data.js defined the counter, otherwise use the default
-            let lastNumber = window.lastPurchaseInvoiceNumber || DEFAULT_STARTING_NUMBER;
+            // Try to get from localStorage first, then from data.js, then use default
+            let lastNumber = parseInt(localStorage.getItem('lastPurchaseInvoiceNumber')) || 
+                            window.lastPurchaseInvoiceNumber || 
+                            DEFAULT_STARTING_NUMBER;
             const nextNumber = lastNumber + 1;
             return String(nextNumber).padStart(5, '0');
         }
 
         function setLastInvoiceNumber(number) {
             window.lastPurchaseInvoiceNumber = number;
+            localStorage.setItem('lastPurchaseInvoiceNumber', number);
         }
 
         // --- Core Calculation Logic (Purchase Invoice) ---
@@ -182,6 +185,8 @@
                 row.querySelector('.price')
             ];
             inputsToListen.forEach(input => {
+                // Remove any existing listeners to prevent duplicates
+                input.removeEventListener('input', formatRowInputAndRecalculate);
                 input.addEventListener('input', formatRowInputAndRecalculate);
             });
         }
@@ -191,7 +196,11 @@
             const input = event.target;
             let value = input.value.replace(/,/g, '').replace(/[^0-9.]/g, '');
             let parsedValue = parseFloat(value);
-            if (isNaN(parsedValue)) { input.value = ''; calculateRowAndTotals(input.closest('tr')); return; }
+            if (isNaN(parsedValue)) { 
+                input.value = ''; 
+                calculateRowAndTotals(input.closest('tr')); 
+                return; 
+            }
 
             if (input.classList.contains('price')) {
                 input.value = value.endsWith('.') && value.indexOf('.') === value.length - 1 ? value : parsedValue.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 2});
@@ -310,7 +319,10 @@
 
             if (isEditing) {
                 const docIndex = documents.findIndex(doc => doc.number === originalDocNumber && doc.type === 'Purchase Invoice');
-                if (docIndex > -1) { documents[docIndex] = newInvoice; alert(`Purchase Invoice ${invoiceNumber} updated successfully!`); }
+                if (docIndex > -1) { 
+                    documents[docIndex] = newInvoice; 
+                    alert(`Purchase Invoice ${invoiceNumber} updated successfully!`); 
+                }
             } else {
                 const currentNumberInt = parseInt(invoiceNumber, 10);
                 setLastInvoiceNumber(currentNumberInt); 
@@ -339,14 +351,19 @@
             alert('PDF Generation not implemented in this snippet.');
         }
 
-        // --- INITIALIZATION (Ensures load order) ---
+        // --- INITIALIZATION (Fixed for GitHub deployment) ---
         document.addEventListener('DOMContentLoaded', () => {
-            // 1. Try to load saved data and counters
-            if (typeof loadData === 'function') {
-                loadData(); 
+            // 1. Ensure calculations work even if data.js fails to load
+            try {
+                if (typeof loadData === 'function') {
+                    loadData(); 
+                }
+            } catch (error) {
+                console.log('Data loading failed, using fallback');
+                documents = window.documents || [];
             }
             
-            const docToEdit = JSON.parse(localStorage.getItem('docToEdit'));
+            const docToEdit = JSON.parse(localStorage.getItem('docToEdit') || 'null');
 
             if (docToEdit) {
                 populateForm(docToEdit);
@@ -355,18 +372,26 @@
                 localStorage.removeItem('docToEdit');
                 document.getElementById('deleteButton').style.display = 'inline-block';
             } else {
-                // 2. Set new invoice number (uses counter loaded by loadData())
+                // 2. Set new invoice number (uses counter with fallback)
                 document.getElementById('invoiceNumber').value = getNextInvoiceNumber();
                 document.getElementById('invoiceNumber').removeAttribute('placeholder');
                 document.getElementById('invoiceDate').value = new Date().toLocaleDateString('en-GB');
                 document.getElementById('deleteButton').style.display = 'none';
             }
 
-            // 3. Attach all event listeners
-            document.querySelectorAll('#invoice-body tr').forEach(row => attachEventListeners(row));
-            document.getElementById('commissionPercent').addEventListener('input', formatCommissionAndRecalculate);
+            // 3. Attach all event listeners (with error handling)
+            try {
+                document.querySelectorAll('#invoice-body tr').forEach(row => attachEventListeners(row));
+                document.getElementById('commissionPercent').addEventListener('input', formatCommissionAndRecalculate);
+            } catch (error) {
+                console.log('Error attaching event listeners:', error);
+            }
 
-            calculateTotals();
+            // 4. Initialize calculations
+            setTimeout(() => {
+                document.querySelectorAll('#invoice-body tr').forEach(row => calculateRowAndTotals(row));
+                calculateTotals();
+            }, 100);
         });
     </script>
 </body>
