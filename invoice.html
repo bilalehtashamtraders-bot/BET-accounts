@@ -26,8 +26,6 @@
     </style>
 </head>
 <body>
-    <script src="data.js"></script>
-    
     <div class="action-buttons" style="max-width: 800px; margin: 0 auto 20px;">
         <button onclick="saveInvoice()">Save/Update Invoice</button>
         <button onclick="deleteInvoice()" id="deleteButton" class="delete-button" style="display: none;">Delete Invoice</button>
@@ -112,18 +110,27 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <script>
-        // --- GLOBAL VARIABLES & CONSTANTS ---
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
+            authDomain: "bet-acc-software.firebaseapp.com",
+            projectId: "bet-acc-software",
+            storageBucket: "bet-acc-software.firebasestorage.app",
+            messagingSenderId: "879522152449",
+            appId: "1:879522152449:web:73b8ef899d5c1cbfd90000"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
         let isEditing = false;
         let originalDocNumber = null;
         const LBS_IN_KG = 2.20462;
-        const DEFAULT_STARTING_NUMBER = 134; // Will generate 00135 as next
+        const DEFAULT_STARTING_NUMBER = 134;
 
-        // --- FIX: Ensure we always use the same global arrays from data.js ---
-        if (typeof invoices === 'undefined') window.invoices = [];
-        if (typeof documents === 'undefined') window.documents = [];
-
-        // --- Currency Formatting Function ---
         function formatCurrency(value) {
             const num = parseFloat(value) || 0;
             return num.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '/=';
@@ -133,18 +140,23 @@
             return parseFloat(String(value).replace(/,/g, '').replace('/=', '')) || 0;
         }
 
-        // --- Numbering Functions ---
-        function getNextInvoiceNumber() {
-            let lastNumber = window.lastInvoiceNumber || DEFAULT_STARTING_NUMBER;
-            const nextNumber = lastNumber + 1;
-            return String(nextNumber).padStart(5, '0');
+        async function getNextInvoiceNumber() {
+            try {
+                const q = query(collection(db, "salesInvoices"), orderBy("number", "desc"), limit(1));
+                const snapshot = await getDocs(q);
+                
+                if (!snapshot.empty) {
+                    const lastDoc = snapshot.docs[0].data();
+                    const lastNumber = parseInt(lastDoc.number, 10);
+                    return String(lastNumber + 1).padStart(5, '0');
+                }
+                return String(DEFAULT_STARTING_NUMBER + 1).padStart(5, '0');
+            } catch (error) {
+                console.error("Error getting next invoice number:", error);
+                return String(DEFAULT_STARTING_NUMBER + 1).padStart(5, '0');
+            }
         }
 
-        function setLastInvoiceNumber(number) {
-            window.lastInvoiceNumber = number;
-        }
-
-        // --- Core Calculation Logic ---
         function calculateRowAndTotals(row) {
             const quantity = parseCurrency(row.querySelector('.quantity').value);
             const packingKg = parseCurrency(row.querySelector('.packing').value);
@@ -174,7 +186,6 @@
             document.getElementById('netTotal').value = formatCurrency(netTotal);
         }
 
-        // --- Event Listener Setup ---
         function attachEventListeners(row) {
             const inputs = ['quantity', 'packing', 'price'];
             inputs.forEach(className => {
@@ -221,7 +232,7 @@
             calculateTotals();
         }
 
-        function addRow() {
+        window.addRow = function() {
             const newRow = document.createElement('tr');
             newRow.innerHTML = `
                 <td><input type="text" class="quantity" value="0"></td>
@@ -235,13 +246,12 @@
             document.getElementById('invoice-body').appendChild(newRow);
             attachEventListeners(newRow);
             calculateTotals();
-        }
+        };
         
-        // --- Data Handlers ---
         function populateForm(doc) {
             document.getElementById('invoiceNumber').value = doc.number;
             document.getElementById('invoiceDate').value = doc.date;
-            document.getElementById('partyName').value = doc.party;
+            document.getElementById('partyName').value = doc.customerName;
             document.getElementById('paymentMethod').value = doc.paymentMethod;
             document.getElementById('paymentTerms').value = doc.paymentTerms || '';
 
@@ -283,10 +293,10 @@
             return lineItems;
         }
 
-        function saveInvoice() {
+        window.saveInvoice = async function() {
             const invoiceNumber = document.getElementById('invoiceNumber').value;
             const invoiceDate = document.getElementById('invoiceDate').value;
-            const partyName = document.getElementById('partyName').value;
+            const customerName = document.getElementById('partyName').value;
             const paymentMethod = document.getElementById('paymentMethod').value;
             const paymentTerms = document.getElementById('paymentTerms').value;
             
@@ -295,65 +305,118 @@
             const netTotal = parseCurrency(document.getElementById('netTotal').value);
             const lineItems = getLineItemsData();
 
-            if (!invoiceNumber || !invoiceDate || !partyName) {
+            if (!invoiceNumber || !invoiceDate || !customerName) {
                 alert("Please fill in Invoice Number, Date, and Party Name.");
                 return;
             }
 
-            const newInvoice = {
-                type: 'Invoice',
-                number: invoiceNumber,
-                date: invoiceDate,
-                party: partyName,
-                paymentMethod: paymentMethod,
-                paymentTerms: paymentTerms,
-                lineItems: lineItems,
-                cartage: cartage,
-                grossTotal: grossTotal,
-                netTotal: netTotal
-            };
+            try {
+                const invoiceData = {
+                    type: 'Sales Invoice',
+                    number: invoiceNumber,
+                    date: invoiceDate,
+                    customerName: customerName,
+                    paymentMethod: paymentMethod,
+                    paymentTerms: paymentTerms,
+                    lineItems: lineItems,
+                    cartage: cartage,
+                    grossTotal: grossTotal,
+                    grandTotal: netTotal
+                };
 
-            if (isEditing) {
-                const docIndex = window.invoices.findIndex(doc => doc.number === originalDocNumber);
-                if (docIndex > -1) { 
-                    window.invoices[docIndex] = newInvoice; 
-                    alert(`Invoice ${invoiceNumber} updated successfully!`); 
+                await setDoc(doc(db, "salesInvoices", invoiceNumber), invoiceData);
+
+                if (isEditing && originalDocNumber !== invoiceNumber) {
+                    await deleteDoc(doc(db, "salesInvoices", originalDocNumber));
+                    const ledgerQuery = query(collection(db, "ledger"));
+                    const ledgerSnapshot = await getDocs(ledgerQuery);
+                    for (const docSnap of ledgerSnapshot.docs) {
+                        const ledgerEntry = docSnap.data();
+                        if (ledgerEntry.doc_number === originalDocNumber) {
+                            await deleteDoc(doc(db, "ledger", docSnap.id));
+                        }
+                    }
                 }
-            } else {
-                const currentNumberInt = parseInt(invoiceNumber, 10);
-                setLastInvoiceNumber(currentNumberInt); 
-                window.invoices.push(newInvoice);
-                
-                // Also add to documents array for search functionality
-                window.documents.push(newInvoice);
-                
-                alert(`New Invoice ${invoiceNumber} saved successfully!`);
+
+                const existingLedgerQuery = query(collection(db, "ledger"));
+                const ledgerSnapshot = await getDocs(existingLedgerQuery);
+                for (const docSnap of ledgerSnapshot.docs) {
+                    const entry = docSnap.data();
+                    if (entry.doc_number === invoiceNumber) {
+                        await deleteDoc(doc(db, "ledger", docSnap.id));
+                    }
+                }
+
+                const ledgerEntries = [
+                    {
+                        date: invoiceDate,
+                        doc_number: invoiceNumber,
+                        account: customerName,
+                        debit: netTotal,
+                        credit: 0,
+                        description: `Sales Invoice #${invoiceNumber}`
+                    },
+                    {
+                        date: invoiceDate,
+                        doc_number: invoiceNumber,
+                        account: "Sales Revenue",
+                        debit: 0,
+                        credit: grossTotal,
+                        description: `Sales Invoice #${invoiceNumber}`
+                    }
+                ];
+
+                if (cartage > 0) {
+                    ledgerEntries.push({
+                        date: invoiceDate,
+                        doc_number: invoiceNumber,
+                        account: "Cartage Income",
+                        debit: 0,
+                        credit: cartage,
+                        description: `Sales Invoice #${invoiceNumber} - Cartage`
+                    });
+                }
+
+                for (const entry of ledgerEntries) {
+                    const ledgerDocRef = doc(collection(db, "ledger"));
+                    await setDoc(ledgerDocRef, entry);
+                }
+
+                alert(isEditing ? `Invoice ${invoiceNumber} updated successfully!` : `New Invoice ${invoiceNumber} saved successfully!`);
+                window.location.href = 'documents.html';
+            } catch (error) {
+                console.error("Error saving invoice:", error);
+                alert("Error saving invoice. Please check console for details.");
+            }
+        };
+
+        window.deleteInvoice = async function() {
+            const invoiceNumber = document.getElementById('invoiceNumber').value;
+            if (!confirm(`Are you sure you want to delete Invoice ${invoiceNumber}? This action cannot be undone.`)) {
+                return;
             }
 
-            if (typeof saveData === 'function') saveData(); 
-            window.location.href = 'documents.html';
-        }
+            try {
+                await deleteDoc(doc(db, "salesInvoices", invoiceNumber));
 
-        function deleteInvoice() {
-            const invoiceNumber = document.getElementById('invoiceNumber').value;
-            if (confirm(`Are you sure you want to delete Invoice ${invoiceNumber}? This action cannot be undone.`)) {
-                const invoiceIndex = window.invoices.findIndex(doc => doc.number === invoiceNumber);
-                const docIndex = window.documents.findIndex(doc => doc.number === invoiceNumber && doc.type === 'Invoice');
-                
-                if (invoiceIndex > -1) {
-                    window.invoices.splice(invoiceIndex, 1);
+                const ledgerQuery = query(collection(db, "ledger"));
+                const ledgerSnapshot = await getDocs(ledgerQuery);
+                for (const docSnap of ledgerSnapshot.docs) {
+                    const ledgerEntry = docSnap.data();
+                    if (ledgerEntry.doc_number === invoiceNumber) {
+                        await deleteDoc(doc(db, "ledger", docSnap.id));
+                    }
                 }
-                if (docIndex > -1) {
-                    window.documents.splice(docIndex, 1);
-                }
-                
-                if (typeof saveData === 'function') saveData();
+
                 alert(`Invoice ${invoiceNumber} deleted successfully.`);
                 window.location.href = 'documents.html';
+            } catch (error) {
+                console.error("Error deleting invoice:", error);
+                alert("Error deleting invoice. Please try again.");
             }
-        }
+        };
 
-        function generatePDF() {
+        window.generatePDF = function() {
             const element = document.getElementById('invoice-content');
             const opt = {
                 margin: 0.5,
@@ -363,24 +426,33 @@
                 jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
             };
             html2pdf().set(opt).from(element).save();
-        }
+        };
 
-        // --- INITIALIZATION ---
-        document.addEventListener('DOMContentLoaded', function() {
-            if (typeof loadData === 'function') {
-                loadData();
-            }
-            
-            const docToEdit = JSON.parse(localStorage.getItem('docToEdit') || 'null');
+        document.addEventListener('DOMContentLoaded', async function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const editNumber = urlParams.get('edit');
 
-            if (docToEdit && docToEdit.type === 'Invoice') {
-                populateForm(docToEdit);
-                isEditing = true;
-                originalDocNumber = docToEdit.number;
-                localStorage.removeItem('docToEdit');
-                document.getElementById('deleteButton').style.display = 'inline-block';
+            if (editNumber) {
+                try {
+                    const docRef = doc(db, "salesInvoices", editNumber);
+                    const docSnap = await getDoc(docRef);
+                    
+                    if (docSnap.exists()) {
+                        populateForm(docSnap.data());
+                        isEditing = true;
+                        originalDocNumber = editNumber;
+                        document.getElementById('deleteButton').style.display = 'inline-block';
+                    } else {
+                        alert("Invoice not found.");
+                        window.location.href = 'documents.html';
+                    }
+                } catch (error) {
+                    console.error("Error loading invoice:", error);
+                    alert("Error loading invoice.");
+                }
             } else {
-                document.getElementById('invoiceNumber').value = getNextInvoiceNumber();
+                const nextNumber = await getNextInvoiceNumber();
+                document.getElementById('invoiceNumber').value = nextNumber;
                 document.getElementById('invoiceDate').value = new Date().toLocaleDateString('en-GB');
                 document.getElementById('deleteButton').style.display = 'none';
             }
