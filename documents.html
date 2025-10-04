@@ -187,7 +187,7 @@
             padding: 15px;
             border-radius: 8px;
             text-align: center;
-            min-width: 150px;
+            min-width: 140px;
             margin: 5px;
         }
         .stat-box h3 {
@@ -196,7 +196,7 @@
         }
         .stat-box p {
             margin: 5px 0 0 0;
-            font-size: 12px;
+            font-size: 11px;
         }
     </style>
 </head>
@@ -231,8 +231,12 @@
                 <p>Total Documents</p>
             </div>
             <div class="stat-box">
-                <h3 id="totalInvoices">0</h3>
+                <h3 id="totalPurchaseInvoices">0</h3>
                 <p>Purchase Invoices</p>
+            </div>
+            <div class="stat-box">
+                <h3 id="totalSalesInvoices">0</h3>
+                <p>Sales Invoices</p>
             </div>
             <div class="stat-box">
                 <h3 id="totalJournals">0</h3>
@@ -246,6 +250,7 @@
 
         <div class="nav-buttons">
             <button onclick="window.location.href='purchase-invoice.html'">New Purchase Invoice</button>
+            <button onclick="window.location.href='invoice.html'">New Sales Invoice</button>
             <button onclick="window.location.href='journal-entry.html'">New Journal Entry</button>
             <button onclick="window.location.href='receipt.html'">New Customer Receipt</button>
             <button onclick="window.location.href='vendor-payment-receipt.html'">New Vendor Payment</button>
@@ -259,6 +264,7 @@
             <select id="typeFilter" onchange="filterDocuments()">
                 <option value="">All Types</option>
                 <option value="Purchase Invoice">Purchase Invoice</option>
+                <option value="Sales Invoice">Sales Invoice</option>
                 <option value="Journal Entry">Journal Entry</option>
                 <option value="Customer Payment">Customer Payment</option>
                 <option value="Vendor Payment">Vendor Payment</option>
@@ -300,13 +306,15 @@
 
         async function loadAllDocuments() {
             try {
-                document.getElementById('debugConnection').innerHTML = '✅ Connected';
+                console.log('Firebase app initialized:', app.name);
+                document.getElementById('debugConnection').innerHTML = '✅ Connected (Loading data...)';
                 document.getElementById('debugConnection').style.color = 'green';
                 
                 allDocuments = [];
 
                 const collections = [
                     { name: 'purchaseInvoices', type: 'Purchase Invoice' },
+                    { name: 'salesInvoices', type: 'Sales Invoice' },
                     { name: 'journalEntries', type: 'Journal Entry' },
                     { name: 'customerReceipts', type: 'Customer Payment' },
                     { name: 'vendorPayments', type: 'Vendor Payment' }
@@ -315,33 +323,57 @@
                 const debugCollectionsList = document.getElementById('debugCollections');
                 debugCollectionsList.innerHTML = '';
 
+                let totalFound = 0;
+
                 for (const col of collections) {
-                    console.log(`Loading collection: ${col.name}`);
-                    const snapshot = await getDocs(collection(db, col.name));
-                    const count = snapshot.size;
-                    
-                    debugInfo.collections[col.name] = count;
-                    
-                    const li = document.createElement('li');
-                    li.innerHTML = `<strong>${col.name}:</strong> ${count} documents`;
-                    debugCollectionsList.appendChild(li);
-                    
-                    snapshot.forEach(docSnap => {
-                        const data = docSnap.data();
-                        console.log(`Document from ${col.name}:`, data);
+                    try {
+                        console.log(`Loading collection: ${col.name}`);
+                        const snapshot = await getDocs(collection(db, col.name));
+                        const count = snapshot.size;
+                        totalFound += count;
                         
-                        debugInfo.rawData.push({
-                            collection: col.name,
-                            id: docSnap.id,
-                            data: data
-                        });
+                        debugInfo.collections[col.name] = count;
                         
-                        allDocuments.push({
-                            ...data,
-                            type: data.type || col.type,
-                            collection: col.name
+                        const li = document.createElement('li');
+                        li.innerHTML = `<strong>${col.name}:</strong> ${count} documents`;
+                        if (count === 0) {
+                            li.style.color = 'orange';
+                        } else {
+                            li.style.color = 'green';
+                        }
+                        debugCollectionsList.appendChild(li);
+                        
+                        snapshot.forEach(docSnap => {
+                            const data = docSnap.data();
+                            console.log(`Document from ${col.name}:`, data);
+                            
+                            debugInfo.rawData.push({
+                                collection: col.name,
+                                id: docSnap.id,
+                                data: data
+                            });
+                            
+                            allDocuments.push({
+                                ...data,
+                                type: data.type || col.type,
+                                collection: col.name,
+                                docId: docSnap.id
+                            });
                         });
-                    });
+                    } catch (colError) {
+                        console.error(`Error loading ${col.name}:`, colError);
+                        const li = document.createElement('li');
+                        li.innerHTML = `<strong>${col.name}:</strong> Error - ${colError.message}`;
+                        li.style.color = 'red';
+                        debugCollectionsList.appendChild(li);
+                    }
+                }
+
+                if (totalFound === 0) {
+                    document.getElementById('debugConnection').innerHTML = '✅ Connected but NO DATA FOUND';
+                    document.getElementById('debugConnection').style.color = 'orange';
+                } else {
+                    document.getElementById('debugConnection').innerHTML = `✅ Connected (${totalFound} documents loaded)`;
                 }
 
                 document.getElementById('debugData').textContent = JSON.stringify(debugInfo.rawData, null, 2);
@@ -378,7 +410,8 @@
 
         function updateStats() {
             document.getElementById('totalDocs').textContent = allDocuments.length;
-            document.getElementById('totalInvoices').textContent = allDocuments.filter(d => d.type === 'Purchase Invoice').length;
+            document.getElementById('totalPurchaseInvoices').textContent = allDocuments.filter(d => d.type === 'Purchase Invoice').length;
+            document.getElementById('totalSalesInvoices').textContent = allDocuments.filter(d => d.type === 'Sales Invoice').length;
             document.getElementById('totalJournals').textContent = allDocuments.filter(d => d.type === 'Journal Entry').length;
             const receiptsAndPayments = allDocuments.filter(d => d.type === 'Customer Payment' || d.type === 'Vendor Payment').length;
             document.getElementById('totalReceipts').textContent = receiptsAndPayments;
@@ -388,13 +421,19 @@
             const container = document.getElementById('documentsList');
             
             if (docs.length === 0) {
-                container.innerHTML = '<div class="no-documents">⚠️ No documents found in Firebase. Try creating a new entry!</div>';
+                container.innerHTML = `
+                    <div class="no-documents">
+                        <h3>⚠️ No Documents Found</h3>
+                        <p>Firebase is connected but no documents exist yet.</p>
+                        <p>Create a new document using the buttons above.</p>
+                    </div>
+                `;
                 return;
             }
 
             container.innerHTML = docs.map(doc => {
-                const partyName = doc.party || doc.businessLedger || doc.receivedFrom || doc.paidTo || 'N/A';
-                const amount = doc.netTotal || doc.amountReceived || doc.amountPaid || doc.totalDebit || 0;
+                const partyName = doc.party || doc.customerName || doc.businessLedger || doc.receivedFrom || doc.paidTo || 'N/A';
+                const amount = doc.netTotal || doc.grandTotal || doc.amountReceived || doc.amountPaid || doc.totalDebit || 0;
                 
                 return `
                     <div class="document-card">
@@ -405,8 +444,8 @@
                             <p><strong>Amount:</strong> PKR ${amount.toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
                         </div>
                         <div class="document-actions">
-                            <button class="view-btn" onclick="window.viewDocument('${doc.number}', '${doc.collection}')">View</button>
-                            <button class="edit-btn" onclick="window.editDocument('${doc.type}', '${doc.number}', '${doc.collection}')">Edit</button>
+                            <button class="view-btn" onclick="window.viewDocument('${doc.number}', '${doc.collection}', '${doc.type}')">View</button>
+                            <button class="edit-btn" onclick="window.editDocument('${doc.number}', '${doc.collection}', '${doc.type}')">Edit</button>
                             <button class="delete-btn" onclick="window.deleteDocument('${doc.number}', '${doc.collection}')">Delete</button>
                         </div>
                     </div>
@@ -424,6 +463,7 @@
                 filtered = filtered.filter(doc => 
                     doc.number.toLowerCase().includes(searchTerm) ||
                     (doc.party && doc.party.toLowerCase().includes(searchTerm)) ||
+                    (doc.customerName && doc.customerName.toLowerCase().includes(searchTerm)) ||
                     (doc.businessLedger && doc.businessLedger.toLowerCase().includes(searchTerm)) ||
                     (doc.receivedFrom && doc.receivedFrom.toLowerCase().includes(searchTerm)) ||
                     (doc.paidTo && doc.paidTo.toLowerCase().includes(searchTerm))
@@ -443,21 +483,19 @@
             displayDocuments(allDocuments);
         }
 
-        window.viewDocument = function(docNumber, collectionName) {
-            const doc = allDocuments.find(d => d.number === docNumber);
-            if (!doc) return;
-
+        window.viewDocument = function(docNumber, collectionName, docType) {
             let url = '';
-            if (doc.type === 'Purchase Invoice') url = `purchase-invoice.html?edit=${docNumber}`;
-            else if (doc.type === 'Journal Entry') url = `journal-entry.html?edit=${docNumber}`;
-            else if (doc.type === 'Customer Payment') url = `receipt.html?edit=${docNumber}`;
-            else if (doc.type === 'Vendor Payment') url = `vendor-payment-receipt.html?edit=${docNumber}`;
+            if (docType === 'Purchase Invoice') url = `purchase-invoice.html?edit=${docNumber}`;
+            else if (docType === 'Sales Invoice') url = `invoice.html?edit=${docNumber}`;
+            else if (docType === 'Journal Entry') url = `journal-entry.html?edit=${docNumber}`;
+            else if (docType === 'Customer Payment') url = `receipt.html?edit=${docNumber}`;
+            else if (docType === 'Vendor Payment') url = `vendor-payment-receipt.html?edit=${docNumber}`;
             
             if (url) window.location.href = url;
         };
 
-        window.editDocument = function(docType, docNumber, collectionName) {
-            window.viewDocument(docNumber, collectionName);
+        window.editDocument = function(docNumber, collectionName, docType) {
+            window.viewDocument(docNumber, collectionName, docType);
         };
 
         window.deleteDocument = async function(docNumber, collectionName) {
