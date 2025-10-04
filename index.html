@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Bilal Ehtasham Traders</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            color: #333;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #003366;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            position: relative;
+        }
+        .header h1 {
+            color: #003366;
+        }
+        .sync-status {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .sync-status.online {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .sync-status.offline {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .sync-status.syncing {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .sync-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: currentColor;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .stats-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #003366 0%, #005599 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-card h3 {
+            margin: 0;
+            font-size: 32px;
+        }
+        .stat-card p {
+            margin: 5px 0 0 0;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .section {
+            margin-bottom: 30px;
+        }
+        .section h2 {
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 5px;
+            color: #003366;
+        }
+        .links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        .link-button {
+            display: block;
+            padding: 15px 25px;
+            background-color: #003366;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            text-align: center;
+            flex: 1 1 200px;
+            transition: background-color 0.3s;
+        }
+        .link-button:hover {
+            background-color: #005599;
+        }
+        .firebase-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #ffca28 0%, #ff6f00 100%);
+            color: white;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-left: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #003366;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading" id="loading">Loading dashboard...</div>
+    
+    <div class="container" style="display: none;" id="mainContent">
+        <div class="header">
+            <h1>Dashboard - Bilal Ehtasham Traders <span class="firebase-badge">CLOUD</span></h1>
+            <div id="syncStatus" class="sync-status syncing">
+                <span class="sync-indicator"></span>
+                <span id="syncText">Connecting...</span>
+            </div>
+        </div>
+
+        <div class="stats-overview">
+            <div class="stat-card">
+                <h3 id="totalDocs">0</h3>
+                <p>Total Documents</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="totalInvoices">0</h3>
+                <p>Purchase Invoices</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="totalJournals">0</h3>
+                <p>Journal Entries</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="totalReceipts">0</h3>
+                <p>Receipts & Payments</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Sales & Revenue</h2>
+            <div class="links">
+                <a href="invoice.html" class="link-button">Create Sales Invoice</a>
+                <a href="receipt.html" class="link-button">Create Payment Receipt</a>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Purchases & Expenses</h2>
+            <div class="links">
+                <a href="purchase-invoice.html" class="link-button">Create Purchase Invoice</a>
+                <a href="vendor-payment-receipt.html" class="link-button">Create Vendor Payment</a>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>Documents & Reporting</h2>
+            <div class="links">
+                <a href="documents.html" class="link-button">View All Documents</a>
+                <a href="journal-entry.html" class="link-button">General Journal</a>
+                <a href="ledger.html" class="link-button">Party Ledger Report</a>
+                <a href="trial-balance.html" class="link-button">Trial Balance</a>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Backup & Restore</h2>
+            <div class="links">
+                <a href="#" class="link-button" style="background-color: #f39c12;" onclick="exportData()">Export Data (Download Backup)</a>
+                <a href="#" class="link-button" style="background-color: #2ecc71;" onclick="document.getElementById('file-upload').click()">Import Data (Upload Backup)</a>
+                <input type="file" id="file-upload" accept=".json" style="display: none;" onchange="handleImport(event)">
+            </div>
+            <p style="margin-top: 15px; padding: 10px; background-color: #e3f2fd; border-left: 4px solid #2196f3; border-radius: 4px; font-size: 14px;">
+                <strong>Cloud Sync Active:</strong> Your data is automatically backed up to Firebase. Export/Import for local backup or migration.
+            </p>
+        </div>
+    </div>
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, getDocs, setDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
+            authDomain: "bet-acc-software.firebaseapp.com",
+            projectId: "bet-acc-software",
+            storageBucket: "bet-acc-software.firebasestorage.app",
+            messagingSenderId: "879522152449",
+            appId: "1:879522152449:web:73b8ef899d5c1cbfd90000"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        function updateSyncStatus(status) {
+            const statusEl = document.getElementById('syncStatus');
+            const textEl = document.getElementById('syncText');
+            
+            statusEl.className = 'sync-status ' + status;
+            
+            switch(status) {
+                case 'online':
+                    textEl.textContent = 'Synced';
+                    break;
+                case 'offline':
+                    textEl.textContent = 'Offline';
+                    break;
+                case 'syncing':
+                    textEl.textContent = 'Syncing...';
+                    break;
+            }
+        }
+
+        async function loadDashboardStats() {
+            try {
+                let totalDocs = 0;
+                let totalInvoices = 0;
+                let totalJournals = 0;
+                let totalReceipts = 0;
+
+                const collections = [
+                    { name: 'purchaseInvoices', counter: 'totalInvoices' },
+                    { name: 'journalEntries', counter: 'totalJournals' },
+                    { name: 'customerReceipts', counter: 'totalReceipts' },
+                    { name: 'vendorPayments', counter: 'totalReceipts' }
+                ];
+
+                for (const col of collections) {
+                    const snapshot = await getDocs(collection(db, col.name));
+                    const count = snapshot.size;
+                    totalDocs += count;
+                    
+                    if (col.counter === 'totalInvoices') totalInvoices += count;
+                    else if (col.counter === 'totalJournals') totalJournals += count;
+                    else if (col.counter === 'totalReceipts') totalReceipts += count;
+                }
+
+                document.getElementById('totalDocs').textContent = totalDocs;
+                document.getElementById('totalInvoices').textContent = totalInvoices;
+                document.getElementById('totalJournals').textContent = totalJournals;
+                document.getElementById('totalReceipts').textContent = totalReceipts;
+
+                updateSyncStatus('online');
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('mainContent').style.display = 'block';
+            } catch (error) {
+                console.error("Error loading stats:", error);
+                updateSyncStatus('offline');
+                document.getElementById('loading').innerHTML = 'Error loading dashboard. Please refresh.';
+            }
+        }
+
+        window.exportData = async function() {
+            try {
+                updateSyncStatus('syncing');
+                
+                const allData = {
+                    exportDate: new Date().toISOString(),
+                    purchaseInvoices: [],
+                    journalEntries: [],
+                    customerReceipts: [],
+                    vendorPayments: [],
+                    ledger: []
+                };
+
+                const collections = ['purchaseInvoices', 'journalEntries', 'customerReceipts', 'vendorPayments', 'ledger'];
+                
+                for (const colName of collections) {
+                    const snapshot = await getDocs(collection(db, colName));
+                    snapshot.forEach(docSnap => {
+                        allData[colName].push(docSnap.data());
+                    });
+                }
+
+                const dataStr = JSON.stringify(allData, null, 2);
+                const blob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `BET-Backup-${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                updateSyncStatus('online');
+                alert('Backup exported successfully!');
+            } catch (error) {
+                updateSyncStatus('online');
+                alert('Error exporting data: ' + error.message);
+            }
+        };
+
+        window.handleImport = async function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (!confirm('WARNING: This will replace ALL current data. Continue?')) {
+                event.target.value = '';
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                try {
+                    updateSyncStatus('syncing');
+                    const data = JSON.parse(e.target.result);
+                    
+                    const collections = ['purchaseInvoices', 'journalEntries', 'customerReceipts', 'vendorPayments', 'ledger'];
+                    
+                    for (const colName of collections) {
+                        if (data[colName] && Array.isArray(data[colName])) {
+                            for (const item of data[colName]) {
+                                const docId = item.number || item.id || `${colName}_${Date.now()}_${Math.random()}`;
+                                await setDoc(doc(db, colName, docId), item);
+                            }
+                        }
+                    }
+                    
+                    updateSyncStatus('online');
+                    alert('Data imported successfully and synced to cloud!');
+                    await loadDashboardStats();
+                } catch (error) {
+                    updateSyncStatus('online');
+                    alert('Error importing data: ' + error.message);
+                }
+                event.target.value = '';
+            };
+            reader.readAsText(file);
+        };
+
+        window.addEventListener('online', () => updateSyncStatus('online'));
+        window.addEventListener('offline', () => updateSyncStatus('offline'));
+
+        document.addEventListener('DOMContentLoaded', loadDashboardStats);
+    </script>
+</body>
+</html>
