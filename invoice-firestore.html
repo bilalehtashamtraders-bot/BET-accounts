@@ -24,6 +24,33 @@
         .signature { display: flex; justify-content: space-between; margin-top: 50px; padding: 0 10px; }
         .signature-right { padding-top: 5px; font-weight: bold; text-transform: uppercase; }
     </style>
+    <!-- Firebase SDKs (load directly from CDN) -->
+<script type="module">
+  // Import Firebase directly from CDN
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+  import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+  // ✅ Your Firebase config
+  const firebaseConfig = {
+    apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
+    authDomain: "bet-acc-software.firebaseapp.com",
+    projectId: "bet-acc-software",
+    storageBucket: "bet-acc-software.firebasestorage.app",
+    messagingSenderId: "879522152449",
+    appId: "1:879522152449:web:73b8ef899d5c1cbfd90000"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // Example test (to confirm it works)
+  console.log("Firebase initialized:", app);
+  console.log("Firestore reference:", db);
+
+  // Export for global access
+  window.db = db;
+</script>
 
     <!-- Firebase compat SDKs (we use compat to preserve your existing db calls) -->
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
