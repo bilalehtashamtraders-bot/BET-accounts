@@ -199,7 +199,7 @@
             if (isNaN(parsedValue)) { 
                 input.value = ''; 
             } else {
-                if (input.classList.contains('price')) {
+                if (input.classList.contains('price') || input.classList.contains('packing')) {
                     input.value = value;
                 } else {
                     input.value = parseInt(parsedValue) || 0;
