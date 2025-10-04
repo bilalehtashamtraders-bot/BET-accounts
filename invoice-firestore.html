@@ -1,172 +1,260 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Bet Accounts — Firestore Invoice</title>
+  <meta charset="UTF-8">
+  <title>Sales Invoice - BET</title>
   <style>
-    body{font-family:Roboto,system-ui,Arial;margin:14px;max-width:900px}
-    h1{font-size:1.2rem;margin-bottom:10px}
-    .row{display:flex;gap:8px}
-    .col{flex:1}
-    label{display:block;font-size:0.85rem;margin-top:8px}
-    input,textarea,select{width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;margin-top:4px}
-    button{padding:10px 12px;margin-top:10px;border-radius:8px;border:0;background:#1d4ed8;color:#fff}
-    .muted{color:#666;font-size:0.9rem}
-    .items{margin-top:8px;border-top:1px dashed #eee;padding-top:8px}
-    .item-row{display:flex;gap:8px;margin-top:6px}
-    .item-row input{flex:1}
-    .item-row .small{width:92px}
-    .list{background:#f7f7fb;padding:8px;border-radius:6px;margin-top:12px;overflow:auto}
-    pre{background:#111;color:#0f0;padding:8px;border-radius:6px;margin-top:12px;white-space:pre-wrap}
+    body { font-family: Arial, sans-serif; margin: 40px; color: #000; }
+    .header { display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+    .company-info { text-align: right; }
+    .company-info h2 { margin: 0; color: #003366; }
+    .invoice-heading { font-size: 28px; font-weight: bold; color: #003366; line-height: 1.5; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    table, th, td { border: 2px solid #000; }
+    th, td { padding: 10px; text-align: center; }
+    .totals { margin-top: 20px; width: 100%; }
+    .totals td { padding: 8px; }
+    .totals .label { text-align: right; font-weight: bold; }
+    .action-buttons button { padding: 10px; margin: 10px 5px 10px 0; cursor: pointer; background-color: #003366; color: white; border: none; }
+    .delete-button { background-color: #cc0000 !important; }
+    input { border: none; width: 100%; text-align: center; background: transparent; }
+    input:focus { outline: none; background: #eef6ff; }
+    .total-amount-input { text-align: right !important; }
+    .payment-method { margin-bottom: 15px; }
+    .signature { display: flex; justify-content: space-between; margin-top: 50px; padding: 0 10px; }
+    .signature-right { padding-top: 5px; font-weight: bold; text-transform: uppercase; }
   </style>
-</head>
-<body>
-  <h1>Bet Accounts — Save Invoices → Firestore</h1>
-  <div class="muted">Auto invoice numbering starts at <strong>00156</strong></div>
-
-  <label>Invoice Number (auto)
-    <input id="invoiceNumber" readonly />
-  </label>
-
-  <div class="row">
-    <div class="col">
-      <label>Date <input id="invoiceDate" type="date" /></label>
-    </div>
-    <div class="col">
-      <label>Customer Name <input id="partyName" placeholder="Customer name" /></label>
-    </div>
-  </div>
-
-  <div class="row">
-    <div class="col">
-      <label>Gross Total <input id="gross" type="number" step="0.01" placeholder="0.00" /></label>
-    </div>
-    <div class="col">
-      <label>Cartage <input id="cartage" type="number" step="0.01" placeholder="0.00" /></label>
-    </div>
-    <div class="col">
-      <label>Net Total <input id="net" type="number" step="0.01" placeholder="0.00" /></label>
-    </div>
-  </div>
-
-  <div class="items">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <strong>Items</strong>
-      <button id="addItemBtn" type="button" style="background:#0ea5e9">+ Add row</button>
-    </div>
-    <div id="itemsContainer"></div>
-  </div>
-
-  <button id="saveBtn">Save invoice</button>
-  <button id="listBtn" style="background:#10b981;margin-left:8px">List invoices</button>
-
-  <div id="result" class="list" style="display:none;"></div>
-  <pre id="output" style="display:none"></pre>
-
+  <!-- Firebase SDK -->
   <script type="module">
-    const firebaseConfig = {
-      apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
-      authDomain: "bet-acc-software.firebaseapp.com",
-      projectId: "bet-acc-software",
-      storageBucket: "bet-acc-software.firebasestorage.app",
-      messagingSenderId: "879522152449",
-      appId: "1:879522152449:web:73b8ef899d5c1cbfd90000"
-    };
+    // --- FIREBASE SETUP ---
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, doc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js';
-    import { getFirestore, collection, addDoc, getDocs, doc, runTransaction, writeBatch, serverTimestamp, query, orderBy } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
+    const firebaseConfig = {
+      apiKey: "AIzaSyAxxxxxxx",
+      authDomain: "your-app.firebaseapp.com",
+      projectId: "your-app",
+      storageBucket: "your-app.appspot.com",
+      messagingSenderId: "123456789",
+      appId: "1:123456789:web:abcdefg12345"
+    };
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+    window.db = db; // make it global
 
-    const invoiceNumberInput = document.getElementById('invoiceNumber');
-    const invoiceDateInput = document.getElementById('invoiceDate');
-    const partyInput = document.getElementById('partyName');
-    const grossInput = document.getElementById('gross');
-    const cartageInput = document.getElementById('cartage');
-    const netInput = document.getElementById('net');
-    const itemsContainer = document.getElementById('itemsContainer');
-    const addItemBtn = document.getElementById('addItemBtn');
-    const saveBtn = document.getElementById('saveBtn');
-    const listBtn = document.getElementById('listBtn');
-    const resultDiv = document.getElementById('result');
-    const outputPre = document.getElementById('output');
+    // --- INVOICE LOGIC ---
+    const LBS_IN_KG = 2.20462;
+    const PREFIX = "SI-";
+    const DEFAULT_STARTING_NUMBER = 156;
+    let isEditing = false;
+    let originalDocumentID = null;
 
-    addItemBtn.onclick = () => addItemRow();
-    function addItemRow() {
-      const row = document.createElement('div');
-      row.className = 'item-row';
-      row.innerHTML = `
-        <input class="desc" placeholder="Description" />
-        <input class="qty" type="number" step="0.01" placeholder="Qty" style="width:80px" />
-        <input class="price" type="number" step="0.01" placeholder="Price" style="width:100px" />
-        <input class="amount small" type="number" step="0.01" placeholder="Amount" style="width:110px" />
-        <button class="removeBtn" style="background:#ef4444;color:#fff;border-radius:6px;padding:6px 8px">x</button>`;
-      row.querySelector('.removeBtn').onclick = () => row.remove();
-      itemsContainer.appendChild(row);
+    function getNextInvoiceNumber() {
+      let lastNumber = localStorage.getItem("lastInvoiceNumber") || DEFAULT_STARTING_NUMBER;
+      const nextNumber = parseInt(lastNumber) + 1;
+      return String(nextNumber).padStart(5, "0");
     }
 
-    addItemRow();
+    function setLastInvoiceNumber(num) {
+      localStorage.setItem("lastInvoiceNumber", num);
+    }
 
-    saveBtn.onclick = async () => {
-      const items = [...itemsContainer.querySelectorAll('.item-row')].map(r => ({
-        description: r.querySelector('.desc').value,
-        qty: parseFloat(r.querySelector('.qty').value || 0),
-        price: parseFloat(r.querySelector('.price').value || 0),
-        amount: parseFloat(r.querySelector('.amount').value || 0)
-      }));
+    function calculateRowAndTotals(row) {
+      const q = parseFloat(row.querySelector(".quantity").value) || 0;
+      const p = parseFloat(row.querySelector(".packing").value) || 0;
+      const price = parseFloat(row.querySelector(".price").value) || 0;
+      const weightKg = q * p;
+      const weightLbs = weightKg * LBS_IN_KG;
+      const amount = weightLbs * price;
+      row.querySelector(".weightKg").value = weightKg.toFixed(2);
+      row.querySelector(".weightLbs").value = weightLbs.toFixed(2);
+      row.querySelector(".amount").value = amount.toFixed(2);
+      calculateTotals();
+    }
 
-      const invoiceData = {
-        invoiceNumber: '',
-        date: invoiceDateInput.value || new Date().toISOString().slice(0,10),
-        partyName: partyInput.value,
-        grossTotal: parseFloat(grossInput.value || 0),
-        cartage: parseFloat(cartageInput.value || 0),
-        netTotal: parseFloat(netInput.value || 0),
-        createdAt: serverTimestamp()
+    function calculateTotals() {
+      let gross = 0;
+      document.querySelectorAll(".amount").forEach(a => gross += parseFloat(a.value) || 0);
+      const cartage = parseFloat(document.getElementById("cartage").value) || 0;
+      document.getElementById("grossTotal").value = gross.toFixed(2);
+      document.getElementById("netTotal").value = (gross + cartage).toFixed(2);
+    }
+
+    function addRow() {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td><input type="text" class="quantity" value="0"></td>
+        <td><input type="text" class="description"></td>
+        <td><input type="text" class="packing" value="0"></td>
+        <td><input type="text" class="weightKg" value="0.00" readonly></td>
+        <td><input type="text" class="weightLbs" value="0.00" readonly></td>
+        <td><input type="text" class="price" value="0"></td>
+        <td><input type="text" class="amount total-amount-input" value="0.00" readonly></td>`;
+      document.getElementById("invoice-body").appendChild(row);
+      attachListeners(row);
+    }
+
+    function attachListeners(row) {
+      ["quantity","packing","price"].forEach(cls => {
+        row.querySelector("." + cls).addEventListener("input", e => calculateRowAndTotals(row));
+      });
+    }
+
+    function getLineItems() {
+      const items = [];
+      document.querySelectorAll("#invoice-body tr").forEach(r => {
+        items.push({
+          quantity: parseFloat(r.querySelector(".quantity").value) || 0,
+          description: r.querySelector(".description").value,
+          packing: parseFloat(r.querySelector(".packing").value) || 0,
+          weightKg: parseFloat(r.querySelector(".weightKg").value) || 0,
+          weightLbs: parseFloat(r.querySelector(".weightLbs").value) || 0,
+          price: parseFloat(r.querySelector(".price").value) || 0,
+          amount: parseFloat(r.querySelector(".amount").value) || 0,
+        });
+      });
+      return items;
+    }
+
+    async function saveInvoice() {
+      const number = document.getElementById("invoiceNumber").value;
+      const date = document.getElementById("invoiceDate").value;
+      const party = document.getElementById("partyName").value;
+      const cartage = parseFloat(document.getElementById("cartage").value) || 0;
+      const gross = parseFloat(document.getElementById("grossTotal").value) || 0;
+      const net = parseFloat(document.getElementById("netTotal").value) || 0;
+      const paymentMethod = document.getElementById("paymentMethod").value;
+      const paymentTerms = document.getElementById("paymentTerms").value;
+
+      if (!number || !date || !party || net <= 0) {
+        alert("Fill invoice number, date, party name and ensure net total > 0.");
+        return;
+      }
+
+      const docID = PREFIX + number;
+      const invoiceDoc = {
+        documentID: docID,
+        number, date, party,
+        paymentMethod, paymentTerms,
+        lineItems: getLineItems(),
+        cartage, grossTotal: gross, netTotal: net
       };
 
-      saveBtn.disabled = true;
       try {
-        const newNumber = await runTransaction(db, async (tx) => {
-          const counterRef = doc(db, 'counters', 'invoices');
-          const snap = await tx.get(counterRef);
-          let newVal = snap.exists() ? (snap.data().last || 156) + 1 : 156;
-          tx.set(counterRef, { last: newVal });
-          return newVal;
-        });
-
-        const formatted = String(newNumber).padStart(5, '0');
-        invoiceData.invoiceNumber = formatted;
-        invoiceNumberInput.value = formatted;
-
-        const invRef = await addDoc(collection(db, 'invoices'), invoiceData);
-        const batch = writeBatch(db);
-        items.forEach(it => {
-          const itemRef = doc(collection(db, 'invoices', invRef.id, 'items'));
-          batch.set(itemRef, it);
-        });
-        await batch.commit();
-
-        alert(`Invoice saved: ${formatted}`);
+        await setDoc(doc(db, "Invoices", docID), invoiceDoc);
+        alert("Invoice saved to Firebase!");
+        setLastInvoiceNumber(parseInt(number));
       } catch (e) {
-        alert('Error: ' + e.message);
-      } finally {
-        saveBtn.disabled = false;
+        console.error(e);
+        alert("Error saving invoice.");
       }
-    };
+    }
 
-    listBtn.onclick = async () => {
-      resultDiv.style.display = 'block';
-      const snap = await getDocs(query(collection(db, 'invoices'), orderBy('createdAt','desc')));
-      resultDiv.innerHTML = snap.docs.map(d => {
-        const v = d.data();
-        return `<div style="padding:6px;border-bottom:1px dashed #ccc">
-          <strong>${v.invoiceNumber}</strong> - ${v.partyName} (${v.date})
-        </div>`;
-      }).join('');
-    };
+    async function deleteInvoice() {
+      const number = document.getElementById("invoiceNumber").value;
+      if (!number) return;
+      const docID = PREFIX + number;
+      if (confirm("Delete Invoice " + number + "?")) {
+        try {
+          await deleteDoc(doc(db, "Invoices", docID));
+          alert("Deleted from Firebase!");
+        } catch (e) {
+          console.error(e);
+          alert("Error deleting invoice.");
+        }
+      }
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      document.getElementById("invoiceNumber").value = getNextInvoiceNumber();
+      document.getElementById("invoiceDate").value = new Date().toLocaleDateString("en-GB");
+      document.querySelectorAll("#invoice-body tr").forEach(r => attachListeners(r));
+      document.getElementById("cartage").addEventListener("input", calculateTotals);
+    });
+
+    window.saveInvoice = saveInvoice;
+    window.deleteInvoice = deleteInvoice;
+    window.addRow = addRow;
   </script>
+</head>
+<body>
+  <div class="action-buttons" style="max-width: 800px; margin: 0 auto 20px;">
+    <button onclick="saveInvoice()">Save Invoice</button>
+    <button onclick="deleteInvoice()" class="delete-button">Delete Invoice</button>
+    <button onclick="addRow()">Add New Row</button>
+  </div>
+  <div style="max-width: 800px; margin: 0 auto;">
+    <div class="header">
+      <div class="invoice-heading">
+        SALES INVOICE <br>
+        Invoice Number: <input type="text" id="invoiceNumber" readonly><br>
+        Date: <input type="text" id="invoiceDate"><br>
+        Party Name: <input type="text" id="partyName">
+      </div>
+      <div class="company-info">
+        <h2>(BET) Bilal Ehtasham Traders</h2>
+        <p><i>We deal in all kinds of Cotton and Polyester Yarn</i></p>
+        <p>Cell: (+92)-324-2479096</p>
+        <p>Email: bilalehtashamtraders@gmail.com</p>
+      </div>
+    </div>
+
+    <div class="payment-method">
+      <label>Payment Method:</label>
+      <select id="paymentMethod">
+        <option value="Bank Transfer">Bank Transfer</option>
+        <option value="Cash">Cash</option>
+        <option value="Cheque">Cheque</option>
+      </select>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Quantity</th>
+          <th>Description</th>
+          <th>Packing (kg)</th>
+          <th>Weight (kg)</th>
+          <th>Weight (lbs)</th>
+          <th>Price</th>
+          <th>Amount</th>
+        </tr>
+      </thead>
+      <tbody id="invoice-body">
+        <tr>
+          <td><input type="text" class="quantity" value="0"></td>
+          <td><input type="text" class="description"></td>
+          <td><input type="text" class="packing" value="0"></td>
+          <td><input type="text" class="weightKg" value="0.00" readonly></td>
+          <td><input type="text" class="weightLbs" value="0.00" readonly></td>
+          <td><input type="text" class="price" value="0"></td>
+          <td><input type="text" class="amount total-amount-input" value="0.00" readonly></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <table class="totals">
+      <tr>
+        <td class="label" style="width: 80%;">Gross Total:</td>
+        <td><input type="text" id="grossTotal" class="total-amount-input" readonly></td>
+      </tr>
+      <tr>
+        <td class="label">Cartage:</td>
+        <td><input type="text" id="cartage" class="total-amount-input" value="0"></td>
+      </tr>
+      <tr>
+        <td class="label"><b>Net Total:</b></td>
+        <td><input type="text" id="netTotal" class="total-amount-input" readonly></td>
+      </tr>
+    </table>
+
+    <div class="signature">
+      <div class="signature-left">
+        Payment Terms: <input type="text" id="paymentTerms">
+      </div>
+      <div class="signature-right">(EHTASHAM BILAL)</div>
+    </div>
+  </div>
 </body>
 </html>
