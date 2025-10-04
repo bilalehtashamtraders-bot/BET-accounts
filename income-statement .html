@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Income Statement - Bilal Ehtasham Traders</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            color: #333;
+            background-color: #f4f4f4;
+        }
+        .report-container {
+            width: 100%;
+            max-width: 900px;
+            margin: 0 auto;
+            border: 1px solid #ccc;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            background-color: #fff;
+            position: relative;
+        }
+        .sync-badge {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 11px;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #003366;
+            padding-bottom: 10px;
+        }
+        .header h1 {
+            font-size: 24px;
+            margin: 0;
+            color: #003366;
+        }
+        .business-info {
+            text-align: center;
+        }
+        .business-info h2 {
+            color: #003366;
+            font-size: 18px;
+            margin: 5px 0;
+        }
+        .business-info p {
+            margin: 5px 0;
+            font-size: 12px;
+        }
+        .controls {
+            margin-bottom: 20px;
+            text-align: right;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #003366;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #005599;
+        }
+        .info-box {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .loading-text {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-style: italic;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+            border-bottom: 2px solid #000;
+        }
+        #income-statement-body td:nth-child(2), tfoot td:nth-child(2) {
+            text-align: right;
+        }
+        .section-header {
+            font-weight: bold;
+            background-color: #e6e6e6;
+        }
+        .subtotal {
+            font-weight: bold;
+            border-top: 1px solid #ccc;
+        }
+        .final-total {
+            font-weight: bold;
+            border-top: 2px solid #000;
+            padding-top: 10px;
+        }
+        .input-field {
+            width: 90%;
+            border: 1px solid #ccc;
+            text-align: right;
+            box-sizing: border-box;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        .input-field:focus {
+            outline: none;
+            border-color: #003366;
+            box-shadow: 0 0 3px rgba(0, 51, 102, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <script type="module" src="data.js"></script>
+    <div class="report-container">
+        <div class="sync-badge">☁️ SYNCED</div>
+        <div class="header">
+            <h1>Income Statement</h1>
+            <div class="business-info">
+                <h2>(BET) Bilal Ehtasham Traders</h2>
+                <p>Deals in all kinds of Cotton and Polyester Yarn</p>
+            </div>
+        </div>
+
+        <div class="info-box">
+            <strong>Auto-calculated from cloud data:</strong> Sales revenue from invoices, purchases (COGS) from purchase invoices, and operating expenses from vendor payments. Add any additional expenses manually.
+        </div>
+
+        <div class="controls">
+            <button onclick="generatePDF()">Generate PDF</button>
+        </div>
+
+        <div id="loading" class="loading-text">Loading financial data from cloud...</div>
+        
+        <table id="income-table" style="display: none;">
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th>Amount (Rs.)</th>
+                </tr>
+            </thead>
+            <tbody id="income-statement-body">
+                <tr>
+                    <td class="section-header" colspan="2">Revenue</td>
+                </tr>
+                <tr>
+                    <td>Sales Revenue (from Invoices)</td>
+                    <td id="sales-revenue">0.00</td>
+                </tr>
+                <tr>
+                    <td class="section-header" colspan="2">Cost of Goods Sold (COGS)</td>
+                </tr>
+                <tr>
+                    <td>Purchases (from Purchase Invoices)</td>
+                    <td id="purchases-cogs">0.00</td>
+                </tr>
+                <tr class="subtotal">
+                    <td class="subtotal">Gross Profit</td>
+                    <td class="subtotal" id="gross-profit">0.00</td>
+                </tr>
+                <tr>
+                    <td class="section-header" colspan="2">Operating Expenses</td>
+                </tr>
+                <tr>
+                    <td>Vendor Payments (from Records)</td>
+                    <td id="vendor-payments-expense">0.00</td>
+                </tr>
+                <tr>
+                    <td>Other Expenses (Manual Entry)</td>
+                    <td><input type="text" id="other-expenses-input" class="input-field" value="0.00" oninput="formatAndCalculate()"></td>
+                </tr>
+                <tr class="subtotal">
+                    <td class="subtotal">Total Operating Expenses</td>
+                    <td class="subtotal" id="total-operating-expenses">0.00</td>
+                </tr>
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td class="final-total">Net Income</td>
+                    <td class="final-total" id="net-income">0.00</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    
+    <script type="module">
+        let dataReady = false;
+
+        // Wait for data.js to load
+        const checkInterval = setInterval(() => {
+            if (window.invoices && window.purchaseInvoices && window.vendorPayments) {
+                dataReady = true;
+                clearInterval(checkInterval);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('income-table').style.display = 'table';
+                calculateIncomeStatement();
+            }
+        }, 100);
+
+        setTimeout(() => {
+            if (!dataReady) {
+                clearInterval(checkInterval);
+                document.getElementById('loading').innerHTML = '<span style="color: #dc3545;">Failed to load data. Please refresh the page.</span>';
+            }
+        }, 5000);
+
+        function formatAmount(amount) {
+            return (amount || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
+        }
+
+        window.formatAndCalculate = function() {
+            const input = document.getElementById('other-expenses-input');
+            let value = input.value.replace(/[^0-9.]/g, '');
+            
+            if (value !== "") {
+                const numValue = parseFloat(value);
+                if (!isNaN(numValue)) {
+                    value = numValue.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                }
+            } else {
+                value = "0.00";
+            }
+            input.value = value;
+            calculateIncomeStatement();
+        };
+
+        function calculateIncomeStatement() {
+            if (!dataReady) return;
+
+            let salesRevenue = 0;
+            let purchasesCogs = 0;
+            let vendorPaymentsExpense = 0;
+
+            // Calculate sales revenue from invoices
+            if (window.invoices && Array.isArray(window.invoices)) {
+                salesRevenue = window.invoices.reduce((sum, invoice) => {
+                    const amount = parseFloat(invoice.amount || invoice.netTotal || invoice.total) || 0;
+                    return sum + amount;
+                }, 0);
+            }
+
+            // Calculate COGS from purchase invoices
+            if (window.purchaseInvoices && Array.isArray(window.purchaseInvoices)) {
+                purchasesCogs = window.purchaseInvoices.reduce((sum, purchase) => {
+                    const amount = parseFloat(purchase.amount || purchase.netTotal || purchase.total) || 0;
+                    return sum + amount;
+                }, 0);
+            }
+
+            // Calculate operating expenses from vendor payments
+            if (window.vendorPayments && Array.isArray(window.vendorPayments)) {
+                vendorPaymentsExpense = window.vendorPayments.reduce((sum, payment) => {
+                    const amount = parseFloat(payment.amount || payment.total) || 0;
+                    return sum + amount;
+                }, 0);
+            }
+
+            // Get other expenses (manual input)
+            const otherExpensesInput = document.getElementById('other-expenses-input').value;
+            const otherExpenses = parseFloat(otherExpensesInput.replace(/,/g, '')) || 0;
+
+            // Calculations
+            const grossProfit = salesRevenue - purchasesCogs;
+            const totalOperatingExpenses = vendorPaymentsExpense + otherExpenses;
+            const netIncome = grossProfit - totalOperatingExpenses;
+
+            // Display Results
+            document.getElementById('sales-revenue').textContent = formatAmount(salesRevenue);
+            document.getElementById('purchases-cogs').textContent = formatAmount(purchasesCogs);
+            document.getElementById('gross-profit').textContent = formatAmount(grossProfit);
+            document.getElementById('vendor-payments-expense').textContent = formatAmount(vendorPaymentsExpense);
+            document.getElementById('total-operating-expenses').textContent = formatAmount(totalOperatingExpenses);
+            document.getElementById('net-income').textContent = formatAmount(netIncome);
+
+            // Color code net income
+            const netIncomeElement = document.getElementById('net-income');
+            if (netIncome < 0) {
+                netIncomeElement.style.color = '#dc3545';
+            } else if (netIncome > 0) {
+                netIncomeElement.style.color = '#28a745';
+            } else {
+                netIncomeElement.style.color = '#333';
+            }
+        }
+
+        window.generatePDF = function() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'pt', 'a4');
+            
+            // Header
+            doc.setFontSize(18);
+            doc.setFont('helvetica', 'bold');
+            doc.text("Income Statement", 40, 40);
+            
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'bold');
+            doc.text("(BET) Bilal Ehtasham Traders", 40, 60);
+            
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.text("Deals in all kinds of Cotton and Polyester Yarn", 40, 75);
+            doc.text(`Generated: ${new Date().toLocaleDateString('en-GB')}`, 40, 90);
+
+            // Prepare table data
+            const tableData = [
+                ['Revenue', ''],
+                ['Sales Revenue (from Invoices)', document.getElementById('sales-revenue').textContent],
+                ['', ''],
+                ['Cost of Goods Sold (COGS)', ''],
+                ['Purchases (from Purchase Invoices)', document.getElementById('purchases-cogs').textContent],
+                ['Gross Profit', document.getElementById('gross-profit').textContent],
+                ['', ''],
+                ['Operating Expenses', ''],
+                ['Vendor Payments (from Records)', document.getElementById('vendor-payments-expense').textContent],
+                ['Other Expenses (Manual Entry)', document.getElementById('other-expenses-input').value],
+                ['Total Operating Expenses', document.getElementById('total-operating-expenses').textContent],
+                ['', ''],
+                ['Net Income', document.getElementById('net-income').textContent]
+            ];
+
+            doc.autoTable({
+                body: tableData,
+                startY: 105,
+                theme: 'plain',
+                columnStyles: {
+                    0: { cellWidth: 350 },
+                    1: { cellWidth: 150, halign: 'right' }
+                },
+                didParseCell: function(data) {
+                    const text = data.cell.raw;
+                    if (text === 'Revenue' || text === 'Cost of Goods Sold (COGS)' || text === 'Operating Expenses') {
+                        data.cell.styles.fontStyle = 'bold';
+                        data.cell.styles.fillColor = [230, 230, 230];
+                    }
+                    if (text === 'Gross Profit' || text === 'Total Operating Expenses' || text === 'Net Income') {
+                        data.cell.styles.fontStyle = 'bold';
+                    }
+                },
+                didDrawCell: function(data) {
+                    if (data.cell.raw === 'Gross Profit' || data.cell.raw === 'Net Income') {
+                        doc.setLineWidth(1);
+                        doc.line(data.cell.x, data.cell.y, data.cell.x + data.cell.width, data.cell.y);
+                    }
+                }
+            });
+
+            doc.save(`Income-Statement-${new Date().toISOString().split('T')[0]}.pdf`);
+        };
+
+        window.calculateIncomeStatement = calculateIncomeStatement;
+    </script>
+</body>
+</html>
