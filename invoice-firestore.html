@@ -1,0 +1,172 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bet Accounts — Firestore Invoice</title>
+  <style>
+    body{font-family:Roboto,system-ui,Arial;margin:14px;max-width:900px}
+    h1{font-size:1.2rem;margin-bottom:10px}
+    .row{display:flex;gap:8px}
+    .col{flex:1}
+    label{display:block;font-size:0.85rem;margin-top:8px}
+    input,textarea,select{width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;margin-top:4px}
+    button{padding:10px 12px;margin-top:10px;border-radius:8px;border:0;background:#1d4ed8;color:#fff}
+    .muted{color:#666;font-size:0.9rem}
+    .items{margin-top:8px;border-top:1px dashed #eee;padding-top:8px}
+    .item-row{display:flex;gap:8px;margin-top:6px}
+    .item-row input{flex:1}
+    .item-row .small{width:92px}
+    .list{background:#f7f7fb;padding:8px;border-radius:6px;margin-top:12px;overflow:auto}
+    pre{background:#111;color:#0f0;padding:8px;border-radius:6px;margin-top:12px;white-space:pre-wrap}
+  </style>
+</head>
+<body>
+  <h1>Bet Accounts — Save Invoices → Firestore</h1>
+  <div class="muted">Auto invoice numbering starts at <strong>00156</strong></div>
+
+  <label>Invoice Number (auto)
+    <input id="invoiceNumber" readonly />
+  </label>
+
+  <div class="row">
+    <div class="col">
+      <label>Date <input id="invoiceDate" type="date" /></label>
+    </div>
+    <div class="col">
+      <label>Customer Name <input id="partyName" placeholder="Customer name" /></label>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col">
+      <label>Gross Total <input id="gross" type="number" step="0.01" placeholder="0.00" /></label>
+    </div>
+    <div class="col">
+      <label>Cartage <input id="cartage" type="number" step="0.01" placeholder="0.00" /></label>
+    </div>
+    <div class="col">
+      <label>Net Total <input id="net" type="number" step="0.01" placeholder="0.00" /></label>
+    </div>
+  </div>
+
+  <div class="items">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <strong>Items</strong>
+      <button id="addItemBtn" type="button" style="background:#0ea5e9">+ Add row</button>
+    </div>
+    <div id="itemsContainer"></div>
+  </div>
+
+  <button id="saveBtn">Save invoice</button>
+  <button id="listBtn" style="background:#10b981;margin-left:8px">List invoices</button>
+
+  <div id="result" class="list" style="display:none;"></div>
+  <pre id="output" style="display:none"></pre>
+
+  <script type="module">
+    const firebaseConfig = {
+      apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
+      authDomain: "bet-acc-software.firebaseapp.com",
+      projectId: "bet-acc-software",
+      storageBucket: "bet-acc-software.firebasestorage.app",
+      messagingSenderId: "879522152449",
+      appId: "1:879522152449:web:73b8ef899d5c1cbfd90000"
+    };
+
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js';
+    import { getFirestore, collection, addDoc, getDocs, doc, runTransaction, writeBatch, serverTimestamp, query, orderBy } from 'https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js';
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const invoiceNumberInput = document.getElementById('invoiceNumber');
+    const invoiceDateInput = document.getElementById('invoiceDate');
+    const partyInput = document.getElementById('partyName');
+    const grossInput = document.getElementById('gross');
+    const cartageInput = document.getElementById('cartage');
+    const netInput = document.getElementById('net');
+    const itemsContainer = document.getElementById('itemsContainer');
+    const addItemBtn = document.getElementById('addItemBtn');
+    const saveBtn = document.getElementById('saveBtn');
+    const listBtn = document.getElementById('listBtn');
+    const resultDiv = document.getElementById('result');
+    const outputPre = document.getElementById('output');
+
+    addItemBtn.onclick = () => addItemRow();
+    function addItemRow() {
+      const row = document.createElement('div');
+      row.className = 'item-row';
+      row.innerHTML = `
+        <input class="desc" placeholder="Description" />
+        <input class="qty" type="number" step="0.01" placeholder="Qty" style="width:80px" />
+        <input class="price" type="number" step="0.01" placeholder="Price" style="width:100px" />
+        <input class="amount small" type="number" step="0.01" placeholder="Amount" style="width:110px" />
+        <button class="removeBtn" style="background:#ef4444;color:#fff;border-radius:6px;padding:6px 8px">x</button>`;
+      row.querySelector('.removeBtn').onclick = () => row.remove();
+      itemsContainer.appendChild(row);
+    }
+
+    addItemRow();
+
+    saveBtn.onclick = async () => {
+      const items = [...itemsContainer.querySelectorAll('.item-row')].map(r => ({
+        description: r.querySelector('.desc').value,
+        qty: parseFloat(r.querySelector('.qty').value || 0),
+        price: parseFloat(r.querySelector('.price').value || 0),
+        amount: parseFloat(r.querySelector('.amount').value || 0)
+      }));
+
+      const invoiceData = {
+        invoiceNumber: '',
+        date: invoiceDateInput.value || new Date().toISOString().slice(0,10),
+        partyName: partyInput.value,
+        grossTotal: parseFloat(grossInput.value || 0),
+        cartage: parseFloat(cartageInput.value || 0),
+        netTotal: parseFloat(netInput.value || 0),
+        createdAt: serverTimestamp()
+      };
+
+      saveBtn.disabled = true;
+      try {
+        const newNumber = await runTransaction(db, async (tx) => {
+          const counterRef = doc(db, 'counters', 'invoices');
+          const snap = await tx.get(counterRef);
+          let newVal = snap.exists() ? (snap.data().last || 156) + 1 : 156;
+          tx.set(counterRef, { last: newVal });
+          return newVal;
+        });
+
+        const formatted = String(newNumber).padStart(5, '0');
+        invoiceData.invoiceNumber = formatted;
+        invoiceNumberInput.value = formatted;
+
+        const invRef = await addDoc(collection(db, 'invoices'), invoiceData);
+        const batch = writeBatch(db);
+        items.forEach(it => {
+          const itemRef = doc(collection(db, 'invoices', invRef.id, 'items'));
+          batch.set(itemRef, it);
+        });
+        await batch.commit();
+
+        alert(`Invoice saved: ${formatted}`);
+      } catch (e) {
+        alert('Error: ' + e.message);
+      } finally {
+        saveBtn.disabled = false;
+      }
+    };
+
+    listBtn.onclick = async () => {
+      resultDiv.style.display = 'block';
+      const snap = await getDocs(query(collection(db, 'invoices'), orderBy('createdAt','desc')));
+      resultDiv.innerHTML = snap.docs.map(d => {
+        const v = d.data();
+        return `<div style="padding:6px;border-bottom:1px dashed #ccc">
+          <strong>${v.invoiceNumber}</strong> - ${v.partyName} (${v.date})
+        </div>`;
+      }).join('');
+    };
+  </script>
+</body>
+</html>
