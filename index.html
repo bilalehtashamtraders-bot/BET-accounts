@@ -66,7 +66,7 @@
         }
         .stats-overview {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
             gap: 15px;
             margin-bottom: 30px;
         }
@@ -150,8 +150,12 @@
                 <p>Total Documents</p>
             </div>
             <div class="stat-card">
-                <h3 id="totalInvoices">0</h3>
+                <h3 id="totalPurchaseInvoices">0</h3>
                 <p>Purchase Invoices</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="totalSalesInvoices">0</h3>
+                <p>Sales Invoices</p>
             </div>
             <div class="stat-card">
                 <h3 id="totalJournals">0</h3>
@@ -240,15 +244,17 @@
         async function loadDashboardStats() {
             try {
                 let totalDocs = 0;
-                let totalInvoices = 0;
+                let totalPurchaseInvoices = 0;
+                let totalSalesInvoices = 0;
                 let totalJournals = 0;
                 let totalReceipts = 0;
 
                 const collections = [
-                    { name: 'purchaseInvoices', counter: 'totalInvoices' },
-                    { name: 'journalEntries', counter: 'totalJournals' },
-                    { name: 'customerReceipts', counter: 'totalReceipts' },
-                    { name: 'vendorPayments', counter: 'totalReceipts' }
+                    { name: 'purchaseInvoices', counter: 'purchase' },
+                    { name: 'salesInvoices', counter: 'sales' },
+                    { name: 'journalEntries', counter: 'journals' },
+                    { name: 'customerReceipts', counter: 'receipts' },
+                    { name: 'vendorPayments', counter: 'receipts' }
                 ];
 
                 for (const col of collections) {
@@ -256,13 +262,15 @@
                     const count = snapshot.size;
                     totalDocs += count;
                     
-                    if (col.counter === 'totalInvoices') totalInvoices += count;
-                    else if (col.counter === 'totalJournals') totalJournals += count;
-                    else if (col.counter === 'totalReceipts') totalReceipts += count;
+                    if (col.counter === 'purchase') totalPurchaseInvoices += count;
+                    else if (col.counter === 'sales') totalSalesInvoices += count;
+                    else if (col.counter === 'journals') totalJournals += count;
+                    else if (col.counter === 'receipts') totalReceipts += count;
                 }
 
                 document.getElementById('totalDocs').textContent = totalDocs;
-                document.getElementById('totalInvoices').textContent = totalInvoices;
+                document.getElementById('totalPurchaseInvoices').textContent = totalPurchaseInvoices;
+                document.getElementById('totalSalesInvoices').textContent = totalSalesInvoices;
                 document.getElementById('totalJournals').textContent = totalJournals;
                 document.getElementById('totalReceipts').textContent = totalReceipts;
 
@@ -283,13 +291,14 @@
                 const allData = {
                     exportDate: new Date().toISOString(),
                     purchaseInvoices: [],
+                    salesInvoices: [],
                     journalEntries: [],
                     customerReceipts: [],
                     vendorPayments: [],
                     ledger: []
                 };
 
-                const collections = ['purchaseInvoices', 'journalEntries', 'customerReceipts', 'vendorPayments', 'ledger'];
+                const collections = ['purchaseInvoices', 'salesInvoices', 'journalEntries', 'customerReceipts', 'vendorPayments', 'ledger'];
                 
                 for (const colName of collections) {
                     const snapshot = await getDocs(collection(db, colName));
@@ -332,7 +341,7 @@
                     updateSyncStatus('syncing');
                     const data = JSON.parse(e.target.result);
                     
-                    const collections = ['purchaseInvoices', 'journalEntries', 'customerReceipts', 'vendorPayments', 'ledger'];
+                    const collections = ['purchaseInvoices', 'salesInvoices', 'journalEntries', 'customerReceipts', 'vendorPayments', 'ledger'];
                     
                     for (const colName of collections) {
                         if (data[colName] && Array.isArray(data[colName])) {
