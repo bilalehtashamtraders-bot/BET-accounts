@@ -134,19 +134,9 @@
 
         <div class="controls">
             <div class="filter-section">
-                <input type="text" id="search-bar" placeholder="Search by party name or description...">
+                <input type="text" id="search-bar" placeholder="Search by account name or description...">
                 <select id="account-filter">
-                    <option value="">All Account Types</option>
-                    <option value="Cash">Cash</option>
-                    <option value="Bank">Bank</option>
-                    <option value="Revenue">Revenue</option>
-                    <option value="Expense">Expense</option>
-                    <option value="Accounts Receivable">Accounts Receivable</option>
-                    <option value="Accounts Payable">Accounts Payable</option>
-                    <option value="Inventory">Inventory</option>
-                    <option value="Fixed Assets">Fixed Assets</option>
-                    <option value="Capital">Capital</option>
-                    <option value="Drawings">Drawings</option>
+                    <option value="">All Accounts</option>
                 </select>
             </div>
             <div>
@@ -163,7 +153,7 @@
             <thead>
                 <tr>
                     <th>Date</th>
-                    <th>Account Type</th>
+                    <th>Account</th>
                     <th>Description</th>
                     <th>Doc #</th>
                     <th>Debit (Rs.)</th>
@@ -201,6 +191,7 @@
         const db = getFirestore(app);
 
         let allLedgerEntries = [];
+        let uniqueAccounts = new Set();
 
         function parseDate(dateStr) {
             const parts = dateStr.split('-');
@@ -212,16 +203,23 @@
 
         async function loadLedgerData() {
             try {
-                const ledgerQuery = query(collection(db, "ledger"), orderBy("timestamp", "asc"));
+                const ledgerQuery = query(collection(db, "ledger"));
                 const snapshot = await getDocs(ledgerQuery);
                 
                 allLedgerEntries = [];
+                uniqueAccounts.clear();
+                
                 snapshot.forEach(doc => {
-                    allLedgerEntries.push(doc.data());
+                    const data = doc.data();
+                    allLedgerEntries.push(data);
+                    if (data.account) {
+                        uniqueAccounts.add(data.account);
+                    }
                 });
 
                 allLedgerEntries.sort((a, b) => parseDate(a.date) - parseDate(b.date));
                 
+                populateAccountFilter();
                 displayLedger(allLedgerEntries);
                 
                 document.getElementById('loading').style.display = 'none';
@@ -230,6 +228,19 @@
                 console.error("Error loading ledger:", error);
                 document.getElementById('loading').innerHTML = 'Error loading ledger data. Please refresh the page.';
             }
+        }
+
+        function populateAccountFilter() {
+            const accountFilter = document.getElementById('account-filter');
+            accountFilter.innerHTML = '<option value="">All Accounts</option>';
+            
+            const sortedAccounts = Array.from(uniqueAccounts).sort();
+            sortedAccounts.forEach(account => {
+                const option = document.createElement('option');
+                option.value = account;
+                option.textContent = account;
+                accountFilter.appendChild(option);
+            });
         }
 
         function displayLedger(entries) {
@@ -248,8 +259,8 @@
 
                 row.innerHTML = `
                     <td>${entry.date}</td>
-                    <td>${entry.accountType || 'N/A'}</td>
-                    <td>${entry.description}</td>
+                    <td>${entry.account || 'N/A'}</td>
+                    <td>${entry.description || ''}</td>
                     <td><span class="doc-link" onclick="window.viewDocument('${entry.doc_number}')">${entry.doc_number}</span></td>
                     <td class="debit-amount">${debit.toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
                     <td class="credit-amount">${credit.toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
@@ -266,30 +277,31 @@
 
         function filterLedger() {
             const searchTerm = document.getElementById('search-bar').value.toLowerCase().trim();
-            const accountType = document.getElementById('account-filter').value;
+            const accountName = document.getElementById('account-filter').value;
 
             let filteredEntries = allLedgerEntries;
 
             if (searchTerm) {
                 filteredEntries = filteredEntries.filter(entry => 
-                    entry.description.toLowerCase().includes(searchTerm) ||
+                    (entry.account && entry.account.toLowerCase().includes(searchTerm)) ||
+                    (entry.description && entry.description.toLowerCase().includes(searchTerm)) ||
                     (entry.doc_number && entry.doc_number.toLowerCase().includes(searchTerm))
                 );
             }
 
-            if (accountType) {
+            if (accountName) {
                 filteredEntries = filteredEntries.filter(entry => 
-                    entry.accountType === accountType
+                    entry.account === accountName
                 );
             }
 
-            let titleText = 'Filtered Transactions';
-            if (searchTerm && accountType) {
-                titleText = `${accountType} - ${searchTerm.toUpperCase()}`;
+            let titleText = 'All Transactions';
+            if (searchTerm && accountName) {
+                titleText = `${accountName} - ${searchTerm.toUpperCase()}`;
             } else if (searchTerm) {
                 titleText = `Search: ${searchTerm.toUpperCase()}`;
-            } else if (accountType) {
-                titleText = `Account Type: ${accountType}`;
+            } else if (accountName) {
+                titleText = `Account: ${accountName}`;
             }
 
             document.getElementById('current-ledger-title').textContent = titleText;
@@ -309,20 +321,45 @@
             try {
                 if (docNumber.startsWith('JE-')) {
                     window.location.href = `journal-entry.html?edit=${docNumber}`;
-                } else {
-                    const docRef = await getDocs(collection(db, "purchaseInvoices"));
+                } else if (docNumber.startsWith('CR-') || docNumber.startsWith('00')) {
+                    const receiptRef = await getDocs(collection(db, "customerReceipts"));
                     let found = false;
                     
-                    docRef.forEach(doc => {
+                    receiptRef.forEach(doc => {
                         if (doc.data().number === docNumber) {
                             found = true;
-                            localStorage.setItem('docToEdit', JSON.stringify(doc.data()));
-                            window.location.href = 'purchase-invoice.html';
+                            window.location.href = `receipt.html?edit=${docNumber}`;
                         }
                     });
                     
                     if (!found) {
-                        alert('Document not found or not yet implemented for viewing.');
+                        const salesRef = await getDocs(collection(db, "salesInvoices"));
+                        salesRef.forEach(doc => {
+                            if (doc.data().number === docNumber) {
+                                found = true;
+                                window.location.href = `invoice.html?edit=${docNumber}`;
+                            }
+                        });
+                    }
+                    
+                    if (!found) {
+                        alert('Document not found.');
+                    }
+                } else if (docNumber.startsWith('VP-')) {
+                    window.location.href = `vendor-payment-receipt.html?edit=${docNumber}`;
+                } else {
+                    const purchaseRef = await getDocs(collection(db, "purchaseInvoices"));
+                    let found = false;
+                    
+                    purchaseRef.forEach(doc => {
+                        if (doc.data().number === docNumber) {
+                            found = true;
+                            window.location.href = `purchase-invoice.html?edit=${docNumber}`;
+                        }
+                    });
+                    
+                    if (!found) {
+                        alert('Document not found.');
                     }
                 }
             } catch (error) {
