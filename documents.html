@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>View Documents - Bilal Ehtasham Traders</title>
+    <title>View Documents - Bilal Ehtasham Traders (DEBUG)</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -32,6 +32,24 @@
             font-size: 11px;
             font-weight: bold;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .debug-panel {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+        .debug-panel h3 {
+            margin-top: 0;
+            color: #856404;
+        }
+        .debug-panel pre {
+            background: white;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+            max-height: 300px;
         }
         .header {
             text-align: center;
@@ -186,10 +204,21 @@
     <div class="loading" id="loading">Loading documents...</div>
     
     <div class="container" style="display: none;" id="mainContent">
-        <div class="sync-badge">☁️ SYNCED</div>
+        <div class="sync-badge">☁️ DEBUG MODE</div>
         <div class="header">
-            <h1>All Documents</h1>
+            <h1>All Documents (DEBUG VERSION)</h1>
         </div>
+        
+        <div class="debug-panel">
+            <h3>🔍 Debug Information</h3>
+            <p><strong>Firebase Connection:</strong> <span id="debugConnection">Checking...</span></p>
+            <p><strong>Collections Queried:</strong></p>
+            <ul id="debugCollections"></ul>
+            <p><strong>Raw Data from Firebase:</strong></p>
+            <button onclick="toggleDebugData()" style="margin-bottom: 10px;">Show/Hide Raw Data</button>
+            <pre id="debugData" style="display: none;"></pre>
+        </div>
+
         <div class="business-info">
             <h2>(BET) Bilal Ehtasham Traders</h2>
             <p>Deals in all kinds of Cotton and Polyester Yarn</p>
@@ -222,6 +251,7 @@
             <button onclick="window.location.href='vendor-payment-receipt.html'">New Vendor Payment</button>
             <button onclick="window.location.href='ledger.html'">View Ledger</button>
             <button onclick="window.location.href='trial-balance.html'">Trial Balance</button>
+            <button onclick="location.reload()" style="background-color: #28a745;">🔄 Refresh</button>
         </div>
 
         <div class="search-filter-container">
@@ -258,9 +288,21 @@
         const db = getFirestore(app);
 
         let allDocuments = [];
+        let debugInfo = {
+            collections: {},
+            rawData: []
+        };
+
+        window.toggleDebugData = function() {
+            const el = document.getElementById('debugData');
+            el.style.display = el.style.display === 'none' ? 'block' : 'none';
+        };
 
         async function loadAllDocuments() {
             try {
+                document.getElementById('debugConnection').innerHTML = '✅ Connected';
+                document.getElementById('debugConnection').style.color = 'green';
+                
                 allDocuments = [];
 
                 const collections = [
@@ -270,10 +312,30 @@
                     { name: 'vendorPayments', type: 'Vendor Payment' }
                 ];
 
+                const debugCollectionsList = document.getElementById('debugCollections');
+                debugCollectionsList.innerHTML = '';
+
                 for (const col of collections) {
+                    console.log(`Loading collection: ${col.name}`);
                     const snapshot = await getDocs(collection(db, col.name));
+                    const count = snapshot.size;
+                    
+                    debugInfo.collections[col.name] = count;
+                    
+                    const li = document.createElement('li');
+                    li.innerHTML = `<strong>${col.name}:</strong> ${count} documents`;
+                    debugCollectionsList.appendChild(li);
+                    
                     snapshot.forEach(docSnap => {
                         const data = docSnap.data();
+                        console.log(`Document from ${col.name}:`, data);
+                        
+                        debugInfo.rawData.push({
+                            collection: col.name,
+                            id: docSnap.id,
+                            data: data
+                        });
+                        
                         allDocuments.push({
                             ...data,
                             type: data.type || col.type,
@@ -282,11 +344,16 @@
                     });
                 }
 
+                document.getElementById('debugData').textContent = JSON.stringify(debugInfo.rawData, null, 2);
+
                 allDocuments.sort((a, b) => {
                     const dateA = parseDate(a.date);
                     const dateB = parseDate(b.date);
                     return dateB - dateA;
                 });
+
+                console.log('Total documents loaded:', allDocuments.length);
+                console.log('All documents:', allDocuments);
 
                 updateStats();
                 displayDocuments(allDocuments);
@@ -295,7 +362,9 @@
                 document.getElementById('mainContent').style.display = 'block';
             } catch (error) {
                 console.error("Error loading documents:", error);
-                document.getElementById('loading').innerHTML = 'Error loading documents. Please refresh the page.';
+                document.getElementById('debugConnection').innerHTML = '❌ Error: ' + error.message;
+                document.getElementById('debugConnection').style.color = 'red';
+                document.getElementById('loading').innerHTML = 'Error loading documents: ' + error.message;
             }
         }
 
@@ -319,7 +388,7 @@
             const container = document.getElementById('documentsList');
             
             if (docs.length === 0) {
-                container.innerHTML = '<div class="no-documents">No documents found</div>';
+                container.innerHTML = '<div class="no-documents">⚠️ No documents found in Firebase. Try creating a new entry!</div>';
                 return;
             }
 
