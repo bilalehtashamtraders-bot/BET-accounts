@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sales Invoice - BET</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; color: #000; }
+        .header { display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+        .company-info { text-align: right; }
+        .company-info h2 { margin: 0; color: #003366; }
+        .invoice-heading { font-size: 28px; font-weight: bold; color: #003366; line-height: 1.5; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        table, th, td { border: 2px solid #000; }
+        th, td { padding: 10px; text-align: center; }
+        .totals { margin-top: 20px; width: 100%; }
+        .totals td { padding: 8px; }
+        .totals .label { text-align: right; font-weight: bold; }
+        .action-buttons button { padding: 10px; margin: 10px 5px 10px 0; cursor: pointer; background-color: #003366; color: white; border: none; }
+        .delete-button { background-color: #cc0000 !important; }
+        input { border: none; width: 100%; text-align: center; background: transparent; }
+        input:focus { outline: none; background: #eef6ff; }
+        .total-amount-input { text-align: right !important; }
+        .payment-method { margin-bottom: 15px; }
+        .signature { display: flex; justify-content: space-between; margin-top: 50px; padding: 0 10px; }
+        .signature-right { padding-top: 5px; font-weight: bold; text-transform: uppercase; }
+    </style>
+    <!-- Firebase SDKs (load directly from CDN) -->
+<script type="module">
+  // Import Firebase directly from CDN
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+  import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+  // ✅ Your Firebase config
+  const firebaseConfig = {
+    apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
+    authDomain: "bet-acc-software.firebaseapp.com",
+    projectId: "bet-acc-software",
+    storageBucket: "bet-acc-software.firebasestorage.app",
+    messagingSenderId: "879522152449",
+    appId: "1:879522152449:web:73b8ef899d5c1cbfd90000"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // Example test (to confirm it works)
+  console.log("Firebase initialized:", app);
+  console.log("Firestore reference:", db);
+
+  // Export for global access
+  window.db = db;
+</script>
+
+    <!-- Firebase compat SDKs (we use compat to preserve your existing db calls) -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-storage-compat.js"></script>
+
+    <!-- PDF library (html2pdf bundle) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+    <script src="data.js"></script>
+    
+    <div class="action-buttons" style="max-width: 800px; margin: 0 auto 20px;">
+        <button onclick="saveInvoice()">Save/Update Invoice & Post to Ledger</button>
+        <button onclick="deleteInvoice()" id="deleteButton" class="delete-button" style="display: none;">Delete Invoice</button>
+        <button onclick="generatePDF()">Generate PDF</button>
+        <button onclick="window.location.href='documents.html'">View All Documents</button>
+    </div>
+
+    <!-- Invoice container (kept as requested) -->
+    <div id="invoiceContainer" class="invoice-container" style="max-width: 800px; margin: 0 auto;">
+        <div class="header">
+            <div class="invoice-heading">
+                SALES INVOICE <br>
+                Invoice Number: <input type="text" id="invoiceNumber" placeholder="e.g., 00133" style="width: 150px;" readonly><br>
+                Date: <input type="text" id="invoiceDate" placeholder="e.g., 27-09-2025" style="width: 150px;"><br>
+                Party Name: <input type="text" id="partyName" placeholder="Enter Party Name">
+            </div>
+            <div class="company-info">
+                <h2>(BET) Bilal Ehtasham Traders</h2>
+                <p><i>We deal in all kinds of Cotton and Polyester Yarn</i></p>
+                <p>Cell: (+92)-324-2479096</p>
+                <p>Email: bilalehtashamtraders@gmail.com</p>
+            </div>
+        </div>
+
+        <div class="payment-method">
+            <label for="paymentMethod">Payment Method:</label>
+            <select id="paymentMethod">
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="Cash">Cash</option>
+                <option value="Cheque">Cheque</option>
+            </select>
+        </div>
+
+        <button onclick="addRow()">Add New Row</button>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Quantity</th>
+                    <th>Description</th>
+                    <th>Packing (kg)</th>
+                    <th>Weight (kg)</th>
+                    <th>Weight (lbs)</th>
+                    <th>Price</th>
+                    <th>Amount</th>
+                </tr>
+            </thead>
+            <tbody id="invoice-body">
+                <tr>
+                    <td><input type="text" class="quantity" value="0"></td>
+                    <td><input type="text" class="description"></td>
+                    <td><input type="text" class="packing" value="0"></td>
+                    <td><input type="text" class="weightKg" value="0.00" readonly></td>
+                    <td><input type="text" class="weightLbs" value="0.00" readonly></td>
+                    <td><input type="text" class="price" value="0"></td>
+                    <td><input type="text" class="amount total-amount-input" value="0.00" readonly></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <table class="totals">
+            <tr>
+                <td class="label" style="width: 80%;">Gross Total:</td>
+                <td><input type="text" id="grossTotal" class="total-amount-input" style="font-weight:bold;" readonly></td>
+            </tr>
+            <tr>
+                <td class="label">Cartage:</td>
+                <td><input type="text" id="cartage" class="total-amount-input" value="0"></td>
+            </tr>
+            <tr>
+                <td class="label"><b>Net Total:</b></td>
+                <td><input type="text" id="netTotal" class="total-amount-input" style="font-weight:bold;" readonly></td>
+            </tr>
+        </table>
+
+        <div class="signature">
+            <div class="signature-left">
+                Payment Terms: <input type="text" id="paymentTerms" placeholder="Enter Payment Terms">
+            </div>
+            <div class="signature-right">
+                (EHTASHAM BILAL)
+            </div>
+        </div>
+    </div>
+
+    <!-- ---------- SCRIPT: calculations, Firebase init, save, pdf ---------- -->
+    <script>
+        // ---------- FIREBASE CONFIG (YOU PROVIDED) ----------
+        const firebaseConfig = {
+          apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
+          authDomain: "bet-acc-software.firebaseapp.com",
+          projectId: "bet-acc-software",
+          storageBucket: "bet-acc-software.firebasestorage.app",
+          messagingSenderId: "879522152449",
+          appId: "1:879522152449:web:73b8ef899d5c1cbfd90000"
+        };
+
+        // Initialize (compat)
+        try {
+          if (!firebase.apps || !firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+          } else {
+            firebase.app();
+          }
+          // Provide firestore and storage handles on window (used by your code)
+          window.db = firebase.firestore();
+          window.storage = firebase.storage();
+        } catch (e) {
+          console.warn("Firebase init error (maybe already initialized):", e);
+        }
+
+        // ---------- CONSTANTS & GLOBALS ----------
+        let isEditing = false;
+        let originalDocNumber = null;
+        let originalDocumentID = null;
+        const LBS_IN_KG = 2.20462;
+        const PREFIX = 'SI-';
+        const DEFAULT_STARTING_NUMBER = 142;
+
+        // Keep local arrays if data.js expects them
+        if (typeof window.invoices === 'undefined') window.invoices = [];
+        if (typeof window.documents === 'undefined') window.documents = [];
+
+        // ---------- Helpers ----------
+        // Format numbers in international style with "/="
+        function formatCurrency(value) {
+            if (isNaN(value) || value === null) value = 0;
+            // Use en-US for 400,000 style grouping
+            // Keep two decimals when fractional (but display whole numbers without .00)
+            const parts = Number(value).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+            return parts + '/=';
+        }
+
+        function parseFormattedNumber(str) {
+            if (!str) return 0;
+            const cleaned = String(str).replace(/,/g, '').replace(/[^0-9.]/g, '');
+            return parseFloat(cleaned) || 0;
+        }
+
+        function getNextInvoiceNumber() {
+            let lastNumber = window.lastInvoiceNumber || DEFAULT_STARTING_NUMBER;
+            const nextNumber = lastNumber + 1;
+            return String(nextNumber).padStart(5, '0');
+        }
+
+        function setLastInvoiceNumber(number) {
+            window.lastInvoiceNumber = number;
+            // store to localStorage for persistence (safe extra)
+            try { localStorage.setItem('lastInvoiceNumber', String(number)); } catch(e) {}
+        }
+
+        function getNumber(id) {
+            const element = document.getElementById(id);
+            if (element) {
+                return parseFormattedNumber(element.value);
+            }
+            return 0;
+        }
+
+        // ---------- Calculation logic (preserved, adjusted to support formatted display) ----------
+        function calculateRowAndTotals(row) {
+            const quantity = parseFormattedNumber(row.querySelector('.quantity').value) || 0;
+            const packingKg = parseFormattedNumber(row.querySelector('.packing').value) || 0;
+            const price = parseFormattedNumber(row.querySelector('.price').value) || 0;
+
+            const weightKg = quantity * packingKg;
+            const weightLbs = weightKg * LBS_IN_KG;
+            const amount = weightLbs * price;
+
+            row.querySelector('.weightKg').value = weightKg.toFixed(2);
+            row.querySelector('.weightLbs').value = weightLbs.toFixed(2);
+            // display formatted
+            row.querySelector('.amount').value = formatCurrency(amount);
+
+            calculateTotals();
+        }
+
+        function calculateTotals() {
+            let grossTotal = 0;
+            document.querySelectorAll('.amount').forEach(amountInput => {
+                const v = parseFormattedNumber(amountInput.value);
+                grossTotal += v;
+            });
+
+            const cartage = parseFormattedNumber(document.getElementById('cartage').value);
+            const netTotal = grossTotal + cartage;
+
+            document.getElementById('grossTotal').value = formatCurrency(grossTotal);
+            // display cartage formatted
+            document.getElementById('cartage').value = formatCurrency(cartage);
+            document.getElementById('netTotal').value = formatCurrency(netTotal);
+        }
+
+        // ---------- Input formatting & event attach ----------
+        function attachEventListeners(row) {
+            const inputs = ['quantity', 'packing', 'price'];
+            inputs.forEach(className => {
+                const input = row.querySelector('.' + className);
+                if (!input) return;
+                // ensure not double-bound
+                if (input.dataset.bound === '1') return;
+                input.addEventListener('input', formatRowInputAndRecalculate);
+                input.dataset.bound = '1';
+            });
+        }
+
+        function formatRowInputAndRecalculate(event) {
+            const input = event.target;
+            // allow user friendly typing: strip everything except digits and dot
+            let value = String(input.value).replace(/,/g, '').replace(/[^0-9.]/g, '');
+
+            if (value === '') {
+                input.value = '';
+                calculateRowAndTotals(input.closest('tr'));
+                return;
+            }
+
+            let parsedValue = parseFloat(value);
+            if (isNaN(parsedValue)) {
+                input.value = '';
+            } else {
+                if (input.classList.contains('price')) {
+                    // keep decimals for price, but don't show commas while typing
+                    input.value = value;
+                } else {
+                    // quantity & packing: integer style
+                    input.value = String(parseInt(parsedValue) || 0);
+                }
+            }
+            calculateRowAndTotals(input.closest('tr'));
+        }
+
+        function formatCartageAndRecalculate(event) {
+            const input = event.target;
+            let value = String(input.value).replace(/,/g, '').replace(/[^0-9.]/g, '');
+            let parsedValue = parseFloat(value);
+            if (isNaN(parsedValue)) {
+                input.value = '0';
+            } else {
+                input.value = String(parseInt(parsedValue) || 0);
+            }
+            // calculateTotals will format it to "/=" display
+            calculateTotals();
+        }
+
+        // ---------- Rows ----------
+        function addRow() {
+            const newRow = document.createElement('tr');
+            newRow.innerHTML = `
+                <td><input type="text" class="quantity" value="0"></td>
+                <td><input type="text" class="description"></td>
+                <td><input type="text" class="packing" value="0"></td>
+                <td><input type="text" class="weightKg" value="0.00" readonly></td>
+                <td><input type="text" class="weightLbs" value="0.00" readonly></td>
+                <td><input type="text" class="price" value="0"></td>
+                <td><input type="text" class="amount total-amount-input" value="0.00" readonly></td>
+            `;
+            document.getElementById('invoice-body').appendChild(newRow);
+            attachEventListeners(newRow);
+            calculateTotals();
+        }
+
+        // ---------- Data getters/setters ----------
+        function populateForm(doc) {
+            document.getElementById('invoiceNumber').value = doc.number;
+            document.getElementById('invoiceDate').value = doc.date;
+            document.getElementById('partyName').value = doc.party;
+            document.getElementById('paymentMethod').value = doc.paymentMethod || '';
+            document.getElementById('paymentTerms').value = doc.paymentTerms || '';
+
+            originalDocumentID = doc.documentID; // Store the unique cloud ID
+
+            const tbody = document.getElementById('invoice-body');
+            tbody.innerHTML = '';
+
+            (doc.lineItems || []).forEach(item => {
+                const newRow = document.createElement('tr');
+                newRow.innerHTML = `
+                    <td><input type="text" class="quantity" value="${item.quantity}"></td>
+                    <td><input type="text" class="description" value="${item.description}"></td>
+                    <td><input type="text" class="packing" value="${item.packing}"></td>
+                    <td><input type="text" class="weightKg" value="${(item.weightKg||0).toFixed(2)}" readonly></td>
+                    <td><input type="text" class="weightLbs" value="${(item.weightLbs||0).toFixed(2)}" readonly></td>
+                    <td><input type="text" class="price" value="${item.price}"></td>
+                    <td><input type="text" class="amount total-amount-input" value="${formatCurrency(item.amount || 0)}" readonly></td>
+                `;
+                tbody.appendChild(newRow);
+                attachEventListeners(newRow);
+            });
+            
+            document.getElementById('cartage').value = doc.cartage ? formatCurrency(doc.cartage) : formatCurrency(0);
+            calculateTotals();
+        }
+
+        function getLineItemsData() {
+            const lineItems = [];
+            document.querySelectorAll('#invoice-body tr').forEach(row => {
+                lineItems.push({
+                    quantity: parseFormattedNumber(row.querySelector('.quantity').value),
+                    description: row.querySelector('.description').value,
+                    packing: parseFormattedNumber(row.querySelector('.packing').value),
+                    weightKg: parseFormattedNumber(row.querySelector('.weightKg').value),
+                    weightLbs: parseFormattedNumber(row.querySelector('.weightLbs').value),
+                    price: parseFormattedNumber(row.querySelector('.price').value),
+                    amount: parseFormattedNumber(row.querySelector('.amount').value)
+                });
+            });
+            return lineItems;
+        }
+
+        // ---------- Save / Update ----------
+        async function saveInvoice() {
+            if (typeof window.db === 'undefined' || !window.db) {
+                alert("Error: Firebase is not initialized. Cannot save to cloud ledger.");
+                return;
+            }
+            
+            const invoiceNumber = document.getElementById('invoiceNumber').value;
+            const invoiceDate = document.getElementById('invoiceDate').value;
+            const partyName = document.getElementById('partyName').value.trim();
+            const cartage = parseFormattedNumber(document.getElementById('cartage').value);
+            const grossTotal = parseFormattedNumber(document.getElementById('grossTotal').value);
+            const netTotal = parseFormattedNumber(document.getElementById('netTotal').value);
+
+            if (!invoiceNumber || !invoiceDate || !partyName || netTotal <= 0) {
+                alert("Please fill in Invoice Number, Date, Party Name, and ensure Net Total is greater than zero.");
+                return;
+            }
+
+            const documentID = PREFIX + invoiceNumber;
+
+            const newInvoice = {
+                documentID: documentID,
+                documentType: 'Sales Invoice',
+                status: 'Posted',
+                number: invoiceNumber,
+                date: invoiceDate,
+                party: partyName,
+                paymentMethod: document.getElementById('paymentMethod').value,
+                paymentTerms: document.getElementById('paymentTerms').value || '',
+                lineItems: getLineItemsData(),
+                cartage: cartage,
+                grossTotal: grossTotal,
+                netTotal: netTotal
+            };
+
+            try {
+                // If editing, remove old journal entry first
+                if (isEditing && originalDocumentID) {
+                    await deleteJournalEntry(originalDocumentID);
+                }
+
+                // Construct the Journal Entry for Firebase (as you had)
+                const journalEntry = {
+                    documentID: documentID,
+                    date: invoiceDate,
+                    description: `Sales Invoice #${invoiceNumber} to ${partyName}.`,
+                    type: 'Sales Invoice',
+                    amount: netTotal,
+                    entries: [
+                        { account: partyName, type: 'Debit', amount: netTotal, partyName: partyName },
+                        { account: 'Sales Revenue', type: 'Credit', amount: grossTotal },
+                        ...(cartage > 0 ? [{ account: 'Cartage Income', type: 'Credit', amount: cartage }] : [])
+                    ]
+                };
+
+                // Post Journal Entry (compat)
+                await window.db.collection("JournalEntries").doc(documentID).set(journalEntry);
+
+                // Save invoice header & items under invoices/{documentID}
+                await window.db.collection("invoices").doc(documentID).set({
+                    documentID,
+                    number: invoiceNumber,
+                    date: invoiceDate,
+                    party: partyName,
+                    paymentMethod: document.getElementById('paymentMethod').value,
+                    paymentTerms: document.getElementById('paymentTerms').value || '',
+                    cartage,
+                    grossTotal,
+                    netTotal,
+                    documentType: 'Sales Invoice',
+                    status: 'Posted'
+                });
+
+                // Save items as subcollection
+                const items = getLineItemsData();
+                const itemsRef = window.db.collection("invoices").doc(documentID).collection("items");
+                for (const it of items) {
+                    await itemsRef.add(it);
+                }
+
+                // Update local cache
+                updateLocalCache(newInvoice);
+                alert(`Sales Invoice ${invoiceNumber} saved and POSTED to the cloud ledger successfully!`);
+
+                // persist last number
+                setLastInvoiceNumber(parseInt(invoiceNumber, 10));
+            } catch (error) {
+                console.error("Error saving invoice and posting ledger:", error);
+                alert("Error saving transaction to the cloud. Please check the console.");
+            }
+
+            // navigate to documents
+            window.location.href = 'documents.html';
+        }
+
+        function updateLocalCache(newInvoice) {
+            const invoiceIndex = window.invoices.findIndex(doc => doc.documentID === newInvoice.documentID);
+            if (invoiceIndex > -1) { 
+                window.invoices[invoiceIndex] = newInvoice; 
+            } else {
+                window.invoices.push(newInvoice);
+            }
+
+            const docIndex = window.documents.findIndex(doc => doc.documentID === newInvoice.documentID);
+            if (docIndex > -1) { 
+                window.documents[docIndex] = newInvoice; 
+            } else {
+                window.documents.push(newInvoice);
+            }
+
+            if (typeof saveData === 'function') saveData();
+        }
+
+        // ---------- Delete helpers ----------
+        async function deleteJournalEntry(documentID) {
+            if (typeof window.db === 'undefined' || !window.db) return;
+            try {
+                await window.db.collection("JournalEntries").doc(documentID).delete();
+                console.log(`Firebase Journal Entry for ${documentID} deleted successfully.`);
+            } catch (e) {
+                console.warn('deleteJournalEntry error', e);
+            }
+        }
+
+        async function deleteInvoice() {
+            const invoiceNumber = document.getElementById('invoiceNumber').value;
+            const documentID = originalDocumentID;
+            
+            if (!documentID) {
+                alert("Cannot delete. Document ID is missing.");
+                return;
+            }
+
+            if (!confirm(`Are you sure you want to delete Sales Invoice ${invoiceNumber}? This action will delete the cloud ledger entry.`)) return;
+
+            try {
+                await deleteJournalEntry(documentID);
+
+                let invoiceIndex = window.invoices.findIndex(doc => doc.documentID === documentID);
+                if (invoiceIndex > -1) window.invoices.splice(invoiceIndex, 1);
+
+                let docIndex = window.documents.findIndex(doc => doc.documentID === documentID);
+                if (docIndex > -1) window.documents.splice(docIndex, 1);
+
+                if (typeof saveData === 'function') saveData();
+                alert(`Invoice ${invoiceNumber} deleted from local cache and cloud ledger successfully.`);
+                window.location.href = 'documents.html';
+            } catch (error) {
+                console.error("Error during invoice deletion:", error);
+                alert("Deletion Failed. Local data may be out of sync with cloud.");
+            }
+        }
+
+        // ---------- PDF generation (clean, working) ----------
+        function generatePDF() {
+            try {
+                const invoiceElement = document.getElementById("invoiceContainer");
+                if (!invoiceElement) {
+                    alert("Error: Invoice content not found on page!");
+                    return;
+                }
+
+                // Optional highlight while generating
+                const prevBox = invoiceElement.style.boxShadow;
+                invoiceElement.style.boxShadow = "0 0 10px rgba(0,0,0,0.2)";
+
+                const invoiceNumber = document.getElementById("invoiceNumber")?.value || "NoNumber";
+                const filename = `Invoice_${invoiceNumber}.pdf`;
+
+                const opt = {
+                    margin: 0.3,
+                    filename: filename,
+                    image: { type: "jpeg", quality: 0.98 },
+                    html2canvas: { scale: 2, useCORS: true },
+                    jsPDF: { unit: "pt", format: "a4", orientation: "portrait" }
+                };
+
+                const worker = html2pdf().set(opt).from(invoiceElement);
+
+                // Generate PDF and obtain jsPDF instance to create blob for upload
+                worker.toPdf().get("pdf").then(async (pdf) => {
+                    try {
+                        const pdfBlob = pdf.output("blob");
+
+                        // Upload to Firebase Storage if available (compat)
+                        if (window.storage) {
+                            try {
+                                const docId = PREFIX + invoiceNumber;
+                                const storageRef = window.storage.ref(`invoices/${docId}.pdf`);
+                                await storageRef.put(pdfBlob);
+                            } catch (uploadErr) {
+                                console.warn("Upload to storage failed:", uploadErr);
+                            }
+                        }
+
+                        // Trigger download/save
+                        await worker.save();
+
+                        alert("PDF generated, uploaded to Storage (if available) and downloaded.");
+                    } catch (e) {
+                        console.error("pdf blob/upload error", e);
+                        alert("PDF generation/upload failed. See console.");
+                    } finally {
+                        invoiceElement.style.boxShadow = prevBox || "";
+                    }
+                }).catch(err => {
+                    console.error("html2pdf toPdf().get error", err);
+                    invoiceElement.style.boxShadow = prevBox || "";
+                    alert("PDF generation failed: " + (err && err.message ? err.message : err));
+                });
+
+            } catch (err) {
+                console.error("generatePDF error", err);
+                alert("PDF generation failed: " + (err.message || err));
+            }
+        }
+
+        // ---------- Initialization ----------
+        document.addEventListener('DOMContentLoaded', function() {
+            // If data.js provides loadData, run it (it may populate window.lastInvoiceNumber etc.)
+            if (typeof loadData === 'function') {
+                try { loadData(); } catch(e) { console.warn('loadData() error', e); }
+            } else {
+                // if lastInvoiceNumber persisted in localStorage, restore it
+                try {
+                    const saved = localStorage.getItem('lastInvoiceNumber');
+                    if (saved) window.lastInvoiceNumber = parseInt(saved, 10);
+                } catch(e) {}
+            }
+
+            const docToEdit = JSON.parse(localStorage.getItem('docToEdit') || 'null');
+
+            if (docToEdit && docToEdit.documentType === 'Sales Invoice') {
+                populateForm(docToEdit);
+                isEditing = true;
+                originalDocNumber = docToEdit.number;
+                localStorage.removeItem('docToEdit');
+                document.getElementById('deleteButton').style.display = 'inline-block';
+            } else {
+                // preserve your original numbering method
+                document.getElementById('invoiceNumber').value = getNextInvoiceNumber();
+                document.getElementById('invoiceDate').value = new Date().toLocaleDateString('en-GB');
+                document.getElementById('deleteButton').style.display = 'none';
+            }
+
+            // Attach listeners on existing rows
+            document.querySelectorAll('#invoice-body tr').forEach(row => attachEventListeners(row));
+
+            // Cartage input handler
+            const cartageEl = document.getElementById('cartage');
+            if (cartageEl) {
+                cartageEl.addEventListener('input', formatCartageAndRecalculate);
+            }
+
+            // Initial calculation for any pre-filled values
+            setTimeout(() => {
+                document.querySelectorAll('#invoice-body tr').forEach(row => calculateRowAndTotals(row));
+            }, 100);
+        });
+    </script>
+    <!-- --------------------------------------------------------------------------- -->
+</body>
+</html>
