@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Income Statement - Bilal Ehtasham Traders</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            color: #333;
+            background-color: #f4f4f4;
+        }
+        .report-container {
+            width: 100%;
+            max-width: 900px;
+            margin: 0 auto;
+            border: 1px solid #ccc;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            background-color: #fff;
+            position: relative;
+        }
+        .sync-badge {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 11px;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .sync-badge.error {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #003366;
+            padding-bottom: 10px;
+        }
+        .header h1 {
+            font-size: 24px;
+            margin: 0;
+            color: #003366;
+        }
+        .business-info {
+            text-align: center;
+        }
+        .business-info h2 {
+            color: #003366;
+            font-size: 18px;
+            margin: 5px 0;
+        }
+        .business-info p {
+            margin: 5px 0;
+            font-size: 12px;
+        }
+        .controls {
+            margin-bottom: 20px;
+            text-align: right;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #003366;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-left: 10px;
+        }
+        button:hover {
+            background-color: #005599;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .loading-text {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-style: italic;
+        }
+        .error-text {
+            text-align: center;
+            padding: 20px;
+            color: #dc3545;
+            font-weight: bold;
+            line-height: 1.6;
+        }
+        .error-box {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .success-box {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+            color: #155724;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+            border-bottom: 2px solid #000;
+        }
+        #income-statement-body td:nth-child(2), tfoot td:nth-child(2) {
+            text-align: right;
+        }
+        .section-header {
+            font-weight: bold;
+            background-color: #e6e6e6;
+        }
+        .subtotal {
+            font-weight: bold;
+            border-top: 1px solid #ccc;
+        }
+        .final-total {
+            font-weight: bold;
+            border-top: 2px solid #000;
+            padding-top: 10px;
+        }
+        .input-field {
+            width: 90%;
+            border: 1px solid #ccc;
+            text-align: right;
+            box-sizing: border-box;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        .input-field:focus {
+            outline: none;
+            border-color: #003366;
+            box-shadow: 0 0 3px rgba(0, 51, 102, 0.3);
+        }
+        .debug-info {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 20px 0;
+            font-size: 12px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="report-container">
+        <div class="sync-badge" id="sync-badge">SYNCED</div>
+        <div class="header">
+            <h1>Income Statement</h1>
+            <div class="business-info">
+                <h2>(BET) Bilal Ehtasham Traders</h2>
+                <p>Deals in all kinds of Cotton and Polyester Yarn</p>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button onclick="generatePDF()" id="pdf-btn">Generate PDF</button>
+            <button onclick="window.location.href='index.html'">Back to Dashboard</button>
+        </div>
+
+        <div id="loading" class="loading-text">
+            <p>Loading financial data from cloud...</p>
+            <p style="font-size: 12px; color: #999;">Connecting to Firebase Firestore...</p>
+        </div>
+        
+        <div id="error-container" style="display: none;"></div>
+        
+        <table id="income-table" style="display: none;">
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th>Amount (Rs.)</th>
+                </tr>
+            </thead>
+            <tbody id="income-statement-body">
+                <tr>
+                    <td class="section-header" colspan="2">Revenue</td>
+                </tr>
+                <tr>
+                    <td>Sales Revenue</td>
+                    <td id="sales-revenue">0.00</td>
+                </tr>
+                <tr>
+                    <td class="section-header" colspan="2">Cost of Goods Sold (COGS)</td>
+                </tr>
+                <tr>
+                    <td>Purchases (Direct Cost)</td>
+                    <td id="purchases-cogs">0.00</td>
+                </tr>
+                <tr class="subtotal">
+                    <td class="subtotal">Gross Profit</td>
+                    <td class="subtotal" id="gross-profit">0.00</td>
+                </tr>
+                <tr>
+                    <td class="section-header" colspan="2">Other Operating Expenses</td>
+                </tr>
+                <tr>
+                    <td>Vendor Payments (Indirect Expenses)</td>
+                    <td id="vendor-payments-expense">0.00</td>
+                </tr>
+                <tr>
+                    <td>Other Expenses (e.g., Rent, Salaries)</td>
+                    <td><input type="text" id="other-expenses-input" class="input-field" value="0" oninput="formatAndCalculate()"></td>
+                </tr>
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td class="final-total">Net Income</td>
+                    <td class="final-total" id="net-income">0.00</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
+            authDomain: "bet-acc-software.firebaseapp.com",
+            projectId: "bet-acc-software",
+            storageBucket: "bet-acc-software.firebasestorage.app",
+            messagingSenderId: "879522152449",
+            appId: "1:879522152449:web:73b8ef899d5c1cbfd90000"
+        };
+
+        console.log("=== Firebase Initialization ===");
+        console.log("Project ID:", firebaseConfig.projectId);
+        
+        let app, db;
+        
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            console.log("✓ Firebase initialized successfully");
+        } catch (error) {
+            console.error("✗ Firebase initialization failed:", error);
+            showError("Firebase initialization failed: " + error.message);
+        }
+
+        let salesRevenue = 0;
+        let purchasesCogs = 0;
+        let vendorPaymentsExpense = 0;
+
+        function formatAmount(amount) {
+            return (amount || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        }
+
+        function showError(message, details = null) {
+            const errorContainer = document.getElementById('error-container');
+            const syncBadge = document.getElementById('sync-badge');
+            
+            syncBadge.textContent = 'ERROR';
+            syncBadge.classList.add('error');
+            
+            let errorHTML = '<div class="error-box">';
+            errorHTML += '<h3 style="margin-top: 0; color: #dc3545;">❌ Error Loading Data</h3>';
+            errorHTML += '<p><strong>Error Message:</strong> ' + message + '</p>';
+            
+            if (details) {
+                errorHTML += '<p><strong>Details:</strong> ' + details + '</p>';
+            }
+            
+            errorHTML += '<hr style="margin: 15px 0;">';
+            errorHTML += '<h4 style="color: #003366;">🔧 How to Fix:</h4>';
+            errorHTML += '<ol style="text-align: left; line-height: 1.8;">';
+            errorHTML += '<li><strong>Update Firestore Security Rules:</strong><br>';
+            errorHTML += '   • Go to <a href="https://console.firebase.google.com/project/bet-acc-software/firestore/rules" target="_blank">Firebase Console → Firestore Rules</a><br>';
+            errorHTML += '   • Replace with:<br>';
+            errorHTML += '   <code style="background: #f4f4f4; padding: 10px; display: block; margin: 5px 0;">rules_version = \'2\';<br>';
+            errorHTML += '   service cloud.firestore {<br>';
+            errorHTML += '   &nbsp;&nbsp;match /databases/{database}/documents {<br>';
+            errorHTML += '   &nbsp;&nbsp;&nbsp;&nbsp;match /{document=**} {<br>';
+            errorHTML += '   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;allow read, write: if true;<br>';
+            errorHTML += '   &nbsp;&nbsp;&nbsp;&nbsp;}<br>';
+            errorHTML += '   &nbsp;&nbsp;}<br>';
+            errorHTML += '   }</code>';
+            errorHTML += '   • Click "Publish"</li>';
+            errorHTML += '<li><strong>Verify Collections Exist:</strong><br>';
+            errorHTML += '   • Check if these collections exist in Firestore:<br>';
+            errorHTML += '   &nbsp;&nbsp;- <code>invoices</code><br>';
+            errorHTML += '   &nbsp;&nbsp;- <code>purchaseInvoices</code><br>';
+            errorHTML += '   &nbsp;&nbsp;- <code>vendorPayments</code></li>';
+            errorHTML += '<li><strong>Refresh the Page</strong> after making changes</li>';
+            errorHTML += '</ol>';
+            errorHTML += '</div>';
+            
+            errorContainer.innerHTML = errorHTML;
+            errorContainer.style.display = 'block';
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        function showSuccess() {
+            const syncBadge = document.getElementById('sync-badge');
+            syncBadge.textContent = 'SYNCED';
+            syncBadge.classList.remove('error');
+        }
+
+        window.formatAndCalculate = function() {
+            const input = document.getElementById('other-expenses-input');
+            let value = input.value.replace(/[^0-9.-]/g, '');
+            
+            if (value !== "") {
+                const numValue = parseFloat(value);
+                if (!isNaN(numValue)) {
+                    input.value = formatAmount(numValue);
+                }
+            } else {
+                input.value = "0.00";
+            }
+            calculateIncomeStatement();
+        };
+
+        async function loadFinancialData() {
+            try {
+                console.log("\n=== Starting Data Load ===");
+                
+                // Test Firestore connection
+                console.log("Testing Firestore connection...");
+                
+                // Load Sales Revenue from invoices
+                console.log("\n--- Loading Sales Revenue ---");
+                try {
+                    const invoicesSnapshot = await getDocs(collection(db, "invoices"));
+                    console.log("✓ Invoices collection accessible");
+                    console.log("  Documents found:", invoicesSnapshot.size);
+                    
+                    invoicesSnapshot.forEach(doc => {
+                        const data = doc.data();
+                        console.log("  Invoice ID:", doc.id);
+                        const amount = parseFloat(data.netTotal || data.total || data.amount) || 0;
+                        salesRevenue += amount;
+                        console.log("    Amount:", amount);
+                    });
+                    console.log("  Total Sales Revenue:", salesRevenue);
+                } catch (error) {
+                    console.error("✗ Error accessing 'invoices' collection:", error.code, error.message);
+                    throw new Error("Cannot access 'invoices' collection. " + (error.code === 'permission-denied' ? 'Permission denied - check Firestore rules.' : error.message));
+                }
+
+                // Load COGS from purchase invoices
+                console.log("\n--- Loading Purchase Invoices (COGS) ---");
+                try {
+                    const purchasesSnapshot = await getDocs(collection(db, "purchaseInvoices"));
+                    console.log("✓ Purchase invoices collection accessible");
+                    console.log("  Documents found:", purchasesSnapshot.size);
+                    
+                    purchasesSnapshot.forEach(doc => {
+                        const data = doc.data();
+                        console.log("  Purchase ID:", doc.id);
+                        const amount = parseFloat(data.netTotal || data.total || data.amount) || 0;
+                        purchasesCogs += amount;
+                        console.log("    Amount:", amount);
+                    });
+                    console.log("  Total Purchases (COGS):", purchasesCogs);
+                } catch (error) {
+                    console.error("✗ Error accessing 'purchaseInvoices' collection:", error.code, error.message);
+                    throw new Error("Cannot access 'purchaseInvoices' collection. " + (error.code === 'permission-denied' ? 'Permission denied - check Firestore rules.' : error.message));
+                }
+
+                // Load Operating Expenses from vendor payments
+                console.log("\n--- Loading Vendor Payments ---");
+                try {
+                    const paymentsSnapshot = await getDocs(collection(db, "vendorPayments"));
+                    console.log("✓ Vendor payments collection accessible");
+                    console.log("  Documents found:", paymentsSnapshot.size);
+                    
+                    paymentsSnapshot.forEach(doc => {
+                        const data = doc.data();
+                        console.log("  Payment ID:", doc.id);
+                        const amount = parseFloat(data.amountPaid || data.amount || data.total) || 0;
+                        vendorPaymentsExpense += amount;
+                        console.log("    Amount:", amount);
+                    });
+                    console.log("  Total Vendor Payments:", vendorPaymentsExpense);
+                } catch (error) {
+                    console.error("✗ Error accessing 'vendorPayments' collection:", error.code, error.message);
+                    throw new Error("Cannot access 'vendorPayments' collection. " + (error.code === 'permission-denied' ? 'Permission denied - check Firestore rules.' : error.message));
+                }
+
+                console.log("\n=== Data Load Complete ===");
+                console.log("Total Sales:", salesRevenue);
+                console.log("Total Purchases:", purchasesCogs);
+                console.log("Total Vendor Payments:", vendorPaymentsExpense);
+
+                // Show success
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('income-table').style.display = 'table';
+                showSuccess();
+                
+                calculateIncomeStatement();
+                
+                // Enable PDF button
+                document.getElementById('pdf-btn').disabled = false;
+                
+            } catch (error) {
+                console.error("\n=== ERROR ===");
+                console.error("Error type:", error.name);
+                console.error("Error message:", error.message);
+                console.error("Error code:", error.code);
+                console.error("Full error:", error);
+                
+                let errorDetails = null;
+                if (error.code === 'permission-denied') {
+                    errorDetails = "Firestore security rules are blocking access. You need to update the rules to allow read access.";
+                } else if (error.code === 'not-found') {
+                    errorDetails = "The requested collection or document was not found. Make sure the collections exist in Firestore.";
+                } else if (error.code === 'unavailable') {
+                    errorDetails = "Firestore service is temporarily unavailable. Check your internet connection and try again.";
+                }
+                
+                showError(error.message, errorDetails);
+            }
+        }
+
+        function calculateIncomeStatement() {
+            const otherExpensesInput = document.getElementById('other-expenses-input').value;
+            const otherExpenses = parseFloat(otherExpensesInput.replace(/,/g, '')) || 0;
+
+            const grossProfit = salesRevenue - purchasesCogs;
+            const totalOperatingExpenses = vendorPaymentsExpense + otherExpenses;
+            const netIncome = grossProfit - totalOperatingExpenses;
+
+            console.log("\n=== Income Statement Calculations ===");
+            console.log("Sales Revenue:", salesRevenue);
+            console.log("- Purchases (COGS):", purchasesCogs);
+            console.log("= Gross Profit:", grossProfit);
+            console.log("- Operating Expenses:", totalOperatingExpenses);
+            console.log("  (Vendor Payments:", vendorPaymentsExpense);
+            console.log("   Other Expenses:", otherExpenses + ")");
+            console.log("= Net Income:", netIncome);
+
+            document.getElementById('sales-revenue').textContent = formatAmount(salesRevenue);
+            document.getElementById('purchases-cogs').textContent = formatAmount(purchasesCogs);
+            document.getElementById('gross-profit').textContent = formatAmount(grossProfit);
+            document.getElementById('vendor-payments-expense').textContent = formatAmount(vendorPaymentsExpense);
+            document.getElementById('net-income').textContent = formatAmount(netIncome);
+
+            const netIncomeElement = document.getElementById('net-income');
+            if (netIncome < 0) {
+                netIncomeElement.style.color = '#dc3545';
+            } else if (netIncome > 0) {
+                netIncomeElement.style.color = '#28a745';
+            } else {
+                netIncomeElement.style.color = '#333';
+            }
+        }
+
+        window.generatePDF = function() {
+            const element = document.querySelector('.report-container');
+            const opt = {
+                margin: 0.5,
+                filename: 'Income-Statement-' + new Date().toLocaleDateString('en-GB').replace(/\//g, '-') + '.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+            };
+            html2pdf().set(opt).from(element).save();
+        };
+
+        // Start loading data when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log("=== Page Loaded ===");
+            console.log("Current URL:", window.location.href);
+            console.log("Timestamp:", new Date().toISOString());
+            
+            // Disable PDF button until data loads
+            document.getElementById('pdf-btn').disabled = true;
+            
+            loadFinancialData();
+        });
+    </script>
+</body>
+</html>
