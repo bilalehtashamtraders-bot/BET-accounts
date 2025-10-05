@@ -108,6 +108,14 @@
             margin: 20px 0;
             color: #155724;
         }
+        .warning-box {
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+            color: #856404;
+        }
         table {
             width: 100%;
             border-collapse: collapse;
@@ -150,15 +158,6 @@
             border-color: #003366;
             box-shadow: 0 0 3px rgba(0, 51, 102, 0.3);
         }
-        .debug-info {
-            background-color: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 5px;
-            padding: 10px;
-            margin: 20px 0;
-            font-size: 12px;
-            font-family: monospace;
-        }
     </style>
 </head>
 <body>
@@ -183,6 +182,7 @@
         </div>
         
         <div id="error-container" style="display: none;"></div>
+        <div id="warning-container" style="display: none;"></div>
         
         <table id="income-table" style="display: none;">
             <thead>
@@ -203,23 +203,43 @@
                     <td class="section-header" colspan="2">Cost of Goods Sold (COGS)</td>
                 </tr>
                 <tr>
-                    <td>Purchases (Direct Cost)</td>
-                    <td id="purchases-cogs">0.00</td>
+                    <td>Cost of Goods Sold</td>
+                    <td id="cogs-amount">0.00</td>
                 </tr>
                 <tr class="subtotal">
                     <td class="subtotal">Gross Profit</td>
                     <td class="subtotal" id="gross-profit">0.00</td>
                 </tr>
                 <tr>
-                    <td class="section-header" colspan="2">Other Operating Expenses</td>
+                    <td class="section-header" colspan="2">Operating Expenses</td>
                 </tr>
                 <tr>
-                    <td>Vendor Payments (Indirect Expenses)</td>
-                    <td id="vendor-payments-expense">0.00</td>
+                    <td>Rent</td>
+                    <td><input type="text" id="rent-input" class="input-field" value="0" oninput="formatAndCalculate()"></td>
                 </tr>
                 <tr>
-                    <td>Other Expenses (e.g., Rent, Salaries)</td>
+                    <td>Salaries</td>
+                    <td><input type="text" id="salaries-input" class="input-field" value="0" oninput="formatAndCalculate()"></td>
+                </tr>
+                <tr>
+                    <td>Utilities (Electric, Water, Gas)</td>
+                    <td><input type="text" id="utilities-input" class="input-field" value="0" oninput="formatAndCalculate()"></td>
+                </tr>
+                <tr>
+                    <td>Transportation/Freight</td>
+                    <td><input type="text" id="transport-input" class="input-field" value="0" oninput="formatAndCalculate()"></td>
+                </tr>
+                <tr>
+                    <td>Office Supplies</td>
+                    <td><input type="text" id="supplies-input" class="input-field" value="0" oninput="formatAndCalculate()"></td>
+                </tr>
+                <tr>
+                    <td>Other Expenses</td>
                     <td><input type="text" id="other-expenses-input" class="input-field" value="0" oninput="formatAndCalculate()"></td>
+                </tr>
+                <tr class="subtotal">
+                    <td class="subtotal">Total Operating Expenses</td>
+                    <td class="subtotal" id="total-expenses">0.00</td>
                 </tr>
             </tbody>
             <tfoot>
@@ -260,8 +280,7 @@
         }
 
         let salesRevenue = 0;
-        let purchasesCogs = 0;
-        let vendorPaymentsExpense = 0;
+        let totalCOGS = 0;
 
         function formatAmount(amount) {
             return (amount || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -297,11 +316,7 @@
             errorHTML += '   &nbsp;&nbsp;}<br>';
             errorHTML += '   }</code>';
             errorHTML += '   • Click "Publish"</li>';
-            errorHTML += '<li><strong>Verify Collections Exist:</strong><br>';
-            errorHTML += '   • Check if these collections exist in Firestore:<br>';
-            errorHTML += '   &nbsp;&nbsp;- <code>invoices</code><br>';
-            errorHTML += '   &nbsp;&nbsp;- <code>purchaseInvoices</code><br>';
-            errorHTML += '   &nbsp;&nbsp;- <code>vendorPayments</code></li>';
+            errorHTML += '<li><strong>Verify Collections Exist</strong></li>';
             errorHTML += '<li><strong>Refresh the Page</strong> after making changes</li>';
             errorHTML += '</ol>';
             errorHTML += '</div>';
@@ -311,6 +326,16 @@
             document.getElementById('loading').style.display = 'none';
         }
 
+        function showWarning(message) {
+            const warningContainer = document.getElementById('warning-container');
+            let warningHTML = '<div class="warning-box">';
+            warningHTML += '<h4 style="margin-top: 0;">⚠️ Important Note</h4>';
+            warningHTML += '<p>' + message + '</p>';
+            warningHTML += '</div>';
+            warningContainer.innerHTML = warningHTML;
+            warningContainer.style.display = 'block';
+        }
+
         function showSuccess() {
             const syncBadge = document.getElementById('sync-badge');
             syncBadge.textContent = 'SYNCED';
@@ -318,26 +343,29 @@
         }
 
         window.formatAndCalculate = function() {
-            const input = document.getElementById('other-expenses-input');
-            let value = input.value.replace(/[^0-9.-]/g, '');
+            const inputs = ['rent-input', 'salaries-input', 'utilities-input', 
+                          'transport-input', 'supplies-input', 'other-expenses-input'];
             
-            if (value !== "") {
-                const numValue = parseFloat(value);
-                if (!isNaN(numValue)) {
-                    input.value = formatAmount(numValue);
+            inputs.forEach(inputId => {
+                const input = document.getElementById(inputId);
+                let value = input.value.replace(/[^0-9.-]/g, '');
+                
+                if (value !== "") {
+                    const numValue = parseFloat(value);
+                    if (!isNaN(numValue)) {
+                        input.value = formatAmount(numValue);
+                    }
+                } else {
+                    input.value = "0.00";
                 }
-            } else {
-                input.value = "0.00";
-            }
+            });
+            
             calculateIncomeStatement();
         };
 
         async function loadFinancialData() {
             try {
                 console.log("\n=== Starting Data Load ===");
-                
-                // Test Firestore connection
-                console.log("Testing Firestore connection...");
                 
                 // Load Sales Revenue from invoices
                 console.log("\n--- Loading Sales Revenue ---");
@@ -349,60 +377,43 @@
                     invoicesSnapshot.forEach(doc => {
                         const data = doc.data();
                         console.log("  Invoice ID:", doc.id);
-                        const amount = parseFloat(data.netTotal || data.total || data.amount) || 0;
-                        salesRevenue += amount;
-                        console.log("    Amount:", amount);
+                        
+                        // Get sales revenue (selling price)
+                        const saleAmount = parseFloat(data.netTotal || data.total || data.amount) || 0;
+                        salesRevenue += saleAmount;
+                        
+                        // Calculate COGS from items in the invoice
+                        if (data.items && Array.isArray(data.items)) {
+                            data.items.forEach(item => {
+                                // Use costPrice if available, otherwise estimate
+                                const costPrice = parseFloat(item.costPrice || item.purchasePrice || 0);
+                                const quantity = parseFloat(item.quantity || 0);
+                                const itemCOGS = costPrice * quantity;
+                                totalCOGS += itemCOGS;
+                                
+                                console.log("    Item:", item.itemName || item.description);
+                                console.log("      Qty:", quantity, "Cost:", costPrice, "COGS:", itemCOGS);
+                            });
+                        }
+                        
+                        console.log("    Sale Amount:", saleAmount);
                     });
                     console.log("  Total Sales Revenue:", salesRevenue);
+                    console.log("  Total COGS:", totalCOGS);
+                    
+                    // Show warning if COGS seems incomplete
+                    if (totalCOGS === 0 && salesRevenue > 0) {
+                        showWarning("COGS is showing as 0. Make sure your invoice items include 'costPrice' or 'purchasePrice' fields. Without COGS data, gross profit cannot be calculated accurately. You may need to manually enter COGS or update your invoice data structure.");
+                    }
+                    
                 } catch (error) {
                     console.error("✗ Error accessing 'invoices' collection:", error.code, error.message);
                     throw new Error("Cannot access 'invoices' collection. " + (error.code === 'permission-denied' ? 'Permission denied - check Firestore rules.' : error.message));
                 }
 
-                // Load COGS from purchase invoices
-                console.log("\n--- Loading Purchase Invoices (COGS) ---");
-                try {
-                    const purchasesSnapshot = await getDocs(collection(db, "purchaseInvoices"));
-                    console.log("✓ Purchase invoices collection accessible");
-                    console.log("  Documents found:", purchasesSnapshot.size);
-                    
-                    purchasesSnapshot.forEach(doc => {
-                        const data = doc.data();
-                        console.log("  Purchase ID:", doc.id);
-                        const amount = parseFloat(data.netTotal || data.total || data.amount) || 0;
-                        purchasesCogs += amount;
-                        console.log("    Amount:", amount);
-                    });
-                    console.log("  Total Purchases (COGS):", purchasesCogs);
-                } catch (error) {
-                    console.error("✗ Error accessing 'purchaseInvoices' collection:", error.code, error.message);
-                    throw new Error("Cannot access 'purchaseInvoices' collection. " + (error.code === 'permission-denied' ? 'Permission denied - check Firestore rules.' : error.message));
-                }
-
-                // Load Operating Expenses from vendor payments
-                console.log("\n--- Loading Vendor Payments ---");
-                try {
-                    const paymentsSnapshot = await getDocs(collection(db, "vendorPayments"));
-                    console.log("✓ Vendor payments collection accessible");
-                    console.log("  Documents found:", paymentsSnapshot.size);
-                    
-                    paymentsSnapshot.forEach(doc => {
-                        const data = doc.data();
-                        console.log("  Payment ID:", doc.id);
-                        const amount = parseFloat(data.amountPaid || data.amount || data.total) || 0;
-                        vendorPaymentsExpense += amount;
-                        console.log("    Amount:", amount);
-                    });
-                    console.log("  Total Vendor Payments:", vendorPaymentsExpense);
-                } catch (error) {
-                    console.error("✗ Error accessing 'vendorPayments' collection:", error.code, error.message);
-                    throw new Error("Cannot access 'vendorPayments' collection. " + (error.code === 'permission-denied' ? 'Permission denied - check Firestore rules.' : error.message));
-                }
-
                 console.log("\n=== Data Load Complete ===");
                 console.log("Total Sales:", salesRevenue);
-                console.log("Total Purchases:", purchasesCogs);
-                console.log("Total Vendor Payments:", vendorPaymentsExpense);
+                console.log("Total COGS:", totalCOGS);
 
                 // Show success
                 document.getElementById('loading').style.display = 'none';
@@ -418,14 +429,13 @@
                 console.error("\n=== ERROR ===");
                 console.error("Error type:", error.name);
                 console.error("Error message:", error.message);
-                console.error("Error code:", error.code);
                 console.error("Full error:", error);
                 
                 let errorDetails = null;
                 if (error.code === 'permission-denied') {
                     errorDetails = "Firestore security rules are blocking access. You need to update the rules to allow read access.";
                 } else if (error.code === 'not-found') {
-                    errorDetails = "The requested collection or document was not found. Make sure the collections exist in Firestore.";
+                    errorDetails = "The requested collection was not found. Make sure the 'invoices' collection exists in Firestore.";
                 } else if (error.code === 'unavailable') {
                     errorDetails = "Firestore service is temporarily unavailable. Check your internet connection and try again.";
                 }
@@ -435,28 +445,40 @@
         }
 
         function calculateIncomeStatement() {
-            const otherExpensesInput = document.getElementById('other-expenses-input').value;
-            const otherExpenses = parseFloat(otherExpensesInput.replace(/,/g, '')) || 0;
+            // Get all expense inputs
+            const rent = parseFloat(document.getElementById('rent-input').value.replace(/,/g, '')) || 0;
+            const salaries = parseFloat(document.getElementById('salaries-input').value.replace(/,/g, '')) || 0;
+            const utilities = parseFloat(document.getElementById('utilities-input').value.replace(/,/g, '')) || 0;
+            const transport = parseFloat(document.getElementById('transport-input').value.replace(/,/g, '')) || 0;
+            const supplies = parseFloat(document.getElementById('supplies-input').value.replace(/,/g, '')) || 0;
+            const otherExpenses = parseFloat(document.getElementById('other-expenses-input').value.replace(/,/g, '')) || 0;
 
-            const grossProfit = salesRevenue - purchasesCogs;
-            const totalOperatingExpenses = vendorPaymentsExpense + otherExpenses;
-            const netIncome = grossProfit - totalOperatingExpenses;
+            // Calculate totals
+            const grossProfit = salesRevenue - totalCOGS;
+            const totalExpenses = rent + salaries + utilities + transport + supplies + otherExpenses;
+            const netIncome = grossProfit - totalExpenses;
 
             console.log("\n=== Income Statement Calculations ===");
             console.log("Sales Revenue:", salesRevenue);
-            console.log("- Purchases (COGS):", purchasesCogs);
+            console.log("- COGS:", totalCOGS);
             console.log("= Gross Profit:", grossProfit);
-            console.log("- Operating Expenses:", totalOperatingExpenses);
-            console.log("  (Vendor Payments:", vendorPaymentsExpense);
-            console.log("   Other Expenses:", otherExpenses + ")");
+            console.log("- Operating Expenses:", totalExpenses);
+            console.log("  Rent:", rent);
+            console.log("  Salaries:", salaries);
+            console.log("  Utilities:", utilities);
+            console.log("  Transport:", transport);
+            console.log("  Supplies:", supplies);
+            console.log("  Other:", otherExpenses);
             console.log("= Net Income:", netIncome);
 
+            // Update display
             document.getElementById('sales-revenue').textContent = formatAmount(salesRevenue);
-            document.getElementById('purchases-cogs').textContent = formatAmount(purchasesCogs);
+            document.getElementById('cogs-amount').textContent = formatAmount(totalCOGS);
             document.getElementById('gross-profit').textContent = formatAmount(grossProfit);
-            document.getElementById('vendor-payments-expense').textContent = formatAmount(vendorPaymentsExpense);
+            document.getElementById('total-expenses').textContent = formatAmount(totalExpenses);
             document.getElementById('net-income').textContent = formatAmount(netIncome);
 
+            // Color code net income
             const netIncomeElement = document.getElementById('net-income');
             if (netIncome < 0) {
                 netIncomeElement.style.color = '#dc3545';
@@ -464,6 +486,16 @@
                 netIncomeElement.style.color = '#28a745';
             } else {
                 netIncomeElement.style.color = '#333';
+            }
+            
+            // Color code gross profit
+            const grossProfitElement = document.getElementById('gross-profit');
+            if (grossProfit < 0) {
+                grossProfitElement.style.color = '#dc3545';
+            } else if (grossProfit > 0) {
+                grossProfitElement.style.color = '#28a745';
+            } else {
+                grossProfitElement.style.color = '#333';
             }
         }
 
