@@ -233,10 +233,10 @@
             appId: "1:879522152449:web:73b8ef899d5c1cbfd90000"
         };
 
-        console.log("Initializing Firebase...");
+        console.log("=== Initializing Firebase ===");
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        console.log("Firebase initialized successfully");
+        console.log("✓ Firebase initialized successfully");
 
         function updateSyncStatus(status) {
             const statusEl = document.getElementById('syncStatus');
@@ -259,7 +259,7 @@
 
         async function loadDashboardStats() {
             try {
-                console.log("Loading dashboard statistics...");
+                console.log("\n=== Loading Dashboard Statistics ===");
                 let totalDocs = 0;
                 let totalPurchaseInvoices = 0;
                 let totalSalesInvoices = 0;
@@ -275,15 +275,19 @@
                 ];
 
                 for (const col of collections) {
-                    const snapshot = await getDocs(collection(db, col.name));
-                    const count = snapshot.size;
-                    console.log(`${col.name}: ${count} documents`);
-                    totalDocs += count;
-                    
-                    if (col.counter === 'purchase') totalPurchaseInvoices += count;
-                    else if (col.counter === 'sales') totalSalesInvoices += count;
-                    else if (col.counter === 'journals') totalJournals += count;
-                    else if (col.counter === 'receipts') totalReceipts += count;
+                    try {
+                        const snapshot = await getDocs(collection(db, col.name));
+                        const count = snapshot.size;
+                        console.log(`${col.name}: ${count} documents`);
+                        totalDocs += count;
+                        
+                        if (col.counter === 'purchase') totalPurchaseInvoices += count;
+                        else if (col.counter === 'sales') totalSalesInvoices += count;
+                        else if (col.counter === 'journals') totalJournals += count;
+                        else if (col.counter === 'receipts') totalReceipts += count;
+                    } catch (colError) {
+                        console.error(`Error loading ${col.name}:`, colError);
+                    }
                 }
 
                 document.getElementById('totalDocs').textContent = totalDocs;
@@ -292,12 +296,13 @@
                 document.getElementById('totalJournals').textContent = totalJournals;
                 document.getElementById('totalReceipts').textContent = totalReceipts;
 
+                console.log(`\n✓ Stats loaded - Total: ${totalDocs}, Purchase: ${totalPurchaseInvoices}, Sales: ${totalSalesInvoices}, Journals: ${totalJournals}, Receipts: ${totalReceipts}`);
+
                 updateSyncStatus('online');
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('mainContent').style.display = 'block';
-                console.log("Dashboard loaded successfully");
             } catch (error) {
-                console.error("Error loading stats:", error);
+                console.error("✗ Error loading stats:", error);
                 updateSyncStatus('offline');
                 document.getElementById('loading').innerHTML = 'Error loading dashboard. Please refresh.';
             }
@@ -306,7 +311,7 @@
         window.exportData = async function() {
             try {
                 updateSyncStatus('syncing');
-                console.log("Starting data export...");
+                console.log("\n=== Starting Data Export ===");
                 
                 const allData = {
                     exportDate: new Date().toISOString(),
@@ -321,11 +326,18 @@
                 const collections = ['purchaseInvoices', 'invoices', 'journalEntries', 'customerReceipts', 'vendorPayments', 'ledger'];
                 
                 for (const colName of collections) {
-                    const snapshot = await getDocs(collection(db, colName));
-                    snapshot.forEach(docSnap => {
-                        allData[colName].push(docSnap.data());
-                    });
-                    console.log(`Exported ${snapshot.size} documents from ${colName}`);
+                    try {
+                        const snapshot = await getDocs(collection(db, colName));
+                        snapshot.forEach(docSnap => {
+                            allData[colName].push({
+                                ...docSnap.data(),
+                                _docId: docSnap.id
+                            });
+                        });
+                        console.log(`✓ Exported ${snapshot.size} documents from ${colName}`);
+                    } catch (colError) {
+                        console.error(`✗ Error exporting ${colName}:`, colError);
+                    }
                 }
 
                 const dataStr = JSON.stringify(allData, null, 2);
@@ -341,9 +353,9 @@
                 
                 updateSyncStatus('online');
                 alert('Backup exported successfully!');
-                console.log("Data export completed");
+                console.log("✓ Data export completed");
             } catch (error) {
-                console.error("Export error:", error);
+                console.error("✗ Export error:", error);
                 updateSyncStatus('online');
                 alert('Error exporting data: ' + error.message);
             }
@@ -362,7 +374,7 @@
             reader.onload = async function(e) {
                 try {
                     updateSyncStatus('syncing');
-                    console.log("Starting data import...");
+                    console.log("\n=== Starting Data Import ===");
                     const data = JSON.parse(e.target.result);
                     
                     const collections = ['purchaseInvoices', 'invoices', 'journalEntries', 'customerReceipts', 'vendorPayments', 'ledger'];
@@ -371,18 +383,21 @@
                         if (data[colName] && Array.isArray(data[colName])) {
                             console.log(`Importing ${data[colName].length} documents to ${colName}`);
                             for (const item of data[colName]) {
-                                const docId = item.number || item.id || `${colName}_${Date.now()}_${Math.random()}`;
-                                await setDoc(doc(db, colName, docId), item);
+                                const docId = item._docId || item.number || item.id || `${colName}_${Date.now()}_${Math.random()}`;
+                                const itemData = {...item};
+                                delete itemData._docId;
+                                await setDoc(doc(db, colName, docId), itemData);
                             }
+                            console.log(`✓ Imported to ${colName}`);
                         }
                     }
                     
                     updateSyncStatus('online');
                     alert('Data imported successfully and synced to cloud!');
-                    console.log("Data import completed");
+                    console.log("✓ Data import completed");
                     await loadDashboardStats();
                 } catch (error) {
-                    console.error("Import error:", error);
+                    console.error("✗ Import error:", error);
                     updateSyncStatus('online');
                     alert('Error importing data: ' + error.message);
                 }
@@ -392,17 +407,18 @@
         };
 
         window.addEventListener('online', () => {
-            console.log("Internet connection restored");
+            console.log("✓ Internet connection restored");
             updateSyncStatus('online');
         });
         
         window.addEventListener('offline', () => {
-            console.log("Internet connection lost");
+            console.log("✗ Internet connection lost");
             updateSyncStatus('offline');
         });
 
         document.addEventListener('DOMContentLoaded', function() {
-            console.log("Page loaded, starting dashboard initialization...");
+            console.log("=== Page Loaded ===");
+            console.log("Starting dashboard initialization...");
             loadDashboardStats();
         });
     </script>
