@@ -135,6 +135,15 @@
             padding: 20px;
             color: #003366;
         }
+        .balance-loading {
+            color: #003366;
+            font-size: 12px;
+            font-style: italic;
+        }
+        .balance-error {
+            color: #cc0000;
+            font-size: 12px;
+        }
     </style>
 </head>
 <body>
@@ -173,7 +182,10 @@
                 </tr>
                 <tr>
                     <td class="label">Business (Ledger):</td>
-                    <td><input type="text" class="editable-field" id="business-ledger" placeholder="e.g., Customer Name"></td>
+                    <td>
+                        <input type="text" class="editable-field" id="business-ledger" placeholder="e.g., Customer Name">
+                        <div id="balance-status" class="balance-loading" style="display: none; margin-top: 5px;"></div>
+                    </td>
                 </tr>
             </table>
         
@@ -191,7 +203,7 @@
                     <td>
                         <div class="input-group">
                             <span>PKR:</span>
-                            <input type="text" id="previous-balance" style="width: 100%;">
+                            <input type="text" id="previous-balance" style="width: 100%;" readonly>
                             <span class="suffix">/=</span>
                         </div>
                     </td>
@@ -238,7 +250,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy, limit, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
@@ -254,6 +266,7 @@
 
         let isEditing = false;
         let originalDocNumber = null;
+        let debounceTimer = null;
         const STARTING_RECEIPT_NUMBER = 155;
 
         async function getNextReceiptNumber() {
@@ -273,6 +286,89 @@
                 console.error("Error getting next receipt number:", error);
                 return String(STARTING_RECEIPT_NUMBER + 1).padStart(4, '0');
             }
+        }
+
+        // NEW FUNCTION: Fetch previous balance from ledger
+        async function fetchPreviousBalance(customerName) {
+            if (!customerName || customerName.trim() === '') {
+                document.getElementById('previous-balance').value = '0';
+                document.getElementById('balance-status').style.display = 'none';
+                calculateAccountReceivable();
+                return;
+            }
+
+            const statusDiv = document.getElementById('balance-status');
+            statusDiv.style.display = 'block';
+            statusDiv.className = 'balance-loading';
+            statusDiv.textContent = 'Fetching balance...';
+
+            try {
+                // Query ledger for all entries with accountType = 'Accounts Receivable'
+                // and description containing the customer name
+                const ledgerQuery = query(collection(db, "ledger"));
+                const ledgerSnapshot = await getDocs(ledgerQuery);
+
+                let totalDebit = 0;
+                let totalCredit = 0;
+                let foundEntries = 0;
+
+                ledgerSnapshot.forEach((doc) => {
+                    const entry = doc.data();
+                    
+                    // Check if this entry is for Accounts Receivable and matches customer name
+                    if (entry.accountType === 'Accounts Receivable' && 
+                        entry.description && 
+                        entry.description.toLowerCase().includes(customerName.toLowerCase())) {
+                        
+                        totalDebit += parseFloat(entry.debit || 0);
+                        totalCredit += parseFloat(entry.credit || 0);
+                        foundEntries++;
+                    }
+                });
+
+                const balance = totalDebit - totalCredit;
+                
+                document.getElementById('previous-balance').value = balance.toLocaleString('en-US', {maximumFractionDigits: 0});
+                
+                if (foundEntries > 0) {
+                    statusDiv.className = 'balance-loading';
+                    statusDiv.textContent = `Found ${foundEntries} transaction(s)`;
+                    setTimeout(() => {
+                        statusDiv.style.display = 'none';
+                    }, 2000);
+                } else {
+                    statusDiv.className = 'balance-error';
+                    statusDiv.textContent = 'No transactions found for this customer';
+                    setTimeout(() => {
+                        statusDiv.style.display = 'none';
+                    }, 3000);
+                }
+
+                calculateAccountReceivable();
+
+            } catch (error) {
+                console.error("Error fetching previous balance:", error);
+                statusDiv.className = 'balance-error';
+                statusDiv.textContent = 'Error fetching balance';
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 3000);
+            }
+        }
+
+        // NEW FUNCTION: Debounced ledger search (waits 500ms after user stops typing)
+        function onLedgerNameChange(event) {
+            const customerName = event.target.value;
+            
+            // Clear existing timer
+            if (debounceTimer) {
+                clearTimeout(debounceTimer);
+            }
+
+            // Set new timer for 500ms delay
+            debounceTimer = setTimeout(() => {
+                fetchPreviousBalance(customerName);
+            }, 500);
         }
 
         function populateForm(doc) {
@@ -401,8 +497,8 @@
                     date: receiptDate,
                     description: `Payment from ${businessLedger} #${receiptNumber}`,
                     accountType: 'Accounts Receivable',
-                    debit: amountReceived,
-                    credit: 0,
+                    debit: 0,
+                    credit: amountReceived,
                     doc_number: receiptNumber,
                     timestamp: new Date().toISOString()
                 });
@@ -523,7 +619,9 @@
                     document.getElementById('deleteButton').style.display = 'none';
                 }
 
-                document.getElementById('previous-balance').addEventListener('input', formatAndCalculate);
+                // MODIFIED: Add event listener for Business (Ledger) field
+                document.getElementById('business-ledger').addEventListener('input', onLedgerNameChange);
+                
                 document.getElementById('amount-received').addEventListener('input', formatAndCalculate);
                 calculateAccountReceivable();
 
