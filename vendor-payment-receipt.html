@@ -135,6 +135,19 @@
             padding: 20px;
             color: #003366;
         }
+        .balance-loading {
+            color: #003366;
+            font-size: 12px;
+            font-style: italic;
+        }
+        .balance-success {
+            color: #008800;
+            font-size: 12px;
+        }
+        .balance-error {
+            color: #cc0000;
+            font-size: 12px;
+        }
     </style>
 </head>
 <body>
@@ -173,7 +186,10 @@
                 </tr>
                 <tr>
                     <td class="label">Business (Ledger):</td>
-                    <td><input type="text" class="editable-field" id="business-ledger" placeholder="e.g., Vendor Name"></td>
+                    <td>
+                        <input type="text" class="editable-field" id="business-ledger" placeholder="e.g., Vendor Name">
+                        <div id="balance-status" class="balance-loading" style="display: none; margin-top: 5px;"></div>
+                    </td>
                 </tr>
             </table>
         
@@ -191,7 +207,7 @@
                     <td>
                         <div class="input-group">
                             <span>PKR:</span>
-                            <input type="text" id="previous-balance" style="width: 100%;">
+                            <input type="text" id="previous-balance" style="width: 100%;" readonly>
                             <span class="suffix">/=</span>
                         </div>
                     </td>
@@ -254,6 +270,7 @@
 
         let isEditing = false;
         let originalDocNumber = null;
+        let debounceTimer = null;
         const STARTING_PAYMENT_NUMBER = 99;
 
         async function getNextReceiptNumber() {
@@ -273,6 +290,86 @@
                 console.error("Error getting next voucher number:", error);
                 return String(STARTING_PAYMENT_NUMBER + 1).padStart(4, '0');
             }
+        }
+
+        // NEW FUNCTION: Fetch previous balance from ledger for Accounts Payable
+        async function fetchPreviousBalance(vendorName) {
+            if (!vendorName || vendorName.trim() === '') {
+                document.getElementById('previous-balance').value = '0';
+                document.getElementById('balance-status').style.display = 'none';
+                calculateAccountReceivable();
+                return;
+            }
+
+            const statusDiv = document.getElementById('balance-status');
+            statusDiv.style.display = 'block';
+            statusDiv.className = 'balance-loading';
+            statusDiv.textContent = 'Fetching balance...';
+
+            try {
+                const ledgerQuery = query(collection(db, "ledger"));
+                const ledgerSnapshot = await getDocs(ledgerQuery);
+
+                let totalDebit = 0;
+                let totalCredit = 0;
+                let foundEntries = 0;
+
+                ledgerSnapshot.forEach((doc) => {
+                    const entry = doc.data();
+                    
+                    // Search in 'account' field for Accounts Payable entries
+                    if (entry.account && 
+                        entry.account.toLowerCase().includes(vendorName.toLowerCase())) {
+                        
+                        totalDebit += parseFloat(entry.debit || 0);
+                        totalCredit += parseFloat(entry.credit || 0);
+                        foundEntries++;
+                    }
+                });
+
+                // For Accounts Payable: Credit - Debit = Amount we owe
+                const balance = totalCredit - totalDebit;
+                
+                document.getElementById('previous-balance').value = balance.toLocaleString('en-US', {maximumFractionDigits: 0});
+                
+                if (foundEntries > 0) {
+                    statusDiv.className = 'balance-success';
+                    statusDiv.textContent = `✓ Found ${foundEntries} transaction(s) | Balance: ${balance.toLocaleString()}`;
+                    setTimeout(() => {
+                        statusDiv.style.display = 'none';
+                    }, 3000);
+                } else {
+                    statusDiv.className = 'balance-error';
+                    statusDiv.textContent = '✗ No transactions found for this vendor';
+                    document.getElementById('previous-balance').value = '0';
+                    setTimeout(() => {
+                        statusDiv.style.display = 'none';
+                    }, 3000);
+                }
+
+                calculateAccountReceivable();
+
+            } catch (error) {
+                console.error("Error fetching previous balance:", error);
+                statusDiv.className = 'balance-error';
+                statusDiv.textContent = '✗ Error fetching balance';
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 3000);
+            }
+        }
+
+        // NEW FUNCTION: Debounced ledger search
+        function onLedgerNameChange(event) {
+            const vendorName = event.target.value;
+            
+            if (debounceTimer) {
+                clearTimeout(debounceTimer);
+            }
+
+            debounceTimer = setTimeout(() => {
+                fetchPreviousBalance(vendorName);
+            }, 500);
         }
 
         function populateForm(doc) {
@@ -399,10 +496,11 @@
                 const ledgerId = `${voucherNumber}_${Date.now()}`;
                 await setDoc(doc(db, "ledger", ledgerId), {
                     date: paymentDate,
+                    account: businessLedger,
                     description: `Payment to ${businessLedger} #${voucherNumber}`,
                     accountType: 'Accounts Payable',
-                    debit: 0,
-                    credit: amountPaid,
+                    debit: amountPaid,
+                    credit: 0,
                     doc_number: voucherNumber,
                     timestamp: new Date().toISOString()
                 });
@@ -523,7 +621,9 @@
                     document.getElementById('deleteButton').style.display = 'none';
                 }
 
-                document.getElementById('previous-balance').addEventListener('input', formatAndCalculate);
+                // MODIFIED: Add event listener for Business (Ledger) field
+                document.getElementById('business-ledger').addEventListener('input', onLedgerNameChange);
+                
                 document.getElementById('amount-received').addEventListener('input', formatAndCalculate);
                 calculateAccountReceivable();
 
