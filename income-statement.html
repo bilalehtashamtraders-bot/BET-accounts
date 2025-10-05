@@ -13,7 +13,7 @@
         }
         .report-container {
             width: 100%;
-            max-width: 900px;
+            max-width: 800px;
             margin: 0 auto;
             border: 1px solid #ccc;
             padding: 20px;
@@ -32,9 +32,6 @@
             font-size: 11px;
             font-weight: bold;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
-        .sync-badge.error {
-            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
         }
         .header {
             text-align: center;
@@ -76,10 +73,6 @@
         button:hover {
             background-color: #005599;
         }
-        button:disabled {
-            background-color: #ccc;
-            cursor: not-allowed;
-        }
         .loading-text {
             text-align: center;
             padding: 20px;
@@ -91,30 +84,6 @@
             padding: 20px;
             color: #dc3545;
             font-weight: bold;
-            line-height: 1.6;
-        }
-        .error-box {
-            background-color: #f8d7da;
-            border: 1px solid #f5c6cb;
-            border-radius: 5px;
-            padding: 15px;
-            margin: 20px 0;
-        }
-        .success-box {
-            background-color: #d4edda;
-            border: 1px solid #c3e6cb;
-            border-radius: 5px;
-            padding: 15px;
-            margin: 20px 0;
-            color: #155724;
-        }
-        .warning-box {
-            background-color: #fff3cd;
-            border: 1px solid #ffc107;
-            border-radius: 5px;
-            padding: 15px;
-            margin: 20px 0;
-            color: #856404;
         }
         table {
             width: 100%;
@@ -158,11 +127,19 @@
             border-color: #003366;
             box-shadow: 0 0 3px rgba(0, 51, 102, 0.3);
         }
+        @media print {
+            .controls {
+                display: none !important;
+            }
+            .sync-badge {
+                display: none !important;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="report-container">
-        <div class="sync-badge" id="sync-badge">SYNCED</div>
+        <div class="sync-badge">SYNCED</div>
         <div class="header">
             <h1>Income Statement</h1>
             <div class="business-info">
@@ -172,17 +149,11 @@
         </div>
 
         <div class="controls">
-            <button onclick="generatePDF()" id="pdf-btn">Generate PDF</button>
+            <button onclick="generatePDF()">Generate PDF</button>
             <button onclick="window.location.href='index.html'">Back to Dashboard</button>
         </div>
 
-        <div id="loading" class="loading-text">
-            <p>Loading financial data from cloud...</p>
-            <p style="font-size: 12px; color: #999;">Connecting to Firebase Firestore...</p>
-        </div>
-        
-        <div id="error-container" style="display: none;"></div>
-        <div id="warning-container" style="display: none;"></div>
+        <div id="loading" class="loading-text">Loading financial data from cloud...</div>
         
         <table id="income-table" style="display: none;">
             <thead>
@@ -203,43 +174,23 @@
                     <td class="section-header" colspan="2">Cost of Goods Sold (COGS)</td>
                 </tr>
                 <tr>
-                    <td>Cost of Goods Sold</td>
-                    <td id="cogs-amount">0.00</td>
+                    <td>Purchases (Direct Cost)</td>
+                    <td id="purchases-cogs">0.00</td>
                 </tr>
                 <tr class="subtotal">
                     <td class="subtotal">Gross Profit</td>
                     <td class="subtotal" id="gross-profit">0.00</td>
                 </tr>
                 <tr>
-                    <td class="section-header" colspan="2">Operating Expenses</td>
+                    <td class="section-header" colspan="2">Other Operating Expenses</td>
                 </tr>
                 <tr>
-                    <td>Rent</td>
-                    <td><input type="text" id="rent-input" class="input-field" value="0" oninput="formatAndCalculate()"></td>
+                    <td>Vendor Payments (Indirect Expenses)</td>
+                    <td id="vendor-payments-expense">0.00</td>
                 </tr>
                 <tr>
-                    <td>Salaries</td>
-                    <td><input type="text" id="salaries-input" class="input-field" value="0" oninput="formatAndCalculate()"></td>
-                </tr>
-                <tr>
-                    <td>Utilities (Electric, Water, Gas)</td>
-                    <td><input type="text" id="utilities-input" class="input-field" value="0" oninput="formatAndCalculate()"></td>
-                </tr>
-                <tr>
-                    <td>Transportation/Freight</td>
-                    <td><input type="text" id="transport-input" class="input-field" value="0" oninput="formatAndCalculate()"></td>
-                </tr>
-                <tr>
-                    <td>Office Supplies</td>
-                    <td><input type="text" id="supplies-input" class="input-field" value="0" oninput="formatAndCalculate()"></td>
-                </tr>
-                <tr>
-                    <td>Other Expenses</td>
+                    <td>Other Expenses (e.g., Rent, Salaries)</td>
                     <td><input type="text" id="other-expenses-input" class="input-field" value="0" oninput="formatAndCalculate()"></td>
-                </tr>
-                <tr class="subtotal">
-                    <td class="subtotal">Total Operating Expenses</td>
-                    <td class="subtotal" id="total-expenses">0.00</td>
                 </tr>
             </tbody>
             <tfoot>
@@ -265,220 +216,107 @@
             appId: "1:879522152449:web:73b8ef899d5c1cbfd90000"
         };
 
-        console.log("=== Firebase Initialization ===");
-        console.log("Project ID:", firebaseConfig.projectId);
-        
-        let app, db;
-        
-        try {
-            app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            console.log("✓ Firebase initialized successfully");
-        } catch (error) {
-            console.error("✗ Firebase initialization failed:", error);
-            showError("Firebase initialization failed: " + error.message);
-        }
+        console.log("Initializing Firebase...");
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        console.log("Firebase initialized successfully");
 
         let salesRevenue = 0;
-        let totalCOGS = 0;
+        let purchasesCogs = 0;
+        let vendorPaymentsExpense = 0;
 
         function formatAmount(amount) {
             return (amount || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         }
 
-        function showError(message, details = null) {
-            const errorContainer = document.getElementById('error-container');
-            const syncBadge = document.getElementById('sync-badge');
-            
-            syncBadge.textContent = 'ERROR';
-            syncBadge.classList.add('error');
-            
-            let errorHTML = '<div class="error-box">';
-            errorHTML += '<h3 style="margin-top: 0; color: #dc3545;">❌ Error Loading Data</h3>';
-            errorHTML += '<p><strong>Error Message:</strong> ' + message + '</p>';
-            
-            if (details) {
-                errorHTML += '<p><strong>Details:</strong> ' + details + '</p>';
-            }
-            
-            errorHTML += '<hr style="margin: 15px 0;">';
-            errorHTML += '<h4 style="color: #003366;">🔧 How to Fix:</h4>';
-            errorHTML += '<ol style="text-align: left; line-height: 1.8;">';
-            errorHTML += '<li><strong>Update Firestore Security Rules:</strong><br>';
-            errorHTML += '   • Go to <a href="https://console.firebase.google.com/project/bet-acc-software/firestore/rules" target="_blank">Firebase Console → Firestore Rules</a><br>';
-            errorHTML += '   • Replace with:<br>';
-            errorHTML += '   <code style="background: #f4f4f4; padding: 10px; display: block; margin: 5px 0;">rules_version = \'2\';<br>';
-            errorHTML += '   service cloud.firestore {<br>';
-            errorHTML += '   &nbsp;&nbsp;match /databases/{database}/documents {<br>';
-            errorHTML += '   &nbsp;&nbsp;&nbsp;&nbsp;match /{document=**} {<br>';
-            errorHTML += '   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;allow read, write: if true;<br>';
-            errorHTML += '   &nbsp;&nbsp;&nbsp;&nbsp;}<br>';
-            errorHTML += '   &nbsp;&nbsp;}<br>';
-            errorHTML += '   }</code>';
-            errorHTML += '   • Click "Publish"</li>';
-            errorHTML += '<li><strong>Verify Collections Exist</strong></li>';
-            errorHTML += '<li><strong>Refresh the Page</strong> after making changes</li>';
-            errorHTML += '</ol>';
-            errorHTML += '</div>';
-            
-            errorContainer.innerHTML = errorHTML;
-            errorContainer.style.display = 'block';
-            document.getElementById('loading').style.display = 'none';
-        }
-
-        function showWarning(message) {
-            const warningContainer = document.getElementById('warning-container');
-            let warningHTML = '<div class="warning-box">';
-            warningHTML += '<h4 style="margin-top: 0;">⚠️ Important Note</h4>';
-            warningHTML += '<p>' + message + '</p>';
-            warningHTML += '</div>';
-            warningContainer.innerHTML = warningHTML;
-            warningContainer.style.display = 'block';
-        }
-
-        function showSuccess() {
-            const syncBadge = document.getElementById('sync-badge');
-            syncBadge.textContent = 'SYNCED';
-            syncBadge.classList.remove('error');
-        }
-
         window.formatAndCalculate = function() {
-            const inputs = ['rent-input', 'salaries-input', 'utilities-input', 
-                          'transport-input', 'supplies-input', 'other-expenses-input'];
+            const input = document.getElementById('other-expenses-input');
+            let value = input.value.replace(/[^0-9.-]/g, '');
             
-            inputs.forEach(inputId => {
-                const input = document.getElementById(inputId);
-                let value = input.value.replace(/[^0-9.-]/g, '');
-                
-                if (value !== "") {
-                    const numValue = parseFloat(value);
-                    if (!isNaN(numValue)) {
-                        input.value = formatAmount(numValue);
-                    }
-                } else {
-                    input.value = "0.00";
+            if (value !== "") {
+                const numValue = parseFloat(value);
+                if (!isNaN(numValue)) {
+                    input.value = formatAmount(numValue);
                 }
-            });
-            
+            } else {
+                input.value = "0.00";
+            }
             calculateIncomeStatement();
         };
 
         async function loadFinancialData() {
             try {
-                console.log("\n=== Starting Data Load ===");
+                console.log("Loading financial data...");
                 
                 // Load Sales Revenue from invoices
-                console.log("\n--- Loading Sales Revenue ---");
-                try {
-                    const invoicesSnapshot = await getDocs(collection(db, "invoices"));
-                    console.log("✓ Invoices collection accessible");
-                    console.log("  Documents found:", invoicesSnapshot.size);
-                    
-                    invoicesSnapshot.forEach(doc => {
-                        const data = doc.data();
-                        console.log("  Invoice ID:", doc.id);
-                        
-                        // Get sales revenue (selling price)
-                        const saleAmount = parseFloat(data.netTotal || data.total || data.amount) || 0;
-                        salesRevenue += saleAmount;
-                        
-                        // Calculate COGS from items in the invoice
-                        if (data.items && Array.isArray(data.items)) {
-                            data.items.forEach(item => {
-                                // Use costPrice if available, otherwise estimate
-                                const costPrice = parseFloat(item.costPrice || item.purchasePrice || 0);
-                                const quantity = parseFloat(item.quantity || 0);
-                                const itemCOGS = costPrice * quantity;
-                                totalCOGS += itemCOGS;
-                                
-                                console.log("    Item:", item.itemName || item.description);
-                                console.log("      Qty:", quantity, "Cost:", costPrice, "COGS:", itemCOGS);
-                            });
-                        }
-                        
-                        console.log("    Sale Amount:", saleAmount);
-                    });
-                    console.log("  Total Sales Revenue:", salesRevenue);
-                    console.log("  Total COGS:", totalCOGS);
-                    
-                    // Show warning if COGS seems incomplete
-                    if (totalCOGS === 0 && salesRevenue > 0) {
-                        showWarning("COGS is showing as 0. Make sure your invoice items include 'costPrice' or 'purchasePrice' fields. Without COGS data, gross profit cannot be calculated accurately. You may need to manually enter COGS or update your invoice data structure.");
-                    }
-                    
-                } catch (error) {
-                    console.error("✗ Error accessing 'invoices' collection:", error.code, error.message);
-                    throw new Error("Cannot access 'invoices' collection. " + (error.code === 'permission-denied' ? 'Permission denied - check Firestore rules.' : error.message));
-                }
+                console.log("Fetching sales invoices...");
+                const invoicesSnapshot = await getDocs(collection(db, "invoices"));
+                console.log("Sales invoices found:", invoicesSnapshot.size);
+                
+                invoicesSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    console.log("Invoice:", data);
+                    const amount = parseFloat(data.netTotal || data.total || data.amount) || 0;
+                    salesRevenue += amount;
+                });
+                console.log("Total sales revenue:", salesRevenue);
 
-                console.log("\n=== Data Load Complete ===");
-                console.log("Total Sales:", salesRevenue);
-                console.log("Total COGS:", totalCOGS);
+                // Load COGS from purchase invoices
+                console.log("Fetching purchase invoices...");
+                const purchasesSnapshot = await getDocs(collection(db, "purchaseInvoices"));
+                console.log("Purchase invoices found:", purchasesSnapshot.size);
+                
+                purchasesSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    console.log("Purchase:", data);
+                    const amount = parseFloat(data.netTotal || data.total || data.amount) || 0;
+                    purchasesCogs += amount;
+                });
+                console.log("Total purchases (COGS):", purchasesCogs);
 
-                // Show success
+                // Load Operating Expenses from vendor payments
+                console.log("Fetching vendor payments...");
+                const paymentsSnapshot = await getDocs(collection(db, "vendorPayments"));
+                console.log("Vendor payments found:", paymentsSnapshot.size);
+                
+                paymentsSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    console.log("Payment:", data);
+                    const amount = parseFloat(data.amountPaid || data.amount || data.total) || 0;
+                    vendorPaymentsExpense += amount;
+                });
+                console.log("Total vendor payments:", vendorPaymentsExpense);
+
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('income-table').style.display = 'table';
-                showSuccess();
                 
                 calculateIncomeStatement();
-                
-                // Enable PDF button
-                document.getElementById('pdf-btn').disabled = false;
-                
+                console.log("Financial data loaded successfully");
             } catch (error) {
-                console.error("\n=== ERROR ===");
-                console.error("Error type:", error.name);
-                console.error("Error message:", error.message);
-                console.error("Full error:", error);
-                
-                let errorDetails = null;
-                if (error.code === 'permission-denied') {
-                    errorDetails = "Firestore security rules are blocking access. You need to update the rules to allow read access.";
-                } else if (error.code === 'not-found') {
-                    errorDetails = "The requested collection was not found. Make sure the 'invoices' collection exists in Firestore.";
-                } else if (error.code === 'unavailable') {
-                    errorDetails = "Firestore service is temporarily unavailable. Check your internet connection and try again.";
-                }
-                
-                showError(error.message, errorDetails);
+                console.error("Error loading financial data:", error);
+                document.getElementById('loading').innerHTML = '<span class="error-text">Failed to load data. Error: ' + error.message + '</span>';
             }
         }
 
         function calculateIncomeStatement() {
-            // Get all expense inputs
-            const rent = parseFloat(document.getElementById('rent-input').value.replace(/,/g, '')) || 0;
-            const salaries = parseFloat(document.getElementById('salaries-input').value.replace(/,/g, '')) || 0;
-            const utilities = parseFloat(document.getElementById('utilities-input').value.replace(/,/g, '')) || 0;
-            const transport = parseFloat(document.getElementById('transport-input').value.replace(/,/g, '')) || 0;
-            const supplies = parseFloat(document.getElementById('supplies-input').value.replace(/,/g, '')) || 0;
-            const otherExpenses = parseFloat(document.getElementById('other-expenses-input').value.replace(/,/g, '')) || 0;
+            const otherExpensesInput = document.getElementById('other-expenses-input').value;
+            const otherExpenses = parseFloat(otherExpensesInput.replace(/,/g, '')) || 0;
 
-            // Calculate totals
-            const grossProfit = salesRevenue - totalCOGS;
-            const totalExpenses = rent + salaries + utilities + transport + supplies + otherExpenses;
-            const netIncome = grossProfit - totalExpenses;
+            const grossProfit = salesRevenue - purchasesCogs;
+            const totalOperatingExpenses = vendorPaymentsExpense + otherExpenses;
+            const netIncome = grossProfit - totalOperatingExpenses;
 
-            console.log("\n=== Income Statement Calculations ===");
-            console.log("Sales Revenue:", salesRevenue);
-            console.log("- COGS:", totalCOGS);
-            console.log("= Gross Profit:", grossProfit);
-            console.log("- Operating Expenses:", totalExpenses);
-            console.log("  Rent:", rent);
-            console.log("  Salaries:", salaries);
-            console.log("  Utilities:", utilities);
-            console.log("  Transport:", transport);
-            console.log("  Supplies:", supplies);
-            console.log("  Other:", otherExpenses);
-            console.log("= Net Income:", netIncome);
+            console.log("Calculations:");
+            console.log("- Gross Profit:", grossProfit);
+            console.log("- Operating Expenses:", totalOperatingExpenses);
+            console.log("- Net Income:", netIncome);
 
-            // Update display
             document.getElementById('sales-revenue').textContent = formatAmount(salesRevenue);
-            document.getElementById('cogs-amount').textContent = formatAmount(totalCOGS);
+            document.getElementById('purchases-cogs').textContent = formatAmount(purchasesCogs);
             document.getElementById('gross-profit').textContent = formatAmount(grossProfit);
-            document.getElementById('total-expenses').textContent = formatAmount(totalExpenses);
+            document.getElementById('vendor-payments-expense').textContent = formatAmount(vendorPaymentsExpense);
             document.getElementById('net-income').textContent = formatAmount(netIncome);
 
-            // Color code net income
             const netIncomeElement = document.getElementById('net-income');
             if (netIncome < 0) {
                 netIncomeElement.style.color = '#dc3545';
@@ -487,39 +325,47 @@
             } else {
                 netIncomeElement.style.color = '#333';
             }
-            
-            // Color code gross profit
-            const grossProfitElement = document.getElementById('gross-profit');
-            if (grossProfit < 0) {
-                grossProfitElement.style.color = '#dc3545';
-            } else if (grossProfit > 0) {
-                grossProfitElement.style.color = '#28a745';
-            } else {
-                grossProfitElement.style.color = '#333';
-            }
         }
 
         window.generatePDF = function() {
+            const controls = document.querySelector('.controls');
+            const syncBadge = document.querySelector('.sync-badge');
+            
+            controls.style.display = 'none';
+            syncBadge.style.display = 'none';
+            
             const element = document.querySelector('.report-container');
+            
             const opt = {
-                margin: 0.5,
+                margin: 10,
                 filename: 'Income-Statement-' + new Date().toLocaleDateString('en-GB').replace(/\//g, '-') + '.pdf',
                 image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2 },
-                jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+                html2canvas: { 
+                    scale: 1,
+                    useCORS: true,
+                    logging: false
+                },
+                jsPDF: { 
+                    unit: 'mm', 
+                    format: 'a4', 
+                    orientation: 'portrait'
+                },
+                pagebreak: { mode: 'avoid-all' }
             };
-            html2pdf().set(opt).from(element).save();
+            
+            html2pdf().set(opt).from(element).save().then(() => {
+                controls.style.display = 'block';
+                syncBadge.style.display = 'block';
+            }).catch(err => {
+                console.error('PDF generation error:', err);
+                controls.style.display = 'block';
+                syncBadge.style.display = 'block';
+                alert('Error generating PDF. Please try again.');
+            });
         };
 
-        // Start loading data when page loads
         document.addEventListener('DOMContentLoaded', function() {
-            console.log("=== Page Loaded ===");
-            console.log("Current URL:", window.location.href);
-            console.log("Timestamp:", new Date().toISOString());
-            
-            // Disable PDF button until data loads
-            document.getElementById('pdf-btn').disabled = true;
-            
+            console.log("Page loaded, starting data fetch...");
             loadFinancialData();
         });
     </script>
