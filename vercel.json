@@ -1,0 +1,12 @@
+{
+  "routes": [
+    {
+      "src": "/income-statement.html",
+      "dest": "/income-statement.html"
+    },
+    {
+      "src": "/income-statement",
+      "dest": "/income-statement.html"
+    }
+  ]
+}
