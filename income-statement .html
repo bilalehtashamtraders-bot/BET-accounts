@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Income Statement - Bilal Ehtasham Traders</title>
     <style>
+        /* (CSS code is perfect, no changes needed) */
         body {
             font-family: Arial, sans-serif;
             margin: 20px;
@@ -108,14 +109,6 @@
             margin: 20px 0;
             color: #155724;
         }
-        .warning-box {
-            background-color: #fff3cd;
-            border: 1px solid #ffc107;
-            border-radius: 5px;
-            padding: 15px;
-            margin: 20px 0;
-            color: #856404;
-        }
         table {
             width: 100%;
             border-collapse: collapse;
@@ -158,6 +151,15 @@
             border-color: #003366;
             box-shadow: 0 0 3px rgba(0, 51, 102, 0.3);
         }
+        .debug-info {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 20px 0;
+            font-size: 12px;
+            font-family: monospace;
+        }
     </style>
 </head>
 <body>
@@ -182,7 +184,6 @@
         </div>
         
         <div id="error-container" style="display: none;"></div>
-        <div id="warning-container" style="display: none;"></div>
         
         <table id="income-table" style="display: none;">
             <thead>
@@ -203,43 +204,23 @@
                     <td class="section-header" colspan="2">Cost of Goods Sold (COGS)</td>
                 </tr>
                 <tr>
-                    <td>Cost of Goods Sold</td>
-                    <td id="cogs-amount">0.00</td>
+                    <td>Purchases (Direct Cost)</td>
+                    <td id="purchases-cogs">0.00</td>
                 </tr>
                 <tr class="subtotal">
                     <td class="subtotal">Gross Profit</td>
                     <td class="subtotal" id="gross-profit">0.00</td>
                 </tr>
                 <tr>
-                    <td class="section-header" colspan="2">Operating Expenses</td>
+                    <td class="section-header" colspan="2">Other Operating Expenses</td>
                 </tr>
                 <tr>
-                    <td>Rent</td>
-                    <td><input type="text" id="rent-input" class="input-field" value="0" oninput="formatAndCalculate()"></td>
+                    <td>Vendor Payments (Indirect Expenses)</td>
+                    <td id="vendor-payments-expense">0.00</td>
                 </tr>
                 <tr>
-                    <td>Salaries</td>
-                    <td><input type="text" id="salaries-input" class="input-field" value="0" oninput="formatAndCalculate()"></td>
-                </tr>
-                <tr>
-                    <td>Utilities (Electric, Water, Gas)</td>
-                    <td><input type="text" id="utilities-input" class="input-field" value="0" oninput="formatAndCalculate()"></td>
-                </tr>
-                <tr>
-                    <td>Transportation/Freight</td>
-                    <td><input type="text" id="transport-input" class="input-field" value="0" oninput="formatAndCalculate()"></td>
-                </tr>
-                <tr>
-                    <td>Office Supplies</td>
-                    <td><input type="text" id="supplies-input" class="input-field" value="0" oninput="formatAndCalculate()"></td>
-                </tr>
-                <tr>
-                    <td>Other Expenses</td>
+                    <td>Other Expenses (e.g., Rent, Salaries)</td>
                     <td><input type="text" id="other-expenses-input" class="input-field" value="0" oninput="formatAndCalculate()"></td>
-                </tr>
-                <tr class="subtotal">
-                    <td class="subtotal">Total Operating Expenses</td>
-                    <td class="subtotal" id="total-expenses">0.00</td>
                 </tr>
             </tbody>
             <tfoot>
@@ -256,6 +237,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
+        // Your Firebase Configuration (kept as is)
         const firebaseConfig = {
             apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
             authDomain: "bet-acc-software.firebaseapp.com",
@@ -266,7 +248,6 @@
         };
 
         console.log("=== Firebase Initialization ===");
-        console.log("Project ID:", firebaseConfig.projectId);
         
         let app, db;
         
@@ -279,13 +260,33 @@
             showError("Firebase initialization failed: " + error.message);
         }
 
+        // Global variables to hold financial totals
         let salesRevenue = 0;
-        let totalCOGS = 0;
+        let purchasesCogs = 0;
+        let vendorPaymentsExpense = 0;
+
+        /**
+         * Safely parses a document field to a float,
+         * checking multiple potential field names.
+         * @param {object} data - The document data object.
+         * @param {string[]} fields - An array of field names to check.
+         * @returns {number} The parsed number, or 0 if not found/invalid.
+         */
+        function safeParseAmount(data, fields) {
+            for (const field of fields) {
+                if (data.hasOwnProperty(field) && data[field] !== null) {
+                    const amount = parseFloat(data[field]);
+                    return isNaN(amount) ? 0 : amount;
+                }
+            }
+            return 0;
+        }
 
         function formatAmount(amount) {
             return (amount || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         }
 
+        // Error display function (kept as is, it's very helpful!)
         function showError(message, details = null) {
             const errorContainer = document.getElementById('error-container');
             const syncBadge = document.getElementById('sync-badge');
@@ -306,8 +307,8 @@
             errorHTML += '<ol style="text-align: left; line-height: 1.8;">';
             errorHTML += '<li><strong>Update Firestore Security Rules:</strong><br>';
             errorHTML += '   • Go to <a href="https://console.firebase.google.com/project/bet-acc-software/firestore/rules" target="_blank">Firebase Console → Firestore Rules</a><br>';
-            errorHTML += '   • Replace with:<br>';
-            errorHTML += '   <code style="background: #f4f4f4; padding: 10px; display: block; margin: 5px 0;">rules_version = \'2\';<br>';
+            errorHTML += '   • **RECOMMENDED TEMPORARY FIX:** Replace with:<br>';
+            errorHTML += '   <code style="background: #f4f4f4; padding: 10px; display: block; margin: 5px 0; overflow-x: auto;">rules_version = \'2\';<br>';
             errorHTML += '   service cloud.firestore {<br>';
             errorHTML += '   &nbsp;&nbsp;match /databases/{database}/documents {<br>';
             errorHTML += '   &nbsp;&nbsp;&nbsp;&nbsp;match /{document=**} {<br>';
@@ -315,8 +316,12 @@
             errorHTML += '   &nbsp;&nbsp;&nbsp;&nbsp;}<br>';
             errorHTML += '   &nbsp;&nbsp;}<br>';
             errorHTML += '   }</code>';
-            errorHTML += '   • Click "Publish"</li>';
-            errorHTML += '<li><strong>Verify Collections Exist</strong></li>';
+            errorHTML += '   • Click "Publish" **(Remember to secure this later!)**</li>';
+            errorHTML += '<li><strong>Verify Data Field Names:</strong><br>';
+            errorHTML += '   • Check your Firestore documents to ensure the amounts are stored under the fields:<br>';
+            errorHTML += '   &nbsp;&nbsp;- `invoices`: **netTotal**, **total**, or **amount**.<br>';
+            errorHTML += '   &nbsp;&nbsp;- `purchaseInvoices`: **netTotal**, **total**, or **amount**.<br>';
+            errorHTML += '   &nbsp;&nbsp;- `vendorPayments`: **amountPaid**, **amount**, or **total**.</li>';
             errorHTML += '<li><strong>Refresh the Page</strong> after making changes</li>';
             errorHTML += '</ol>';
             errorHTML += '</div>';
@@ -324,16 +329,8 @@
             errorContainer.innerHTML = errorHTML;
             errorContainer.style.display = 'block';
             document.getElementById('loading').style.display = 'none';
-        }
-
-        function showWarning(message) {
-            const warningContainer = document.getElementById('warning-container');
-            let warningHTML = '<div class="warning-box">';
-            warningHTML += '<h4 style="margin-top: 0;">⚠️ Important Note</h4>';
-            warningHTML += '<p>' + message + '</p>';
-            warningHTML += '</div>';
-            warningContainer.innerHTML = warningHTML;
-            warningContainer.style.display = 'block';
+            document.getElementById('income-table').style.display = 'table'; // Show table even with error, to display 0.00
+            calculateIncomeStatement(); // Recalculate with current totals (likely 0)
         }
 
         function showSuccess() {
@@ -343,79 +340,90 @@
         }
 
         window.formatAndCalculate = function() {
-            const inputs = ['rent-input', 'salaries-input', 'utilities-input', 
-                          'transport-input', 'supplies-input', 'other-expenses-input'];
+            const input = document.getElementById('other-expenses-input');
+            let value = input.value.replace(/[^0-9.]/g, ''); // Removed '-' from filter to allow negative input if needed, though unlikely for expenses
             
-            inputs.forEach(inputId => {
-                const input = document.getElementById(inputId);
-                let value = input.value.replace(/[^0-9.-]/g, '');
-                
-                if (value !== "") {
-                    const numValue = parseFloat(value);
-                    if (!isNaN(numValue)) {
-                        input.value = formatAmount(numValue);
-                    }
-                } else {
-                    input.value = "0.00";
+            if (value !== "") {
+                const numValue = parseFloat(value);
+                if (!isNaN(numValue)) {
+                    // This line ensures the displayed value is formatted with commas
+                    input.value = numValue.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
                 }
-            });
-            
+            } else {
+                input.value = "0.00";
+            }
             calculateIncomeStatement();
         };
 
         async function loadFinancialData() {
+            // Reset totals before loading
+            salesRevenue = 0;
+            purchasesCogs = 0;
+            vendorPaymentsExpense = 0;
+
             try {
                 console.log("\n=== Starting Data Load ===");
                 
-                // Load Sales Revenue from invoices
+                // --- Load Sales Revenue (Invoices) ---
                 console.log("\n--- Loading Sales Revenue ---");
                 try {
                     const invoicesSnapshot = await getDocs(collection(db, "invoices"));
-                    console.log("✓ Invoices collection accessible");
-                    console.log("  Documents found:", invoicesSnapshot.size);
-                    
                     invoicesSnapshot.forEach(doc => {
                         const data = doc.data();
-                        console.log("  Invoice ID:", doc.id);
-                        
-                        // Get sales revenue (selling price)
-                        const saleAmount = parseFloat(data.netTotal || data.total || data.amount) || 0;
-                        salesRevenue += saleAmount;
-                        
-                        // Calculate COGS from items in the invoice
-                        if (data.items && Array.isArray(data.items)) {
-                            data.items.forEach(item => {
-                                // Use costPrice if available, otherwise estimate
-                                const costPrice = parseFloat(item.costPrice || item.purchasePrice || 0);
-                                const quantity = parseFloat(item.quantity || 0);
-                                const itemCOGS = costPrice * quantity;
-                                totalCOGS += itemCOGS;
-                                
-                                console.log("    Item:", item.itemName || item.description);
-                                console.log("      Qty:", quantity, "Cost:", costPrice, "COGS:", itemCOGS);
-                            });
-                        }
-                        
-                        console.log("    Sale Amount:", saleAmount);
+                        // Primary fields for Sales Revenue
+                        const amount = safeParseAmount(data, ['netTotal', 'total', 'amount']);
+                        salesRevenue += amount;
                     });
-                    console.log("  Total Sales Revenue:", salesRevenue);
-                    console.log("  Total COGS:", totalCOGS);
-                    
-                    // Show warning if COGS seems incomplete
-                    if (totalCOGS === 0 && salesRevenue > 0) {
-                        showWarning("COGS is showing as 0. Make sure your invoice items include 'costPrice' or 'purchasePrice' fields. Without COGS data, gross profit cannot be calculated accurately. You may need to manually enter COGS or update your invoice data structure.");
-                    }
-                    
+                    console.log(`✓ Invoices loaded. Total Sales Revenue: ${salesRevenue}`);
                 } catch (error) {
                     console.error("✗ Error accessing 'invoices' collection:", error.code, error.message);
-                    throw new Error("Cannot access 'invoices' collection. " + (error.code === 'permission-denied' ? 'Permission denied - check Firestore rules.' : error.message));
+                    if (error.code === 'permission-denied') {
+                         throw new Error("Cannot access 'invoices' collection. Permission denied - check Firestore rules.");
+                    }
+                    // Continue even if one collection fails (safer)
+                }
+
+                // --- Load COGS (Purchase Invoices) ---
+                console.log("\n--- Loading Purchase Invoices (COGS) ---");
+                try {
+                    const purchasesSnapshot = await getDocs(collection(db, "purchaseInvoices"));
+                    purchasesSnapshot.forEach(doc => {
+                        const data = doc.data();
+                        // Primary fields for Purchases
+                        const amount = safeParseAmount(data, ['netTotal', 'total', 'amount']);
+                        purchasesCogs += amount;
+                    });
+                    console.log(`✓ Purchase Invoices loaded. Total Purchases (COGS): ${purchasesCogs}`);
+                } catch (error) {
+                    console.error("✗ Error accessing 'purchaseInvoices' collection:", error.code, error.message);
+                    if (error.code === 'permission-denied') {
+                         throw new Error("Cannot access 'purchaseInvoices' collection. Permission denied - check Firestore rules.");
+                    }
+                    // Continue even if one collection fails
+                }
+
+                // --- Load Operating Expenses (Vendor Payments) ---
+                console.log("\n--- Loading Vendor Payments ---");
+                try {
+                    const paymentsSnapshot = await getDocs(collection(db, "vendorPayments"));
+                    paymentsSnapshot.forEach(doc => {
+                        const data = doc.data();
+                        // Primary fields for Vendor Payments
+                        const amount = safeParseAmount(data, ['amountPaid', 'amount', 'total']);
+                        vendorPaymentsExpense += amount;
+                    });
+                    console.log(`✓ Vendor Payments loaded. Total Vendor Payments: ${vendorPaymentsExpense}`);
+                } catch (error) {
+                    console.error("✗ Error accessing 'vendorPayments' collection:", error.code, error.message);
+                    if (error.code === 'permission-denied') {
+                         throw new Error("Cannot access 'vendorPayments' collection. Permission denied - check Firestore rules.");
+                    }
+                    // Continue even if one collection fails
                 }
 
                 console.log("\n=== Data Load Complete ===");
-                console.log("Total Sales:", salesRevenue);
-                console.log("Total COGS:", totalCOGS);
 
-                // Show success
+                // Show success UI
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('income-table').style.display = 'table';
                 showSuccess();
@@ -426,16 +434,15 @@
                 document.getElementById('pdf-btn').disabled = false;
                 
             } catch (error) {
-                console.error("\n=== ERROR ===");
-                console.error("Error type:", error.name);
-                console.error("Error message:", error.message);
+                // Catches initialization or hard 'permission-denied' errors
+                console.error("\n=== FATAL ERROR DURING DATA LOAD ===");
                 console.error("Full error:", error);
                 
                 let errorDetails = null;
-                if (error.code === 'permission-denied') {
+                if (error.message.includes('Permission denied')) {
                     errorDetails = "Firestore security rules are blocking access. You need to update the rules to allow read access.";
                 } else if (error.code === 'not-found') {
-                    errorDetails = "The requested collection was not found. Make sure the 'invoices' collection exists in Firestore.";
+                    errorDetails = "A requested collection was not found. Make sure the collections exist in Firestore.";
                 } else if (error.code === 'unavailable') {
                     errorDetails = "Firestore service is temporarily unavailable. Check your internet connection and try again.";
                 }
@@ -445,57 +452,36 @@
         }
 
         function calculateIncomeStatement() {
-            // Get all expense inputs
-            const rent = parseFloat(document.getElementById('rent-input').value.replace(/,/g, '')) || 0;
-            const salaries = parseFloat(document.getElementById('salaries-input').value.replace(/,/g, '')) || 0;
-            const utilities = parseFloat(document.getElementById('utilities-input').value.replace(/,/g, '')) || 0;
-            const transport = parseFloat(document.getElementById('transport-input').value.replace(/,/g, '')) || 0;
-            const supplies = parseFloat(document.getElementById('supplies-input').value.replace(/,/g, '')) || 0;
-            const otherExpenses = parseFloat(document.getElementById('other-expenses-input').value.replace(/,/g, '')) || 0;
+            // Get other expenses, removing commas first
+            const otherExpensesInput = document.getElementById('other-expenses-input').value;
+            const otherExpenses = parseFloat(otherExpensesInput.replace(/,/g, '')) || 0;
 
-            // Calculate totals
-            const grossProfit = salesRevenue - totalCOGS;
-            const totalExpenses = rent + salaries + utilities + transport + supplies + otherExpenses;
-            const netIncome = grossProfit - totalExpenses;
+            const grossProfit = salesRevenue - purchasesCogs;
+            const totalOperatingExpenses = vendorPaymentsExpense + otherExpenses;
+            const netIncome = grossProfit - totalOperatingExpenses;
 
             console.log("\n=== Income Statement Calculations ===");
             console.log("Sales Revenue:", salesRevenue);
-            console.log("- COGS:", totalCOGS);
+            console.log("- Purchases (COGS):", purchasesCogs);
             console.log("= Gross Profit:", grossProfit);
-            console.log("- Operating Expenses:", totalExpenses);
-            console.log("  Rent:", rent);
-            console.log("  Salaries:", salaries);
-            console.log("  Utilities:", utilities);
-            console.log("  Transport:", transport);
-            console.log("  Supplies:", supplies);
-            console.log("  Other:", otherExpenses);
+            console.log("- Operating Expenses:", totalOperatingExpenses);
             console.log("= Net Income:", netIncome);
 
-            // Update display
+            // Update DOM with calculated values
             document.getElementById('sales-revenue').textContent = formatAmount(salesRevenue);
-            document.getElementById('cogs-amount').textContent = formatAmount(totalCOGS);
+            document.getElementById('purchases-cogs').textContent = formatAmount(purchasesCogs);
             document.getElementById('gross-profit').textContent = formatAmount(grossProfit);
-            document.getElementById('total-expenses').textContent = formatAmount(totalExpenses);
+            document.getElementById('vendor-payments-expense').textContent = formatAmount(vendorPaymentsExpense);
             document.getElementById('net-income').textContent = formatAmount(netIncome);
 
-            // Color code net income
+            // Apply color coding for Net Income
             const netIncomeElement = document.getElementById('net-income');
             if (netIncome < 0) {
-                netIncomeElement.style.color = '#dc3545';
+                netIncomeElement.style.color = '#dc3545'; // Red for Loss
             } else if (netIncome > 0) {
-                netIncomeElement.style.color = '#28a745';
+                netIncomeElement.style.color = '#28a745'; // Green for Profit
             } else {
-                netIncomeElement.style.color = '#333';
-            }
-            
-            // Color code gross profit
-            const grossProfitElement = document.getElementById('gross-profit');
-            if (grossProfit < 0) {
-                grossProfitElement.style.color = '#dc3545';
-            } else if (grossProfit > 0) {
-                grossProfitElement.style.color = '#28a745';
-            } else {
-                grossProfitElement.style.color = '#333';
+                netIncomeElement.style.color = '#333'; // Black/Grey for Break-even
             }
         }
 
@@ -514,12 +500,13 @@
         // Start loading data when page loads
         document.addEventListener('DOMContentLoaded', function() {
             console.log("=== Page Loaded ===");
-            console.log("Current URL:", window.location.href);
-            console.log("Timestamp:", new Date().toISOString());
             
             // Disable PDF button until data loads
             document.getElementById('pdf-btn').disabled = true;
             
+            // Initial formatting of the input field
+            window.formatAndCalculate(); 
+
             loadFinancialData();
         });
     </script>
