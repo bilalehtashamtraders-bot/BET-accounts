@@ -123,8 +123,10 @@
             appId: "1:879522152449:web:73b8ef899d5c1cbfd90000"
         };
 
+        console.log("=== Initializing Firebase ===");
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
+        console.log("✓ Firebase initialized");
 
         let isEditing = false;
         let originalDocNumber = null;
@@ -142,14 +144,18 @@
 
         async function getNextInvoiceNumber() {
             try {
-                const q = query(collection(db, "salesInvoices"), orderBy("number", "desc"), limit(1));
+                console.log("Getting next invoice number...");
+                const q = query(collection(db, "invoices"), orderBy("number", "desc"), limit(1));
                 const snapshot = await getDocs(q);
                 
                 if (!snapshot.empty) {
                     const lastDoc = snapshot.docs[0].data();
                     const lastNumber = parseInt(lastDoc.number, 10);
-                    return String(lastNumber + 1).padStart(5, '0');
+                    const nextNumber = String(lastNumber + 1).padStart(5, '0');
+                    console.log(`Last number: ${lastNumber}, Next: ${nextNumber}`);
+                    return nextNumber;
                 }
+                console.log(`No existing invoices, starting with: ${DEFAULT_STARTING_NUMBER + 1}`);
                 return String(DEFAULT_STARTING_NUMBER + 1).padStart(5, '0');
             } catch (error) {
                 console.error("Error getting next invoice number:", error);
@@ -251,7 +257,7 @@
         function populateForm(doc) {
             document.getElementById('invoiceNumber').value = doc.number;
             document.getElementById('invoiceDate').value = doc.date;
-            document.getElementById('partyName').value = doc.customerName;
+            document.getElementById('partyName').value = doc.customerName || doc.party || '';
             document.getElementById('paymentMethod').value = doc.paymentMethod;
             document.getElementById('paymentTerms').value = doc.paymentTerms || '';
 
@@ -311,23 +317,34 @@
             }
 
             try {
+                console.log(`\n=== Saving Invoice ${invoiceNumber} ===`);
+                
                 const invoiceData = {
                     type: 'Sales Invoice',
                     number: invoiceNumber,
                     date: invoiceDate,
                     customerName: customerName,
+                    party: customerName,
                     paymentMethod: paymentMethod,
                     paymentTerms: paymentTerms,
                     lineItems: lineItems,
                     cartage: cartage,
                     grossTotal: grossTotal,
-                    grandTotal: netTotal
+                    netTotal: netTotal
                 };
 
-                await setDoc(doc(db, "salesInvoices", invoiceNumber), invoiceData);
+                console.log("Invoice data:", invoiceData);
 
+                // Save to 'invoices' collection (NOT 'salesInvoices')
+                await setDoc(doc(db, "invoices", invoiceNumber), invoiceData);
+                console.log("✓ Invoice saved to 'invoices' collection");
+
+                // If editing and number changed, delete old document
                 if (isEditing && originalDocNumber !== invoiceNumber) {
-                    await deleteDoc(doc(db, "salesInvoices", originalDocNumber));
+                    console.log(`Deleting old invoice: ${originalDocNumber}`);
+                    await deleteDoc(doc(db, "invoices", originalDocNumber));
+                    
+                    // Delete old ledger entries
                     const ledgerQuery = query(collection(db, "ledger"));
                     const ledgerSnapshot = await getDocs(ledgerQuery);
                     for (const docSnap of ledgerSnapshot.docs) {
@@ -338,6 +355,8 @@
                     }
                 }
 
+                // Delete existing ledger entries for this invoice number
+                console.log("Deleting existing ledger entries...");
                 const existingLedgerQuery = query(collection(db, "ledger"));
                 const ledgerSnapshot = await getDocs(existingLedgerQuery);
                 for (const docSnap of ledgerSnapshot.docs) {
@@ -347,6 +366,8 @@
                     }
                 }
 
+                // Create new ledger entries
+                console.log("Creating ledger entries...");
                 const ledgerEntries = [
                     {
                         date: invoiceDate,
@@ -380,13 +401,15 @@
                 for (const entry of ledgerEntries) {
                     const ledgerDocRef = doc(collection(db, "ledger"));
                     await setDoc(ledgerDocRef, entry);
+                    console.log("✓ Ledger entry created:", entry.account);
                 }
 
+                console.log("✓ All data saved successfully");
                 alert(isEditing ? `Invoice ${invoiceNumber} updated successfully!` : `New Invoice ${invoiceNumber} saved successfully!`);
                 window.location.href = 'documents.html';
             } catch (error) {
-                console.error("Error saving invoice:", error);
-                alert("Error saving invoice. Please check console for details.");
+                console.error("✗ Error saving invoice:", error);
+                alert("Error saving invoice: " + error.message);
             }
         };
 
@@ -397,7 +420,10 @@
             }
 
             try {
-                await deleteDoc(doc(db, "salesInvoices", invoiceNumber));
+                console.log(`\n=== Deleting Invoice ${invoiceNumber} ===`);
+                
+                await deleteDoc(doc(db, "invoices", invoiceNumber));
+                console.log("✓ Invoice deleted");
 
                 const ledgerQuery = query(collection(db, "ledger"));
                 const ledgerSnapshot = await getDocs(ledgerQuery);
@@ -405,14 +431,15 @@
                     const ledgerEntry = docSnap.data();
                     if (ledgerEntry.doc_number === invoiceNumber) {
                         await deleteDoc(doc(db, "ledger", docSnap.id));
+                        console.log("✓ Ledger entry deleted");
                     }
                 }
 
                 alert(`Invoice ${invoiceNumber} deleted successfully.`);
                 window.location.href = 'documents.html';
             } catch (error) {
-                console.error("Error deleting invoice:", error);
-                alert("Error deleting invoice. Please try again.");
+                console.error("✗ Error deleting invoice:", error);
+                alert("Error deleting invoice: " + error.message);
             }
         };
 
@@ -429,12 +456,15 @@
         };
 
         document.addEventListener('DOMContentLoaded', async function() {
+            console.log("=== Page Loaded ===");
+            
             const urlParams = new URLSearchParams(window.location.search);
             const editNumber = urlParams.get('edit');
 
             if (editNumber) {
                 try {
-                    const docRef = doc(db, "salesInvoices", editNumber);
+                    console.log(`Loading invoice for editing: ${editNumber}`);
+                    const docRef = doc(db, "invoices", editNumber);
                     const docSnap = await getDoc(docRef);
                     
                     if (docSnap.exists()) {
@@ -442,12 +472,13 @@
                         isEditing = true;
                         originalDocNumber = editNumber;
                         document.getElementById('deleteButton').style.display = 'inline-block';
+                        console.log("✓ Invoice loaded for editing");
                     } else {
                         alert("Invoice not found.");
                         window.location.href = 'documents.html';
                     }
                 } catch (error) {
-                    console.error("Error loading invoice:", error);
+                    console.error("✗ Error loading invoice:", error);
                     alert("Error loading invoice.");
                 }
             } else {
@@ -455,6 +486,7 @@
                 document.getElementById('invoiceNumber').value = nextNumber;
                 document.getElementById('invoiceDate').value = new Date().toLocaleDateString('en-GB');
                 document.getElementById('deleteButton').style.display = 'none';
+                console.log(`✓ New invoice initialized with number: ${nextNumber}`);
             }
 
             document.querySelectorAll('#invoice-body tr').forEach(row => attachEventListeners(row));
