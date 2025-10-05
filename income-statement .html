@@ -33,6 +33,9 @@
             font-weight: bold;
             box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
+        .sync-badge.error {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        }
         .header {
             text-align: center;
             margin-bottom: 20px;
@@ -73,6 +76,10 @@
         button:hover {
             background-color: #005599;
         }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
         .loading-text {
             text-align: center;
             padding: 20px;
@@ -84,6 +91,22 @@
             padding: 20px;
             color: #dc3545;
             font-weight: bold;
+            line-height: 1.6;
+        }
+        .error-box {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .success-box {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+            color: #155724;
         }
         table {
             width: 100%;
@@ -127,11 +150,20 @@
             border-color: #003366;
             box-shadow: 0 0 3px rgba(0, 51, 102, 0.3);
         }
+        .debug-info {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 20px 0;
+            font-size: 12px;
+            font-family: monospace;
+        }
     </style>
 </head>
 <body>
     <div class="report-container">
-        <div class="sync-badge">SYNCED</div>
+        <div class="sync-badge" id="sync-badge">SYNCED</div>
         <div class="header">
             <h1>Income Statement</h1>
             <div class="business-info">
@@ -141,11 +173,16 @@
         </div>
 
         <div class="controls">
-            <button onclick="generatePDF()">Generate PDF</button>
+            <button onclick="generatePDF()" id="pdf-btn">Generate PDF</button>
             <button onclick="window.location.href='index.html'">Back to Dashboard</button>
         </div>
 
-        <div id="loading" class="loading-text">Loading financial data from cloud...</div>
+        <div id="loading" class="loading-text">
+            <p>Loading financial data from cloud...</p>
+            <p style="font-size: 12px; color: #999;">Connecting to Firebase Firestore...</p>
+        </div>
+        
+        <div id="error-container" style="display: none;"></div>
         
         <table id="income-table" style="display: none;">
             <thead>
@@ -208,10 +245,19 @@
             appId: "1:879522152449:web:73b8ef899d5c1cbfd90000"
         };
 
-        console.log("Initializing Firebase...");
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        console.log("Firebase initialized successfully");
+        console.log("=== Firebase Initialization ===");
+        console.log("Project ID:", firebaseConfig.projectId);
+        
+        let app, db;
+        
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            console.log("✓ Firebase initialized successfully");
+        } catch (error) {
+            console.error("✗ Firebase initialization failed:", error);
+            showError("Firebase initialization failed: " + error.message);
+        }
 
         let salesRevenue = 0;
         let purchasesCogs = 0;
@@ -219,6 +265,56 @@
 
         function formatAmount(amount) {
             return (amount || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        }
+
+        function showError(message, details = null) {
+            const errorContainer = document.getElementById('error-container');
+            const syncBadge = document.getElementById('sync-badge');
+            
+            syncBadge.textContent = 'ERROR';
+            syncBadge.classList.add('error');
+            
+            let errorHTML = '<div class="error-box">';
+            errorHTML += '<h3 style="margin-top: 0; color: #dc3545;">❌ Error Loading Data</h3>';
+            errorHTML += '<p><strong>Error Message:</strong> ' + message + '</p>';
+            
+            if (details) {
+                errorHTML += '<p><strong>Details:</strong> ' + details + '</p>';
+            }
+            
+            errorHTML += '<hr style="margin: 15px 0;">';
+            errorHTML += '<h4 style="color: #003366;">🔧 How to Fix:</h4>';
+            errorHTML += '<ol style="text-align: left; line-height: 1.8;">';
+            errorHTML += '<li><strong>Update Firestore Security Rules:</strong><br>';
+            errorHTML += '   • Go to <a href="https://console.firebase.google.com/project/bet-acc-software/firestore/rules" target="_blank">Firebase Console → Firestore Rules</a><br>';
+            errorHTML += '   • Replace with:<br>';
+            errorHTML += '   <code style="background: #f4f4f4; padding: 10px; display: block; margin: 5px 0;">rules_version = \'2\';<br>';
+            errorHTML += '   service cloud.firestore {<br>';
+            errorHTML += '   &nbsp;&nbsp;match /databases/{database}/documents {<br>';
+            errorHTML += '   &nbsp;&nbsp;&nbsp;&nbsp;match /{document=**} {<br>';
+            errorHTML += '   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;allow read, write: if true;<br>';
+            errorHTML += '   &nbsp;&nbsp;&nbsp;&nbsp;}<br>';
+            errorHTML += '   &nbsp;&nbsp;}<br>';
+            errorHTML += '   }</code>';
+            errorHTML += '   • Click "Publish"</li>';
+            errorHTML += '<li><strong>Verify Collections Exist:</strong><br>';
+            errorHTML += '   • Check if these collections exist in Firestore:<br>';
+            errorHTML += '   &nbsp;&nbsp;- <code>invoices</code><br>';
+            errorHTML += '   &nbsp;&nbsp;- <code>purchaseInvoices</code><br>';
+            errorHTML += '   &nbsp;&nbsp;- <code>vendorPayments</code></li>';
+            errorHTML += '<li><strong>Refresh the Page</strong> after making changes</li>';
+            errorHTML += '</ol>';
+            errorHTML += '</div>';
+            
+            errorContainer.innerHTML = errorHTML;
+            errorContainer.style.display = 'block';
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        function showSuccess() {
+            const syncBadge = document.getElementById('sync-badge');
+            syncBadge.textContent = 'SYNCED';
+            syncBadge.classList.remove('error');
         }
 
         window.formatAndCalculate = function() {
@@ -238,55 +334,103 @@
 
         async function loadFinancialData() {
             try {
-                console.log("Loading financial data...");
+                console.log("\n=== Starting Data Load ===");
+                
+                // Test Firestore connection
+                console.log("Testing Firestore connection...");
                 
                 // Load Sales Revenue from invoices
-                console.log("Fetching sales invoices...");
-                const invoicesSnapshot = await getDocs(collection(db, "invoices"));
-                console.log("Sales invoices found:", invoicesSnapshot.size);
-                
-                invoicesSnapshot.forEach(doc => {
-                    const data = doc.data();
-                    console.log("Invoice:", data);
-                    const amount = parseFloat(data.netTotal || data.total || data.amount) || 0;
-                    salesRevenue += amount;
-                });
-                console.log("Total sales revenue:", salesRevenue);
+                console.log("\n--- Loading Sales Revenue ---");
+                try {
+                    const invoicesSnapshot = await getDocs(collection(db, "invoices"));
+                    console.log("✓ Invoices collection accessible");
+                    console.log("  Documents found:", invoicesSnapshot.size);
+                    
+                    invoicesSnapshot.forEach(doc => {
+                        const data = doc.data();
+                        console.log("  Invoice ID:", doc.id);
+                        const amount = parseFloat(data.netTotal || data.total || data.amount) || 0;
+                        salesRevenue += amount;
+                        console.log("    Amount:", amount);
+                    });
+                    console.log("  Total Sales Revenue:", salesRevenue);
+                } catch (error) {
+                    console.error("✗ Error accessing 'invoices' collection:", error.code, error.message);
+                    throw new Error("Cannot access 'invoices' collection. " + (error.code === 'permission-denied' ? 'Permission denied - check Firestore rules.' : error.message));
+                }
 
                 // Load COGS from purchase invoices
-                console.log("Fetching purchase invoices...");
-                const purchasesSnapshot = await getDocs(collection(db, "purchaseInvoices"));
-                console.log("Purchase invoices found:", purchasesSnapshot.size);
-                
-                purchasesSnapshot.forEach(doc => {
-                    const data = doc.data();
-                    console.log("Purchase:", data);
-                    const amount = parseFloat(data.netTotal || data.total || data.amount) || 0;
-                    purchasesCogs += amount;
-                });
-                console.log("Total purchases (COGS):", purchasesCogs);
+                console.log("\n--- Loading Purchase Invoices (COGS) ---");
+                try {
+                    const purchasesSnapshot = await getDocs(collection(db, "purchaseInvoices"));
+                    console.log("✓ Purchase invoices collection accessible");
+                    console.log("  Documents found:", purchasesSnapshot.size);
+                    
+                    purchasesSnapshot.forEach(doc => {
+                        const data = doc.data();
+                        console.log("  Purchase ID:", doc.id);
+                        const amount = parseFloat(data.netTotal || data.total || data.amount) || 0;
+                        purchasesCogs += amount;
+                        console.log("    Amount:", amount);
+                    });
+                    console.log("  Total Purchases (COGS):", purchasesCogs);
+                } catch (error) {
+                    console.error("✗ Error accessing 'purchaseInvoices' collection:", error.code, error.message);
+                    throw new Error("Cannot access 'purchaseInvoices' collection. " + (error.code === 'permission-denied' ? 'Permission denied - check Firestore rules.' : error.message));
+                }
 
                 // Load Operating Expenses from vendor payments
-                console.log("Fetching vendor payments...");
-                const paymentsSnapshot = await getDocs(collection(db, "vendorPayments"));
-                console.log("Vendor payments found:", paymentsSnapshot.size);
-                
-                paymentsSnapshot.forEach(doc => {
-                    const data = doc.data();
-                    console.log("Payment:", data);
-                    const amount = parseFloat(data.amountPaid || data.amount || data.total) || 0;
-                    vendorPaymentsExpense += amount;
-                });
-                console.log("Total vendor payments:", vendorPaymentsExpense);
+                console.log("\n--- Loading Vendor Payments ---");
+                try {
+                    const paymentsSnapshot = await getDocs(collection(db, "vendorPayments"));
+                    console.log("✓ Vendor payments collection accessible");
+                    console.log("  Documents found:", paymentsSnapshot.size);
+                    
+                    paymentsSnapshot.forEach(doc => {
+                        const data = doc.data();
+                        console.log("  Payment ID:", doc.id);
+                        const amount = parseFloat(data.amountPaid || data.amount || data.total) || 0;
+                        vendorPaymentsExpense += amount;
+                        console.log("    Amount:", amount);
+                    });
+                    console.log("  Total Vendor Payments:", vendorPaymentsExpense);
+                } catch (error) {
+                    console.error("✗ Error accessing 'vendorPayments' collection:", error.code, error.message);
+                    throw new Error("Cannot access 'vendorPayments' collection. " + (error.code === 'permission-denied' ? 'Permission denied - check Firestore rules.' : error.message));
+                }
 
+                console.log("\n=== Data Load Complete ===");
+                console.log("Total Sales:", salesRevenue);
+                console.log("Total Purchases:", purchasesCogs);
+                console.log("Total Vendor Payments:", vendorPaymentsExpense);
+
+                // Show success
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('income-table').style.display = 'table';
+                showSuccess();
                 
                 calculateIncomeStatement();
-                console.log("Financial data loaded successfully");
+                
+                // Enable PDF button
+                document.getElementById('pdf-btn').disabled = false;
+                
             } catch (error) {
-                console.error("Error loading financial data:", error);
-                document.getElementById('loading').innerHTML = '<span class="error-text">Failed to load data. Error: ' + error.message + '</span>';
+                console.error("\n=== ERROR ===");
+                console.error("Error type:", error.name);
+                console.error("Error message:", error.message);
+                console.error("Error code:", error.code);
+                console.error("Full error:", error);
+                
+                let errorDetails = null;
+                if (error.code === 'permission-denied') {
+                    errorDetails = "Firestore security rules are blocking access. You need to update the rules to allow read access.";
+                } else if (error.code === 'not-found') {
+                    errorDetails = "The requested collection or document was not found. Make sure the collections exist in Firestore.";
+                } else if (error.code === 'unavailable') {
+                    errorDetails = "Firestore service is temporarily unavailable. Check your internet connection and try again.";
+                }
+                
+                showError(error.message, errorDetails);
             }
         }
 
@@ -298,10 +442,14 @@
             const totalOperatingExpenses = vendorPaymentsExpense + otherExpenses;
             const netIncome = grossProfit - totalOperatingExpenses;
 
-            console.log("Calculations:");
-            console.log("- Gross Profit:", grossProfit);
+            console.log("\n=== Income Statement Calculations ===");
+            console.log("Sales Revenue:", salesRevenue);
+            console.log("- Purchases (COGS):", purchasesCogs);
+            console.log("= Gross Profit:", grossProfit);
             console.log("- Operating Expenses:", totalOperatingExpenses);
-            console.log("- Net Income:", netIncome);
+            console.log("  (Vendor Payments:", vendorPaymentsExpense);
+            console.log("   Other Expenses:", otherExpenses + ")");
+            console.log("= Net Income:", netIncome);
 
             document.getElementById('sales-revenue').textContent = formatAmount(salesRevenue);
             document.getElementById('purchases-cogs').textContent = formatAmount(purchasesCogs);
@@ -331,8 +479,15 @@
             html2pdf().set(opt).from(element).save();
         };
 
+        // Start loading data when page loads
         document.addEventListener('DOMContentLoaded', function() {
-            console.log("Page loaded, starting data fetch...");
+            console.log("=== Page Loaded ===");
+            console.log("Current URL:", window.location.href);
+            console.log("Timestamp:", new Date().toISOString());
+            
+            // Disable PDF button until data loads
+            document.getElementById('pdf-btn').disabled = true;
+            
             loadFinancialData();
         });
     </script>
