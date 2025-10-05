@@ -258,7 +258,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, getDocs, deleteDoc, doc, query } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, getDocs, deleteDoc, doc, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
@@ -269,55 +269,62 @@
             appId: "1:879522152449:web:73b8ef899d5c1cbfd90000"
         };
 
-        console.log("Initializing Firebase...");
+        console.log("=== Initializing Firebase ===");
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        console.log("Firebase initialized successfully");
+        console.log("✓ Firebase initialized successfully");
 
         let allDocuments = [];
 
         async function loadAllDocuments() {
             try {
-                console.log('Loading all documents from Firebase...');
+                console.log('\n=== Loading All Documents ===');
                 allDocuments = [];
 
                 const collections = [
-                    { name: 'purchaseInvoices', type: 'Purchase Invoice' },
-                    { name: 'invoices', type: 'Sales Invoice' },
-                    { name: 'journalEntries', type: 'Journal Entry' },
-                    { name: 'customerReceipts', type: 'Customer Payment' },
-                    { name: 'vendorPayments', type: 'Vendor Payment' }
+                    { name: 'purchaseInvoices', type: 'Purchase Invoice', editUrl: 'purchase-invoice.html' },
+                    { name: 'invoices', type: 'Sales Invoice', editUrl: 'invoice.html' },
+                    { name: 'journalEntries', type: 'Journal Entry', editUrl: 'journal-entry.html' },
+                    { name: 'customerReceipts', type: 'Customer Payment', editUrl: 'receipt.html' },
+                    { name: 'vendorPayments', type: 'Vendor Payment', editUrl: 'vendor-payment-receipt.html' }
                 ];
 
                 for (const col of collections) {
                     try {
-                        console.log(`Loading collection: ${col.name}`);
+                        console.log(`\n--- Loading: ${col.name} ---`);
                         const snapshot = await getDocs(collection(db, col.name));
-                        console.log(`${col.name}: ${snapshot.size} documents found`);
+                        console.log(`  Found ${snapshot.size} documents`);
                         
                         snapshot.forEach(docSnap => {
                             const data = docSnap.data();
-                            console.log(`Document from ${col.name}:`, data);
+                            const docId = docSnap.id;
+                            
+                            console.log(`  • Doc ID: ${docId}`);
+                            console.log(`    Number: ${data.number || 'N/A'}`);
+                            console.log(`    Date: ${data.date || 'N/A'}`);
                             
                             allDocuments.push({
                                 ...data,
-                                type: data.type || col.type,
+                                type: col.type,
                                 collection: col.name,
-                                docId: docSnap.id
+                                docId: docId,
+                                editUrl: col.editUrl
                             });
                         });
                     } catch (colError) {
-                        console.error(`Error loading ${col.name}:`, colError);
+                        console.error(`✗ Error loading ${col.name}:`, colError);
                     }
                 }
 
+                // Sort by date (newest first)
                 allDocuments.sort((a, b) => {
                     const dateA = parseDate(a.date);
                     const dateB = parseDate(b.date);
                     return dateB - dateA;
                 });
 
-                console.log('Total documents loaded:', allDocuments.length);
+                console.log(`\n✓ Total documents loaded: ${allDocuments.length}`);
+                console.log('Documents:', allDocuments);
 
                 updateStats();
                 displayDocuments(allDocuments);
@@ -325,13 +332,14 @@
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('mainContent').style.display = 'block';
             } catch (error) {
-                console.error("Error loading documents:", error);
+                console.error("✗ Error loading documents:", error);
                 document.getElementById('loading').innerHTML = '<span style="color: #dc3545;">Error loading documents: ' + error.message + '</span>';
             }
         }
 
         function parseDate(dateStr) {
             if (!dateStr) return new Date(0);
+            // Handle DD-MM-YYYY format
             const parts = dateStr.split('-');
             if (parts.length === 3) {
                 return new Date(parts[2], parts[1] - 1, parts[0]);
@@ -340,12 +348,22 @@
         }
 
         function updateStats() {
-            document.getElementById('totalDocs').textContent = allDocuments.length;
-            document.getElementById('totalPurchaseInvoices').textContent = allDocuments.filter(d => d.type === 'Purchase Invoice').length;
-            document.getElementById('totalSalesInvoices').textContent = allDocuments.filter(d => d.type === 'Sales Invoice').length;
-            document.getElementById('totalJournals').textContent = allDocuments.filter(d => d.type === 'Journal Entry').length;
-            const receiptsAndPayments = allDocuments.filter(d => d.type === 'Customer Payment' || d.type === 'Vendor Payment').length;
+            const totalDocs = allDocuments.length;
+            const purchaseInvoices = allDocuments.filter(d => d.type === 'Purchase Invoice').length;
+            const salesInvoices = allDocuments.filter(d => d.type === 'Sales Invoice').length;
+            const journals = allDocuments.filter(d => d.type === 'Journal Entry').length;
+            const receiptsAndPayments = allDocuments.filter(d => 
+                d.type === 'Customer Payment' || d.type === 'Vendor Payment'
+            ).length;
+
+            document.getElementById('totalDocs').textContent = totalDocs;
+            document.getElementById('totalPurchaseInvoices').textContent = purchaseInvoices;
+            document.getElementById('totalSalesInvoices').textContent = salesInvoices;
+            document.getElementById('totalJournals').textContent = journals;
             document.getElementById('totalReceipts').textContent = receiptsAndPayments;
+
+            console.log('\n=== Stats Updated ===');
+            console.log(`Total: ${totalDocs}, Purchase: ${purchaseInvoices}, Sales: ${salesInvoices}, Journals: ${journals}, Receipts: ${receiptsAndPayments}`);
         }
 
         function displayDocuments(docs) {
@@ -366,7 +384,7 @@
                 const amount = doc.netTotal || doc.grandTotal || doc.amountReceived || doc.amountPaid || doc.totalDebit || 0;
                 
                 return `
-                    <div class="document-card">
+                    <div class="document-card" data-doc-id="${doc.docId}">
                         <div class="document-info">
                             <h3>${doc.type} #${doc.number}</h3>
                             <p><strong>Date:</strong> ${doc.date}</p>
@@ -374,9 +392,9 @@
                             <p><strong>Amount:</strong> PKR ${Number(amount).toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
                         </div>
                         <div class="document-actions">
-                            <button class="view-btn" onclick="window.viewDocument('${doc.number}', '${doc.collection}', '${doc.type}')">View</button>
-                            <button class="edit-btn" onclick="window.editDocument('${doc.number}', '${doc.collection}', '${doc.type}')">Edit</button>
-                            <button class="delete-btn" onclick="window.deleteDocument('${doc.number}', '${doc.collection}')">Delete</button>
+                            <button class="view-btn" onclick="viewDocument('${doc.docId}', '${doc.editUrl}')">View</button>
+                            <button class="edit-btn" onclick="editDocument('${doc.docId}', '${doc.editUrl}')">Edit</button>
+                            <button class="delete-btn" onclick="deleteDocument('${doc.docId}', '${doc.collection}', '${doc.number}')">Delete</button>
                         </div>
                     </div>
                 `;
@@ -390,14 +408,21 @@
             let filtered = allDocuments;
 
             if (searchTerm) {
-                filtered = filtered.filter(doc => 
-                    doc.number.toLowerCase().includes(searchTerm) ||
-                    (doc.party && doc.party.toLowerCase().includes(searchTerm)) ||
-                    (doc.customerName && doc.customerName.toLowerCase().includes(searchTerm)) ||
-                    (doc.businessLedger && doc.businessLedger.toLowerCase().includes(searchTerm)) ||
-                    (doc.receivedFrom && doc.receivedFrom.toLowerCase().includes(searchTerm)) ||
-                    (doc.paidTo && doc.paidTo.toLowerCase().includes(searchTerm))
-                );
+                filtered = filtered.filter(doc => {
+                    const number = (doc.number || '').toLowerCase();
+                    const party = (doc.party || '').toLowerCase();
+                    const customerName = (doc.customerName || '').toLowerCase();
+                    const businessLedger = (doc.businessLedger || '').toLowerCase();
+                    const receivedFrom = (doc.receivedFrom || '').toLowerCase();
+                    const paidTo = (doc.paidTo || '').toLowerCase();
+                    
+                    return number.includes(searchTerm) ||
+                           party.includes(searchTerm) ||
+                           customerName.includes(searchTerm) ||
+                           businessLedger.includes(searchTerm) ||
+                           receivedFrom.includes(searchTerm) ||
+                           paidTo.includes(searchTerm);
+                });
             }
 
             if (typeFilter) {
@@ -413,45 +438,61 @@
             displayDocuments(allDocuments);
         }
 
-        window.viewDocument = function(docNumber, collectionName, docType) {
-            let url = '';
-            if (docType === 'Purchase Invoice') url = `purchase-invoice.html?edit=${docNumber}`;
-            else if (docType === 'Sales Invoice') url = `invoice.html?edit=${docNumber}`;
-            else if (docType === 'Journal Entry') url = `journal-entry.html?edit=${docNumber}`;
-            else if (docType === 'Customer Payment') url = `receipt.html?edit=${docNumber}`;
-            else if (docType === 'Vendor Payment') url = `vendor-payment-receipt.html?edit=${docNumber}`;
-            
-            if (url) window.location.href = url;
+        window.viewDocument = function(docId, editUrl) {
+            window.location.href = `${editUrl}?edit=${docId}`;
         };
 
-        window.editDocument = function(docNumber, collectionName, docType) {
-            window.viewDocument(docNumber, collectionName, docType);
+        window.editDocument = function(docId, editUrl) {
+            window.location.href = `${editUrl}?edit=${docId}`;
         };
 
-        window.deleteDocument = async function(docNumber, collectionName) {
-            if (!confirm(`Are you sure you want to delete document ${docNumber}? This action cannot be undone.`)) {
+        window.deleteDocument = async function(docId, collectionName, docNumber) {
+            if (!confirm(`Are you sure you want to delete document #${docNumber}?\n\nThis will:\n• Delete the document\n• Remove all related ledger entries\n• This action CANNOT be undone!`)) {
                 return;
             }
 
             try {
-                console.log(`Deleting document ${docNumber} from ${collectionName}`);
-                await deleteDoc(doc(db, collectionName, docNumber));
+                console.log(`\n=== Deleting Document ===`);
+                console.log(`Doc ID: ${docId}`);
+                console.log(`Collection: ${collectionName}`);
+                console.log(`Number: ${docNumber}`);
 
-                const ledgerQuery = query(collection(db, "ledger"));
-                const ledgerSnapshot = await getDocs(ledgerQuery);
+                // Delete the main document
+                await deleteDoc(doc(db, collectionName, docId));
+                console.log('✓ Main document deleted');
+
+                // Delete related ledger entries
+                const ledgerSnapshot = await getDocs(collection(db, "ledger"));
+                let deletedLedgerCount = 0;
                 
-                for (const docSnap of ledgerSnapshot.docs) {
-                    const ledgerEntry = docSnap.data();
-                    if (ledgerEntry.doc_number === docNumber) {
-                        console.log(`Deleting related ledger entry: ${docSnap.id}`);
-                        await deleteDoc(doc(db, "ledger", docSnap.id));
+                for (const ledgerDoc of ledgerSnapshot.docs) {
+                    const ledgerData = ledgerDoc.data();
+                    if (ledgerData.doc_number === docNumber || ledgerData.doc_number === docId) {
+                        await deleteDoc(doc(db, "ledger", ledgerDoc.id));
+                        deletedLedgerCount++;
+                        console.log(`  ✓ Deleted ledger entry: ${ledgerDoc.id}`);
                     }
                 }
 
-                alert('Document deleted successfully!');
-                await loadAllDocuments();
+                console.log(`✓ Deleted ${deletedLedgerCount} related ledger entries`);
+
+                // Remove from UI immediately
+                const cardElement = document.querySelector(`[data-doc-id="${docId}"]`);
+                if (cardElement) {
+                    cardElement.style.transition = 'opacity 0.3s';
+                    cardElement.style.opacity = '0';
+                    setTimeout(() => cardElement.remove(), 300);
+                }
+
+                // Reload data to sync
+                setTimeout(() => {
+                    loadAllDocuments();
+                }, 500);
+
+                alert(`Document #${docNumber} and ${deletedLedgerCount} related ledger entries deleted successfully!`);
+                
             } catch (error) {
-                console.error("Error deleting document:", error);
+                console.error("✗ Error deleting document:", error);
                 alert("Error deleting document: " + error.message);
             }
         };
@@ -460,7 +501,7 @@
         window.resetFilters = resetFilters;
 
         document.addEventListener('DOMContentLoaded', function() {
-            console.log("Page loaded, starting document fetch...");
+            console.log("=== Page Loaded ===");
             loadAllDocuments();
         });
     </script>
