@@ -140,6 +140,10 @@
             font-size: 12px;
             font-style: italic;
         }
+        .balance-success {
+            color: #008800;
+            font-size: 12px;
+        }
         .balance-error {
             color: #cc0000;
             font-size: 12px;
@@ -250,7 +254,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy, limit, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
@@ -288,7 +292,7 @@
             }
         }
 
-        // NEW FUNCTION: Fetch previous balance from ledger
+        // CORRECTED FUNCTION: Fetch previous balance from ledger using 'account' field
         async function fetchPreviousBalance(customerName) {
             if (!customerName || customerName.trim() === '') {
                 document.getElementById('previous-balance').value = '0';
@@ -303,8 +307,6 @@
             statusDiv.textContent = 'Fetching balance...';
 
             try {
-                // Query ledger for all entries with accountType = 'Accounts Receivable'
-                // and description containing the customer name
                 const ledgerQuery = query(collection(db, "ledger"));
                 const ledgerSnapshot = await getDocs(ledgerQuery);
 
@@ -315,10 +317,9 @@
                 ledgerSnapshot.forEach((doc) => {
                     const entry = doc.data();
                     
-                    // Check if this entry is for Accounts Receivable and matches customer name
-                    if (entry.accountType === 'Accounts Receivable' && 
-                        entry.description && 
-                        entry.description.toLowerCase().includes(customerName.toLowerCase())) {
+                    // FIXED: Search in 'account' field (not 'description')
+                    if (entry.account && 
+                        entry.account.toLowerCase().includes(customerName.toLowerCase())) {
                         
                         totalDebit += parseFloat(entry.debit || 0);
                         totalCredit += parseFloat(entry.credit || 0);
@@ -331,14 +332,15 @@
                 document.getElementById('previous-balance').value = balance.toLocaleString('en-US', {maximumFractionDigits: 0});
                 
                 if (foundEntries > 0) {
-                    statusDiv.className = 'balance-loading';
-                    statusDiv.textContent = `Found ${foundEntries} transaction(s)`;
+                    statusDiv.className = 'balance-success';
+                    statusDiv.textContent = `✓ Found ${foundEntries} transaction(s) | Balance: ${balance.toLocaleString()}`;
                     setTimeout(() => {
                         statusDiv.style.display = 'none';
-                    }, 2000);
+                    }, 3000);
                 } else {
                     statusDiv.className = 'balance-error';
-                    statusDiv.textContent = 'No transactions found for this customer';
+                    statusDiv.textContent = '✗ No transactions found for this customer';
+                    document.getElementById('previous-balance').value = '0';
                     setTimeout(() => {
                         statusDiv.style.display = 'none';
                     }, 3000);
@@ -349,23 +351,20 @@
             } catch (error) {
                 console.error("Error fetching previous balance:", error);
                 statusDiv.className = 'balance-error';
-                statusDiv.textContent = 'Error fetching balance';
+                statusDiv.textContent = '✗ Error fetching balance';
                 setTimeout(() => {
                     statusDiv.style.display = 'none';
                 }, 3000);
             }
         }
 
-        // NEW FUNCTION: Debounced ledger search (waits 500ms after user stops typing)
         function onLedgerNameChange(event) {
             const customerName = event.target.value;
             
-            // Clear existing timer
             if (debounceTimer) {
                 clearTimeout(debounceTimer);
             }
 
-            // Set new timer for 500ms delay
             debounceTimer = setTimeout(() => {
                 fetchPreviousBalance(customerName);
             }, 500);
@@ -495,6 +494,7 @@
                 const ledgerId = `${receiptNumber}_${Date.now()}`;
                 await setDoc(doc(db, "ledger", ledgerId), {
                     date: receiptDate,
+                    account: businessLedger,
                     description: `Payment from ${businessLedger} #${receiptNumber}`,
                     accountType: 'Accounts Receivable',
                     debit: 0,
@@ -619,9 +619,7 @@
                     document.getElementById('deleteButton').style.display = 'none';
                 }
 
-                // MODIFIED: Add event listener for Business (Ledger) field
                 document.getElementById('business-ledger').addEventListener('input', onLedgerNameChange);
-                
                 document.getElementById('amount-received').addEventListener('input', formatAndCalculate);
                 calculateAccountReceivable();
 
