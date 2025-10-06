@@ -301,7 +301,9 @@
 
                 const collections = [
                     { name: 'purchaseInvoices', type: 'Purchase Invoice', editUrl: 'purchase-invoice.html' },
-                    { name: 'invoices', type: 'Sales Invoice', editUrl: 'invoice.html' },
+                    // CRITICAL FIX: Changed 'invoices' to 'salesInvoices' 
+                    // This assumes your invoice.html is saving to 'salesInvoices'
+                    { name: 'salesInvoices', type: 'Sales Invoice', editUrl: 'invoice.html' }, 
                     { name: 'journalEntries', type: 'Journal Entry', editUrl: 'journal-entry.html' },
                     { name: 'customerReceipts', type: 'Customer Payment', editUrl: 'receipt.html' },
                     { name: 'vendorPayments', type: 'Vendor Payment', editUrl: 'vendor-payment-receipt.html' }
