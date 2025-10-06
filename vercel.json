@@ -1,12 +1,20 @@
 {
-  "routes": [
+  "rewrites": [
     {
-      "src": "/income-statement.html",
-      "dest": "/income-statement.html"
+      "source": "/dashboard",
+      "destination": "/index.html"
     },
     {
-      "src": "/income-statement",
-      "dest": "/income-statement.html"
+      "source": "/trial-balance",
+      "destination": "/trial-balance.html"
+    },
+    {
+      "source": "/income-statement",
+      "destination": "/income-statement.html"
+    },
+    {
+      "source": "/bank-reconciliation",
+      "destination": "/bank-reconciliation.html"
     }
   ]
 }
