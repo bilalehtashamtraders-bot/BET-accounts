@@ -13,7 +13,6 @@
         }
         .report-container {
             width: 100%;
-            /* Removed max-width to allow it to fill 100% of the screen */
             margin: 0 auto;
             border: 1px solid #ccc;
             padding: 20px;
@@ -74,16 +73,14 @@
             margin-bottom: 15px;
         }
         
-        /* New Wrapper for controlled horizontal scrolling */
         .table-wrapper {
-            overflow-x: auto; /* Allows only the table to scroll, not the whole page */
+            overflow-x: auto; 
             margin-top: 20px;
         }
         
         table {
             width: 100%;
-            /* Removed table-layout: fixed; for better flow on small screens */
-            min-width: 750px; /* Minimum width to ensure columns don't collapse */
+            min-width: 750px; 
             border-collapse: collapse;
         }
         th, td {
@@ -107,7 +104,6 @@
         #ledger-table th:nth-child(5), #ledger-table td:nth-child(5) { width: 10%; } /* Debit */
         #ledger-table th:nth-child(6), #ledger-table td:nth-child(6) { width: 10%; } /* Credit */
         #ledger-table th:nth-child(7), #ledger-table td:nth-child(7) { width: 12%; } /* Balance */
-
 
         tfoot td {
             font-weight: bold;
@@ -147,14 +143,11 @@
             .controls button {
                 width: 45%;
             }
-            /* INCREASED FONT SIZE (FIX) */
             table, th, td {
                 font-size: 11px;
                 padding: 3px;
             }
             
-            /* Remove fixed widths on mobile to prevent overlapping, 
-               relying on min-width and overflow-x on the wrapper */
             #ledger-table th:nth-child(1), #ledger-table td:nth-child(1) { width: auto; }
             #ledger-table th:nth-child(2), #ledger-table td:nth-child(2) { width: auto; }
             #ledger-table th:nth-child(3), #ledger-table td:nth-child(3) { width: auto; }
@@ -162,7 +155,6 @@
             #ledger-table th:nth-child(5), #ledger-table td:nth-child(5) { width: auto; }
             #ledger-table th:nth-child(6), #ledger-table td:nth-child(6) { width: auto; }
             #ledger-table th:nth-child(7), #ledger-table td:nth-child(7) { width: auto; }
-
         }
     </style>
 </head>
@@ -225,9 +217,8 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, getDocs, query, orderBy, getDoc, doc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, getDocs, query } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // IMPORTANT: Replace this with your actual Firebase Configuration
         const firebaseConfig = {
             apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
             authDomain: "bet-acc-software.firebaseapp.com",
@@ -244,12 +235,19 @@
         let uniqueAccounts = new Set();
 
         function parseDate(dateStr) {
-            // Parses DD-MM-YYYY format
+            if (!dateStr) return new Date(0);
             const parts = dateStr.split('-');
             if (parts.length === 3) {
-                return new Date(parts[2], parts[1] - 1, parts[0]);
+                const day = parseInt(parts[0], 10);
+                const month = parseInt(parts[1], 10) - 1;
+                const year = parseInt(parts[2], 10);
+                return new Date(year, month, day);
             }
             return new Date(dateStr);
+        }
+
+        function getAccountName(entry) {
+            return entry.account || entry.accountType || entry.doc_type || 'Unknown';
         }
 
         async function loadLedgerData() {
@@ -262,19 +260,24 @@
                 
                 snapshot.forEach(doc => {
                     const data = doc.data();
-                    allLedgerEntries.push(data);
-                    if (data.account) {
-                        uniqueAccounts.add(data.account);
+                    const accountKey = getAccountName(data);
+                    
+                    if (accountKey && accountKey !== 'Unknown') {
+                        uniqueAccounts.add(accountKey);
                     }
+                    
+                    allLedgerEntries.push(data);
                 });
 
-                // Sort by date then by timestamp (if available, for tie-breaking)
                 allLedgerEntries.sort((a, b) => {
                     const dateA = parseDate(a.date);
                     const dateB = parseDate(b.date);
-                    if (dateA - dateB !== 0) return dateA - dateB;
-                    // Fallback to timestamp for stable order on the same day
-                    return (a.timestamp || '').localeCompare(b.timestamp || '');
+                    if (dateA.getTime() !== dateB.getTime()) {
+                        return dateA - dateB;
+                    }
+                    const timeA = a.timestamp || '';
+                    const timeB = b.timestamp || '';
+                    return timeA.localeCompare(timeB);
                 });
                 
                 populateAccountFilter();
@@ -310,35 +313,33 @@
 
             entries.forEach(entry => {
                 const row = ledgerBody.insertRow();
-                // Ensure debit/credit are numbers
                 const debit = parseFloat(entry.debit || 0);
                 const credit = parseFloat(entry.credit || 0);
                 
-                // Balance calculation: Debit (increase) - Credit (decrease)
                 runningBalance += (debit - credit);
 
-                // Determine if a link exists based on doc_number
+                const displayAccount = getAccountName(entry);
                 const docNumber = entry.doc_number || '';
                 const docCellContent = docNumber ? 
                     `<span class="doc-link" onclick="window.viewDocument('${docNumber}')">${docNumber}</span>` : 
                     'N/A';
 
                 row.innerHTML = `
-                    <td>${entry.date}</td>
-                    <td>${entry.account || 'N/A'}</td>
+                    <td>${entry.date || 'N/A'}</td>
+                    <td>${displayAccount}</td>
                     <td>${entry.description || ''}</td>
                     <td>${docCellContent}</td>
-                    <td class="debit-amount">${debit.toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
-                    <td class="credit-amount">${credit.toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
-                    <td class="balance-column">${runningBalance.toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
+                    <td class="debit-amount">${debit.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td class="credit-amount">${credit.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td class="balance-column">${runningBalance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                 `;
                 totalDebit += debit;
                 totalCredit += credit;
             });
             
-            document.getElementById('total-debit').textContent = totalDebit.toLocaleString('en-US', {minimumFractionDigits: 2});
-            document.getElementById('total-credit').textContent = totalCredit.toLocaleString('en-US', {minimumFractionDigits: 2});
-            document.getElementById('final-balance').textContent = runningBalance.toLocaleString('en-US', {minimumFractionDigits: 2});
+            document.getElementById('total-debit').textContent = totalDebit.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            document.getElementById('total-credit').textContent = totalCredit.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            document.getElementById('final-balance').textContent = runningBalance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         }
 
         function filterLedger() {
@@ -348,24 +349,28 @@
             let filteredEntries = allLedgerEntries;
 
             if (searchTerm) {
-                filteredEntries = filteredEntries.filter(entry => 
-                    (entry.account && entry.account.toLowerCase().includes(searchTerm)) ||
-                    (entry.description && entry.description.toLowerCase().includes(searchTerm)) ||
-                    (entry.doc_number && entry.doc_number.toLowerCase().includes(searchTerm))
-                );
+                filteredEntries = filteredEntries.filter(entry => {
+                    const account = getAccountName(entry).toLowerCase();
+                    const description = (entry.description || '').toLowerCase();
+                    const docNumber = (entry.doc_number || '').toLowerCase();
+                    
+                    return account.includes(searchTerm) || 
+                           description.includes(searchTerm) || 
+                           docNumber.includes(searchTerm);
+                });
             }
 
             if (accountName) {
-                filteredEntries = filteredEntries.filter(entry => 
-                    entry.account === accountName
-                );
+                filteredEntries = filteredEntries.filter(entry => {
+                    return getAccountName(entry) === accountName;
+                });
             }
 
             let titleText = 'All Transactions';
             if (searchTerm && accountName) {
-                titleText = `Account: ${accountName} | Search: ${searchTerm.toUpperCase()}`;
+                titleText = `Account: ${accountName} | Search: "${searchTerm}"`;
             } else if (searchTerm) {
-                titleText = `Search: ${searchTerm.toUpperCase()}`;
+                titleText = `Search Results: "${searchTerm}"`;
             } else if (accountName) {
                 titleText = `Account: ${accountName}`;
             }
@@ -381,44 +386,24 @@
             displayLedger(allLedgerEntries);
         }
 
-        /**
-         * Determines the document type and redirects based on the doc_number prefix.
-         * This avoids multiple slow database lookups.
-         */
         function viewDocument(docNumber) {
             if (!docNumber) return;
             
             let targetURL = '';
-            
-            // Normalize case for comparison
-            const prefix = docNumber.toUpperCase().split('-')[0];
+            const upperDoc = docNumber.toUpperCase();
 
-            // --- Your Document Prefix Conventions ---
-            // Note: The file names below are assumed to be your actual document edit pages
-            if (docNumber.startsWith('CR-')) {
-                // Customer Receipt (Collection: customerReceipts -> File: customer-receipt.html)
+            if (upperDoc.startsWith('CR-')) {
                 targetURL = `customer-receipt.html?edit=${docNumber}`;
-            } else if (docNumber.startsWith('VP-')) {
-                // Vendor Payment (Collection: vendorPayments -> File: vendor-payment-receipt.html)
+            } else if (upperDoc.startsWith('VP-')) {
                 targetURL = `vendor-payment-receipt.html?edit=${docNumber}`;
-            } else if (docNumber.startsWith('SI-')) {
-                // Sales Invoice (Collection: salesInvoices -> File: sales-invoice.html OR invoice.html)
-                targetURL = `invoice.html?edit=${docNumber}`;
-            } else if (docNumber.startsWith('PI-')) {
-                // Purchase Invoice (Collection: purchaseInvoices -> File: purchase-invoice.html)
+            } else if (upperDoc.startsWith('SI-')) {
+                targetURL = `invoice.html?edit=${docNumber}`; 
+            } else if (upperDoc.startsWith('PI-')) {
                 targetURL = `purchase-invoice.html?edit=${docNumber}`;
-            } else if (docNumber.startsWith('JE-')) {
-                // Journal Entry (Collection: journalEntries -> File: journal-entry.html)
+            } else if (upperDoc.startsWith('JE-')) {
                 targetURL = `journal-entry.html?edit=${docNumber}`;
-            } 
-            // Handle the legacy/simple 4-digit number convention (e.g., 00100)
-            else if (!isNaN(parseInt(docNumber)) && docNumber.length <= 4) {
-                 // Fallback: This block handles older documents that might not have a prefix.
-                 // Since we can't reliably guess, we give a warning.
-                 alert("Ambiguous document number (no prefix). Please navigate manually. We recommend using prefixes (SI-, CR-, VP-, PI-) for all new documents.");
-                 return;
             } else {
-                alert(`Unrecognized document prefix: ${prefix}. Cannot automatically open the file.`);
+                alert(`Unrecognized document type for: ${docNumber}. Cannot open the document.`);
                 return;
             }
             
@@ -429,26 +414,42 @@
 
         function generatePDF() {
             const title = document.getElementById('current-ledger-title').textContent;
+            const currentDate = new Date().toLocaleDateString('en-GB');
             
             let pdfContent = `
-                <div style="font-family: Arial, sans-serif; padding: 20px;">
-                    <h2 style="text-align: center; color: #003366;">General Ledger Report</h2>
-                    <div style="text-align: center; margin-bottom: 20px;">
-                        <h3 style="color: #003366;">(BET) Bilal Ehtasham Traders</h3>
+                <html>
+                <head>
+                    <style>
+                        body { font-family: Arial, sans-serif; padding: 20px; }
+                        h2, h3 { text-align: center; color: #003366; margin: 10px 0; }
+                        p { margin: 5px 0; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 10px; }
+                        th, td { border: 1px solid #ccc; padding: 6px; }
+                        th { background-color: #f2f2f2; font-weight: bold; }
+                        .text-right { text-align: right; }
+                        .text-center { text-align: center; }
+                        tfoot td { background-color: #e6e6ff; font-weight: bold; }
+                    </style>
+                </head>
+                <body>
+                    <h2>General Ledger Report</h2>
+                    <div class="text-center">
+                        <h3>(BET) Bilal Ehtasham Traders</h3>
                         <p>Deals in all kinds of Cotton and Polyester Yarn</p>
+                        <p>Email: bilalehtashamtraders@gmail.com | Cell: (+92)-324-2479096</p>
                     </div>
                     <p><strong>Report:</strong> ${title}</p>
-                    <p><strong>Generated:</strong> ${new Date().toLocaleDateString('en-GB')}</p>
-                    <table style="width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 10px;">
+                    <p><strong>Generated:</strong> ${currentDate}</p>
+                    <table>
                         <thead>
-                            <tr style="background-color: #f2f2f2;">
-                                <th style="border: 1px solid #ccc; padding: 8px;">Date</th>
-                                <th style="border: 1px solid #ccc; padding: 8px;">Account</th>
-                                <th style="border: 1px solid #ccc; padding: 8px;">Description</th>
-                                <th style="border: 1px solid #ccc; padding: 8px;">Doc #</th>
-                                <th style="border: 1px solid #ccc; padding: 8px; text-align: right;">Debit</th>
-                                <th style="border: 1px solid #ccc; padding: 8px; text-align: right;">Credit</th>
-                                <th style="border: 1px solid #ccc; padding: 8px; text-align: right;">Balance</th>
+                            <tr>
+                                <th>Date</th>
+                                <th>Account</th>
+                                <th>Description</th>
+                                <th>Doc #</th>
+                                <th class="text-right">Debit (Rs.)</th>
+                                <th class="text-right">Credit (Rs.)</th>
+                                <th class="text-right">Balance (Rs.)</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -457,17 +458,19 @@
             const rows = document.querySelectorAll('#ledger-body tr');
             rows.forEach(row => {
                 const cells = row.querySelectorAll('td');
-                pdfContent += `
-                    <tr>
-                        <td style="border: 1px solid #ccc; padding: 5px;">${cells[0].textContent}</td>
-                        <td style="border: 1px solid #ccc; padding: 5px;">${cells[1].textContent}</td>
-                        <td style="border: 1px solid #ccc; padding: 5px;">${cells[2].textContent}</td>
-                        <td style="border: 1px solid #ccc; padding: 5px;">${cells[3].textContent}</td>
-                        <td style="border: 1px solid #ccc; padding: 5px; text-align: right;">${cells[4].textContent}</td>
-                        <td style="border: 1px solid #ccc; padding: 5px; text-align: right;">${cells[5].textContent}</td>
-                        <td style="border: 1px solid #ccc; padding: 5px; text-align: right;">${cells[6].textContent}</td>
-                    </tr>
-                `;
+                if (cells.length >= 7) {
+                    pdfContent += `
+                        <tr>
+                            <td>${cells[0].textContent}</td>
+                            <td>${cells[1].textContent}</td>
+                            <td>${cells[2].textContent}</td>
+                            <td>${cells[3].textContent.replace(/<[^>]*>/g, '')}</td>
+                            <td class="text-right">${cells[4].textContent}</td>
+                            <td class="text-right">${cells[5].textContent}</td>
+                            <td class="text-right">${cells[6].textContent}</td>
+                        </tr>
+                    `;
+                }
             });
 
             const totalDebit = document.getElementById('total-debit').textContent;
@@ -477,15 +480,16 @@
             pdfContent += `
                         </tbody>
                         <tfoot>
-                            <tr style="background-color: #e6e6ff; font-weight: bold;">
-                                <td colspan="4" style="border: 1px solid #ccc; padding: 8px;">TOTAL</td>
-                                <td style="border: 1px solid #ccc; padding: 8px; text-align: right;">${totalDebit}</td>
-                                <td style="border: 1px solid #ccc; padding: 8px; text-align: right;">${totalCredit}</td>
-                                <td style="border: 1px solid #ccc; padding: 8px; text-align: right;">${finalBalance}</td>
+                            <tr>
+                                <td colspan="4">TOTAL</td>
+                                <td class="text-right">${totalDebit}</td>
+                                <td class="text-right">${totalCredit}</td>
+                                <td class="text-right">${finalBalance}</td>
                             </tr>
                         </tfoot>
                     </table>
-                </div>
+                </body>
+                </html>
             `;
 
             const printWindow = window.open('', '', 'height=600,width=800');
@@ -496,7 +500,6 @@
 
         document.addEventListener('DOMContentLoaded', loadLedgerData);
 
-        // Expose functions to the global scope for inline onclick events
         window.filterLedger = filterLedger;
         window.resetLedger = resetLedger;
         window.generatePDF = generatePDF;
