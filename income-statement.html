@@ -189,9 +189,19 @@
         const db = getFirestore(app);
 
         // Define groups for the Income Statement based on common account names/types
+        // FIX: Added common account names used in document creation (e.g., Sales Invoices, Purchase Invoices)
         const incomeStatementGroups = {
-            'Revenue': ['Sales Revenue', 'Other Income'],
-            'COGS': ['Cost of Goods Sold (COGS)', 'Purchases'],
+            'Revenue': [
+                'Sales Revenue', 
+                'Other Income',
+                'Sales Invoices', // <-- FIX: Added this common name
+                'Invoice'         // <-- FIX: Added this common name
+            ],
+            'COGS': [
+                'Cost of Goods Sold (COGS)', 
+                'Purchases',
+                'Purchase Invoices' // <-- FIX: Added this common name for COGS/Purchases
+            ],
             'Operating Expenses': [
                 'Salaries Expense', 
                 'Rent Expense', 
@@ -199,10 +209,9 @@
                 'Depreciation Expense', 
                 'Other Expense', 
                 'Vendor Payments',
-                // CRITICAL FIX: Added the account found in your ledger screenshot
                 'BET Expense Acc' 
             ]
-            // Add any other Expense/COGS accounts used in your ledger here!
+            // NOTE: If you have other specific Expense accounts, add them to 'Operating Expenses' here!
         };
         
         // Final structure to hold calculated amounts
@@ -228,7 +237,8 @@
                 // 1. Calculate net balance for all accounts
                 ledgerSnapshot.forEach(docSnap => {
                     const entry = docSnap.data();
-                    const accountName = entry.account || entry.accountType;
+                    // Using `account` is usually correct, but sometimes a collection name is logged.
+                    const accountName = entry.account || entry.accountType; 
 
                     if (!accountName) return; 
 
@@ -240,6 +250,7 @@
                     }
                     
                     // Balance: Debit (increase for Asset/Expense/COGS) - Credit (increase for Liability/Equity/Revenue)
+                    // This is correct: Revenue has a natural CREDIT balance (Credit > Debit), resulting in a negative net_balance here.
                     balances[accountName] += (debit - credit);
                 });
                 
