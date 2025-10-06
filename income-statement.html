@@ -122,7 +122,9 @@
         .account-line {
             padding-left: 20px !important;
         }
-        /* Removed styles for input-field as it's no longer used */
+        .negative-amount {
+            color: #dc3545;
+        }
         @media print {
             .controls {
                 display: none !important;
@@ -190,8 +192,17 @@
         const incomeStatementGroups = {
             'Revenue': ['Sales Revenue', 'Other Income'],
             'COGS': ['Cost of Goods Sold (COGS)', 'Purchases'],
-            'Operating Expenses': ['Salaries Expense', 'Rent Expense', 'Utilities Expense', 'Depreciation Expense', 'Other Expense', 'Vendor Payments']
-            // You can add more specific accounts here as you use them in the ledger
+            'Operating Expenses': [
+                'Salaries Expense', 
+                'Rent Expense', 
+                'Utilities Expense', 
+                'Depreciation Expense', 
+                'Other Expense', 
+                'Vendor Payments',
+                // CRITICAL FIX: Added the account found in your ledger screenshot
+                'BET Expense Acc' 
+            ]
+            // Add any other Expense/COGS accounts used in your ledger here!
         };
         
         // Final structure to hold calculated amounts
@@ -212,12 +223,12 @@
             try {
                 const ledgerSnapshot = await getDocs(collection(db, "ledger"));
                 
-                const balances = {}; // { 'Account Name': net_balance, ... }
+                const balances = {}; // { 'Account Name': net_balance (Debit - Credit), ... }
 
                 // 1. Calculate net balance for all accounts
                 ledgerSnapshot.forEach(docSnap => {
                     const entry = docSnap.data();
-                    const accountName = entry.account || entry.accountType; // Use 'account' from ledger.html, fallback to 'accountType'
+                    const accountName = entry.account || entry.accountType;
 
                     if (!accountName) return; 
 
@@ -228,9 +239,7 @@
                         balances[accountName] = 0;
                     }
                     
-                    // The balance represents the natural balance: Debit (positive) or Credit (negative).
-                    // Revenue, Liability, Equity increase with Credit (negative net change).
-                    // Asset, Expense, COGS increase with Debit (positive net change).
+                    // Balance: Debit (increase for Asset/Expense/COGS) - Credit (increase for Liability/Equity/Revenue)
                     balances[accountName] += (debit - credit);
                 });
                 
@@ -247,35 +256,26 @@
 
                 for (const accountName in balances) {
                     let netBalance = balances[accountName];
-                    let isGrouped = false;
 
-                    // Revenue: Natural Credit Balance (negative in our netDebit-Credit scheme)
-                    if (incomeStatementGroups.Revenue.includes(accountName)) {
-                        let amount = Math.abs(netBalance); // Revenue is always displayed as positive
+                    // Revenue: Natural Credit Balance (netBalance will be negative). Display as positive.
+                    if (incomeStatementGroups.Revenue.includes(accountName) && netBalance < 0) {
+                        let amount = Math.abs(netBalance); 
                         calculatedAmounts.revenue[accountName] = amount;
                         totalRevenue += amount;
-                        isGrouped = true;
                     }
 
-                    // COGS and Expenses: Natural Debit Balance (positive in our netDebit-Credit scheme)
-                    if (incomeStatementGroups.COGS.includes(accountName)) {
+                    // COGS and Expenses: Natural Debit Balance (netBalance will be positive).
+                    if (incomeStatementGroups.COGS.includes(accountName) && netBalance > 0) {
                         let amount = netBalance;
                         calculatedAmounts.cogs[accountName] = amount;
                         totalCOGS += amount;
-                        isGrouped = true;
                     }
 
-                    if (incomeStatementGroups['Operating Expenses'].includes(accountName)) {
+                    if (incomeStatementGroups['Operating Expenses'].includes(accountName) && netBalance > 0) {
                         let amount = netBalance;
                         calculatedAmounts.expenses[accountName] = amount;
                         totalExpenses += amount;
-                        isGrouped = true;
                     }
-                    
-                    // You might want to log unclassified P&L accounts here for debugging
-                    // if (!isGrouped && (netBalance !== 0)) {
-                    //     console.log(`Unclassified P&L Account: ${accountName} with balance ${netBalance}`);
-                    // }
                 }
 
                 // Store totals for final calculation
@@ -327,7 +327,7 @@
                 html += `
                     <tr>
                         <td class="account-line">${account}</td>
-                        <td>(${formatAmount(amount)})</td>
+                        <td class="negative-amount">(${formatAmount(amount)})</td>
                     </tr>
                 `;
             }
@@ -346,14 +346,14 @@
                 html += `
                     <tr>
                         <td class="account-line">${account}</td>
-                        <td>(${formatAmount(amount)})</td>
+                        <td class="negative-amount">(${formatAmount(amount)})</td>
                     </tr>
                 `;
             }
             html += `
                 <tr class="subtotal">
                     <td>Total Operating Expenses</td>
-                    <td>(${formatAmount(totalExpenses)})</td>
+                    <td class="negative-amount">(${formatAmount(totalExpenses)})</td>
                 </tr>
             `;
 
@@ -363,9 +363,8 @@
             const netIncome = grossProfit - totalExpenses;
             
             const netIncomeElement = document.getElementById('net-income');
-            netIncomeElement.textContent = formatAmount(Math.abs(netIncome));
             
-            // Set text color for profit/loss and show (Loss) if negative
+            // Set text and color for profit/loss
             if (netIncome < 0) {
                 netIncomeElement.style.color = '#dc3545';
                 netIncomeElement.parentNode.querySelector('.final-total:first-child').textContent = 'Net Loss';
@@ -373,13 +372,15 @@
             } else if (netIncome > 0) {
                 netIncomeElement.style.color = '#28a745';
                 netIncomeElement.parentNode.querySelector('.final-total:first-child').textContent = 'Net Income';
+                netIncomeElement.textContent = formatAmount(netIncome);
             } else {
                 netIncomeElement.style.color = '#333';
                 netIncomeElement.parentNode.querySelector('.final-total:first-child').textContent = 'Net Income';
+                netIncomeElement.textContent = '0.00';
             }
         }
 
-        // --- PDF GENERATION (remains mostly the same, but uses current data) ---
+        // --- PDF GENERATION ---
         window.generatePDF = function() {
             const controls = document.querySelector('.controls');
             const syncBadge = document.querySelector('.sync-badge');
@@ -394,7 +395,7 @@
                 filename: 'Income-Statement-' + new Date().toLocaleDateString('en-GB').replace(/\//g, '-') + '.pdf',
                 image: { type: 'jpeg', quality: 0.98 },
                 html2canvas: { 
-                    scale: 2, // Increased scale for better resolution in PDF
+                    scale: 2,
                     useCORS: true,
                     logging: false
                 },
