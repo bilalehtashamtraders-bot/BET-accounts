@@ -7,8 +7,8 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            margin: 0; /* Changed from 20px to 0 to maximize space */
-            padding: 20px; /* Added padding to body for overall spacing */
+            margin: 0; 
+            padding: 20px; 
             color: #333;
         }
         .report-container {
@@ -18,7 +18,7 @@
             border: 1px solid #ccc;
             padding: 20px;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            box-sizing: border-box; /* Ensures padding is included in the width */
+            box-sizing: border-box;
         }
         .header {
             text-align: center;
@@ -73,27 +73,35 @@
             gap: 10px;
             margin-bottom: 15px;
         }
+        
+        /* New Wrapper for controlled horizontal scrolling */
+        .table-wrapper {
+            overflow-x: auto; /* Allows only the table to scroll, not the whole page */
+            margin-top: 20px;
+        }
+        
         table {
             width: 100%;
-            table-layout: fixed; /* Ensures column widths are respected */
+            /* Removed table-layout: fixed; for better flow on small screens */
+            min-width: 750px; /* Minimum width to ensure columns don't collapse */
             border-collapse: collapse;
-            margin-top: 20px;
         }
         th, td {
             border: 1px solid #ccc;
-            padding: 8px 4px; /* Reduced padding */
+            padding: 8px 4px; 
             text-align: left;
-            font-size: 12px; /* Smaller default font size for table */
+            font-size: 12px; 
         }
         th {
             background-color: #f2f2f2;
         }
-        /* Specific column width optimization */
+        
+        /* General column widths for desktop (approximate for flow) */
         #ledger-table th:nth-child(1), #ledger-table td:nth-child(1) { width: 10%; } /* Date */
         #ledger-table th:nth-child(2), #ledger-table td:nth-child(2) { width: 20%; } /* Account */
         #ledger-table th:nth-child(3), #ledger-table td:nth-child(3) { 
             width: 30%; /* Description */
-            word-wrap: break-word; /* Crucial for preventing horizontal scroll */
+            word-wrap: break-word; 
         } 
         #ledger-table th:nth-child(4), #ledger-table td:nth-child(4) { width: 8%; } /* Doc # */
         #ledger-table th:nth-child(5), #ledger-table td:nth-child(5) { width: 10%; } /* Debit */
@@ -139,21 +147,23 @@
             .controls button {
                 width: 45%;
             }
+            /* INCREASED FONT SIZE (FIX) */
             table, th, td {
-                font-size: 10px; /* Reduced font size further on mobile */
+                font-size: 11px;
                 padding: 3px;
             }
-            /* Even tighter widths for mobile */
-            #ledger-table th:nth-child(1), #ledger-table td:nth-child(1) { width: 10%; } /* Date */
-            #ledger-table th:nth-child(2), #ledger-table td:nth-child(2) { width: 18%; } /* Account */
-            #ledger-table th:nth-child(3), #ledger-table td:nth-child(3) { width: 25%; } /* Description */
-            #ledger-table th:nth-child(4), #ledger-table td:nth-child(4) { width: 7%; } /* Doc # */
-            #ledger-table th:nth-child(5), #ledger-table td:nth-child(5),
-            #ledger-table th:nth-child(6), #ledger-table td:nth-child(6) { width: 10%; } /* Debit/Credit */
-            #ledger-table th:nth-child(7), #ledger-table td:nth-child(7) { width: 20%; } /* Balance */
-        }
+            
+            /* Remove fixed widths on mobile to prevent overlapping, 
+               relying on min-width and overflow-x on the wrapper */
+            #ledger-table th:nth-child(1), #ledger-table td:nth-child(1) { width: auto; }
+            #ledger-table th:nth-child(2), #ledger-table td:nth-child(2) { width: auto; }
+            #ledger-table th:nth-child(3), #ledger-table td:nth-child(3) { width: auto; }
+            #ledger-table th:nth-child(4), #ledger-table td:nth-child(4) { width: auto; }
+            #ledger-table th:nth-child(5), #ledger-table td:nth-child(5) { width: auto; }
+            #ledger-table th:nth-child(6), #ledger-table td:nth-child(6) { width: auto; }
+            #ledger-table th:nth-child(7), #ledger-table td:nth-child(7) { width: auto; }
 
-        /* Important: Don't change PDF specific styles (inside generatePDF function) */
+        }
     </style>
 </head>
 <body>
@@ -186,29 +196,31 @@
 
         <h3 id="current-ledger-title" style="text-align: center;">All Transactions</h3>
         
-        <table id="ledger-table">
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Account</th>
-                    <th>Description</th>
-                    <th>Doc #</th>
-                    <th>Debit (Rs.)</th>
-                    <th>Credit (Rs.)</th>
-                    <th class="balance-column">Balance (Rs.)</th>
-                </tr>
-            </thead>
-            <tbody id="ledger-body">
-            </tbody>
-            <tfoot>
-                <tr>
-                    <td colspan="4">Total</td>
-                    <td id="total-debit" class="debit-amount">0</td>
-                    <td id="total-credit" class="credit-amount">0</td>
-                    <td class="balance-column" id="final-balance">0</td>
-                </tr>
-            </tfoot>
-        </table>
+        <div class="table-wrapper">
+            <table id="ledger-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Account</th>
+                        <th>Description</th>
+                        <th>Doc #</th>
+                        <th>Debit (Rs.)</th>
+                        <th>Credit (Rs.)</th>
+                        <th class="balance-column">Balance (Rs.)</th>
+                    </tr>
+                </thead>
+                <tbody id="ledger-body">
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="4">Total</td>
+                        <td id="total-debit" class="debit-amount">0</td>
+                        <td id="total-credit" class="credit-amount">0</td>
+                        <td class="balance-column" id="final-balance">0</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
     </div>
 
     <script type="module">
