@@ -307,7 +307,8 @@
 
                 const collections = [
                     { name: 'purchaseInvoices', counter: 'purchase' },
-                    { name: 'invoices', counter: 'sales' },
+                    // FIX APPLIED HERE: Changed 'invoices' to 'salesInvoices'
+                    { name: 'salesInvoices', counter: 'sales' }, 
                     { name: 'journalEntries', counter: 'journals' },
                     { name: 'customerReceipts', counter: 'cash' },
                     { name: 'vendorPayments', counter: 'cash' }
@@ -375,14 +376,16 @@
                 const allData = {
                     exportDate: new Date().toISOString(),
                     purchaseInvoices: [],
-                    invoices: [],
+                    // FIX APPLIED HERE for Export (same reason as above)
+                    salesInvoices: [], 
                     journalEntries: [],
                     customerReceipts: [],
                     vendorPayments: [],
                     ledger: []
                 };
 
-                const collections = ['purchaseInvoices', 'invoices', 'journalEntries', 'customerReceipts', 'vendorPayments', 'ledger'];
+                // CRITICAL: Updated this list to include 'salesInvoices' 
+                const collections = ['purchaseInvoices', 'salesInvoices', 'journalEntries', 'customerReceipts', 'vendorPayments', 'ledger'];
                 
                 for (const colName of collections) {
                     try {
@@ -424,7 +427,8 @@
             const file = event.target.files[0];
             if (!file) return;
 
-            const importCollections = ['purchaseInvoices', 'invoices', 'journalEntries', 'customerReceipts', 'vendorPayments', 'ledger'];
+            // CRITICAL: Updated this list to include 'salesInvoices' 
+            const importCollections = ['purchaseInvoices', 'salesInvoices', 'journalEntries', 'customerReceipts', 'vendorPayments', 'ledger'];
 
             if (!confirm(`WARNING: This process will clear and then REPLACE ALL data in the following collections: ${importCollections.join(', ')}. Continue?`)) {
                 event.target.value = '';
