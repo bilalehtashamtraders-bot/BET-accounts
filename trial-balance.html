@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trial Balance - Bilal Ehtasham Traders</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            color: #333;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            position: relative;
+        }
+
+        .sync-badge {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 11px;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #003366;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            color: #003366;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .business-info {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        .business-info h2 {
+            color: #003366;
+            font-size: 20px;
+            margin-bottom: 5px;
+        }
+
+        .business-info p {
+            color: #666;
+            font-size: 14px;
+            margin: 3px 0;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: flex-end; /* Align buttons to the right */
+            align-items: center;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #003366;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background-color: #005599;
+            transform: translateY(-2px);
+            box-shadow: 0 2px 8px rgba(0,51,102,0.3);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-style: italic;
+        }
+
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        thead {
+            background-color: #003366;
+            color: white;
+        }
+
+        th {
+            padding: 12px;
+            text-align: left;
+            font-weight: bold;
+        }
+
+        th.amount {
+            text-align: right;
+            width: 150px;
+        }
+
+        th.actions {
+            text-align: center;
+            width: 100px;
+        }
+
+        tbody tr {
+            border-bottom: 1px solid #ddd;
+            transition: background-color 0.2s;
+        }
+
+        tbody tr:hover {
+            background-color: #f5f5f5;
+        }
+
+        td {
+            padding: 10px 12px;
+        }
+
+        td.amount {
+            text-align: right;
+            font-family: 'Courier New', monospace;
+            font-weight: 500;
+        }
+        
+        /* Removed actions column as TB is read-only */
+        th.actions, td.actions {
+            display: none; 
+        }
+
+        tfoot {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            border-top: 3px solid #003366;
+        }
+
+        tfoot td {
+            padding: 15px 12px;
+            font-size: 16px;
+        }
+
+        .balance-check {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .balance-matched {
+            background-color: #d4edda;
+            color: #155724;
+            border: 2px solid #28a745;
+        }
+
+        .balance-unmatched {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 2px solid #dc3545;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        @media print {
+            .controls, .actions, .btn-group, .sync-badge {
+                display: none !important;
+            }
+            
+            body {
+                background: white;
+            }
+            
+            .container {
+                box-shadow: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="sync-badge">SYNCED</div>
+        
+        <div class="header">
+            <h1>Trial Balance</h1>
+        </div>
+
+        <div class="business-info">
+            <h2>(BET) Bilal Ehtasham Traders</h2>
+            <p>Deals in all kinds of Cotton and Polyester Yarn</p>
+            <p>Email: bilalehtashamtraders@gmail.com | Cell: (+92)-324-2479096</p>
+        </div>
+
+        <div class="info-box">
+            <strong>Note:</strong> This Trial Balance is **automatically generated** from all your ledger entries (Invoices, Receipts, and Journal Entries). It is a read-only report.
+        </div>
+
+        <div class="controls">
+            <div class="btn-group">
+                <button onclick="refreshData()">🔄 Recalculate & Refresh</button>
+            </div>
+            <div class="btn-group">
+                <button onclick="generatePDF()">📄 Generate PDF</button>
+                <button onclick="window.location.href='index.html'">← Back to Dashboard</button>
+            </div>
+        </div>
+
+        <div id="loading" class="loading">Calculating trial balance from ledger data...</div>
+
+        <div id="trial-balance-content" style="display: none;">
+            <table id="trial-balance-table">
+                <thead>
+                    <tr>
+                        <th>Account Name</th>
+                        <th class="amount">Debit (Rs.)</th>
+                        <th class="amount">Credit (Rs.)</th>
+                        <th class="actions">Actions</th> </tr>
+                </thead>
+                <tbody id="trial-balance-body">
+                    </tbody>
+                <tfoot>
+                    <tr>
+                        <td><strong>TOTAL</strong></td>
+                        <td class="amount" id="total-debit">0.00</td>
+                        <td class="amount" id="total-credit">0.00</td>
+                        <td class="actions"></td>
+                    </tr>
+                </tfoot>
+            </table>
+
+            <div id="balance-check" class="balance-check balance-matched">
+                </div>
+        </div>
+    </div>
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
+            authDomain: "bet-acc-software.firebaseapp.com",
+            projectId: "bet-acc-software",
+            storageBucket: "bet-acc-software.firebasestorage.app",
+            messagingSenderId: "879522152449",
+            appId: "1:879522152449:web:73b8ef899d5c1cbfd90000"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        
+        let aggregatedBalances = [];
+
+        function formatAmount(amount) {
+            return parseFloat(amount || 0).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        }
+
+        // --- CORE FUNCTION: AGGREGATE LEDGER BALANCES ---
+        async function loadTrialBalance() {
+            try {
+                // Fetch ALL ledger entries
+                const ledgerSnapshot = await getDocs(collection(db, "ledger"));
+                
+                const balances = {}; // { 'Account Name': balance, ... }
+                
+                // 1. Calculate net balance for each account
+                ledgerSnapshot.forEach(docSnap => {
+                    const entry = docSnap.data();
+                    const accountName = entry.account || entry.accountType; // Ensure compatibility with different ledger entry formats
+
+                    if (!accountName) return; // Skip entries without an account name
+
+                    const debit = parseFloat(entry.debit || 0);
+                    const credit = parseFloat(entry.credit || 0);
+
+                    if (!balances[accountName]) {
+                        balances[accountName] = 0;
+                    }
+                    
+                    // Net balance = Total Debits - Total Credits
+                    balances[accountName] += (debit - credit);
+                });
+                
+                // 2. Convert net balances into Trial Balance format (Debit/Credit columns)
+                aggregatedBalances = Object.keys(balances).map(accountName => {
+                    const balance = balances[accountName];
+                    
+                    let debit = 0;
+                    let credit = 0;
+                    
+                    if (balance > 0) {
+                        // Positive balance is a DEBIT balance (Assets, Expenses, Drawings)
+                        debit = balance;
+                    } else if (balance < 0) {
+                        // Negative balance is a CREDIT balance (Liabilities, Equity, Revenue)
+                        credit = Math.abs(balance);
+                    }
+
+                    return {
+                        accountName: accountName,
+                        debit: debit,
+                        credit: credit
+                    };
+                }).sort((a, b) => a.accountName.localeCompare(b.accountName)); // Sort alphabetically
+
+                displayTrialBalance();
+                
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('trial-balance-content').style.display = 'block';
+            } catch (error) {
+                console.error("Error loading and calculating trial balance:", error);
+                document.getElementById('loading').innerHTML = 
+                    '<span style="color: #dc3545;">🚨 Error: Failed to calculate Trial Balance from Ledger. Please check the console for details.</span>';
+            }
+        }
+
+        function displayTrialBalance() {
+            const tbody = document.getElementById('trial-balance-body');
+            tbody.innerHTML = '';
+
+            let totalDebit = 0;
+            let totalCredit = 0;
+
+            if (aggregatedBalances.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="empty-state">
+                            <div>No ledger entries found. Create a new Invoice, Receipt, or Journal Entry to populate the Trial Balance.</div>
+                        </td>
+                    </tr>
+                `;
+            } else {
+                aggregatedBalances.forEach(entry => {
+                    totalDebit += entry.debit;
+                    totalCredit += entry.credit;
+
+                    const row = `
+                        <tr>
+                            <td>
+                                <strong>${entry.accountName}</strong>
+                            </td>
+                            <td class="amount">${entry.debit > 0 ? formatAmount(entry.debit) : '-'}</td>
+                            <td class="amount">${entry.credit > 0 ? formatAmount(entry.credit) : '-'}</td>
+                            <td class="actions"></td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += row;
+                });
+            }
+
+            // Update Totals
+            document.getElementById('total-debit').textContent = formatAmount(totalDebit);
+            document.getElementById('total-credit').textContent = formatAmount(totalCredit);
+
+            // Check balance
+            const balanceCheck = document.getElementById('balance-check');
+            // Use a small epsilon for floating-point comparison
+            const difference = Math.abs(totalDebit - totalCredit);
+            
+            if (difference < 0.01) { 
+                balanceCheck.className = 'balance-check balance-matched';
+                balanceCheck.innerHTML = `✓ Books are Balanced! Total Debits (${formatAmount(totalDebit)}) equals Total Credits (${formatAmount(totalCredit)}).`;
+            } else {
+                balanceCheck.className = 'balance-check balance-unmatched';
+                balanceCheck.innerHTML = `⚠ Books are NOT Balanced! Difference: Rs. ${formatAmount(difference)}`;
+            }
+        }
+
+        window.refreshData = async function() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('trial-balance-content').style.display = 'none';
+            await loadTrialBalance();
+        };
+
+        window.generatePDF = function() {
+            const totalDebit = document.getElementById('total-debit').textContent;
+            const totalCredit = document.getElementById('total-credit').textContent;
+            const balanceStatus = document.getElementById('balance-check').textContent;
+
+            let tableRows = '';
+            aggregatedBalances.forEach(entry => {
+                tableRows += `
+                    <tr>
+                        <td>
+                            <strong>${entry.accountName}</strong>
+                        </td>
+                        <td style="text-align: right;">${entry.debit > 0 ? formatAmount(entry.debit) : '-'}</td>
+                        <td style="text-align: right;">${entry.credit > 0 ? formatAmount(entry.credit) : '-'}</td>
+                    </tr>
+                `;
+            });
+
+            const pdfContent = `
+                <html>
+                <head>
+                    <style>
+                        body { font-family: Arial, sans-serif; padding: 20px; }
+                        h1 { text-align: center; color: #003366; }
+                        .business-info { text-align: center; margin-bottom: 30px; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                        th { background-color: #003366; color: white; padding: 12px; text-align: left; }
+                        td { border: 1px solid #ddd; padding: 10px; }
+                        .amount { text-align: right; font-family: 'Courier New', monospace; }
+                        tfoot { background-color: #f8f9fa; font-weight: bold; }
+                        .balance-info { margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 5px; }
+                    </style>
+                </head>
+                <body>
+                    <h1>Trial Balance</h1>
+                    <div class="business-info">
+                        <h2 style="color: #003366;">(BET) Bilal Ehtasham Traders</h2>
+                        <p>Deals in all kinds of Cotton and Polyester Yarn</p>
+                        <p>Generated: ${new Date().toLocaleDateString('en-GB')} at ${new Date().toLocaleTimeString('en-GB')}</p>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Account Name</th>
+                                <th style="text-align: right;">Debit (Rs.)</th>
+                                <th style="text-align: right;">Credit (Rs.)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${tableRows}
+                        </tbody>
+                        <tfoot>
+                            <tr>
+                                <td><strong>TOTAL</strong></td>
+                                <td style="text-align: right;"><strong>${totalDebit}</strong></td>
+                                <td style="text-align: right;"><strong>${totalCredit}</strong></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                    <div class="balance-info">
+                        <strong>Balance Status:</strong> ${balanceStatus}
+                    </div>
+                </body>
+                </html>
+            `;
+
+            const printWindow = window.open('', '', 'height=600,width=800');
+            printWindow.document.write(pdfContent);
+            printWindow.document.close();
+            printWindow.print();
+        };
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', loadTrialBalance);
+    </script>
+</body>
+</html>

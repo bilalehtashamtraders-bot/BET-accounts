@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Income Statement - Bilal Ehtasham Traders</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            color: #333;
+            background-color: #f4f4f4;
+        }
+        .report-container {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            border: 1px solid #ccc;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            background-color: #fff;
+            position: relative;
+        }
+        .sync-badge {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 11px;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #003366;
+            padding-bottom: 10px;
+        }
+        .header h1 {
+            font-size: 24px;
+            margin: 0;
+            color: #003366;
+        }
+        .business-info {
+            text-align: center;
+        }
+        .business-info h2 {
+            color: #003366;
+            font-size: 18px;
+            margin: 5px 0;
+        }
+        .business-info p {
+            margin: 5px 0;
+            font-size: 12px;
+        }
+        .controls {
+            margin-bottom: 20px;
+            text-align: right;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #003366;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-left: 10px;
+        }
+        button:hover {
+            background-color: #005599;
+        }
+        .loading-text {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-style: italic;
+        }
+        .error-text {
+            text-align: center;
+            padding: 20px;
+            color: #dc3545;
+            font-weight: bold;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+            border-bottom: 2px solid #000;
+        }
+        #income-statement-body td:nth-child(2), tfoot td:nth-child(2) {
+            text-align: right;
+            font-family: 'Courier New', monospace;
+        }
+        .section-header {
+            font-weight: bold;
+            background-color: #e6e6e6;
+            padding-left: 5px;
+            border-top: 1px solid #aaa;
+        }
+        .subtotal {
+            font-weight: bold;
+            border-top: 1px solid #555;
+            background-color: #f9f9f9;
+        }
+        .final-total {
+            font-weight: bold;
+            border-top: 3px double #000;
+            padding-top: 10px;
+            background-color: #eaf3ff;
+        }
+        .account-line {
+            padding-left: 20px !important;
+        }
+        /* Removed styles for input-field as it's no longer used */
+        @media print {
+            .controls {
+                display: none !important;
+            }
+            .sync-badge {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="report-container">
+        <div class="sync-badge">SYNCED</div>
+        <div class="header">
+            <h1>Income Statement</h1>
+            <div class="business-info">
+                <h2>(BET) Bilal Ehtasham Traders</h2>
+                <p>Deals in all kinds of Cotton and Polyester Yarn</p>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button onclick="generatePDF()">Generate PDF</button>
+            <button onclick="window.location.href='index.html'">Back to Dashboard</button>
+        </div>
+
+        <div id="loading" class="loading-text">Calculating Income Statement from Ledger...</div>
+        
+        <table id="income-table" style="display: none;">
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th>Amount (Rs.)</th>
+                </tr>
+            </thead>
+            <tbody id="income-statement-body">
+                </tbody>
+            <tfoot>
+                <tr>
+                    <td class="final-total">Net Income / (Loss)</td>
+                    <td class="final-total" id="net-income">0.00</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
+            authDomain: "bet-acc-software.firebaseapp.com",
+            projectId: "bet-acc-software",
+            storageBucket: "bet-acc-software.firebasestorage.app",
+            messagingSenderId: "879522152449",
+            appId: "1:879522152449:web:73b8ef899d5c1cbfd90000"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // Define groups for the Income Statement based on common account names/types
+        const incomeStatementGroups = {
+            'Revenue': ['Sales Revenue', 'Other Income'],
+            'COGS': ['Cost of Goods Sold (COGS)', 'Purchases'],
+            'Operating Expenses': ['Salaries Expense', 'Rent Expense', 'Utilities Expense', 'Depreciation Expense', 'Other Expense', 'Vendor Payments']
+            // You can add more specific accounts here as you use them in the ledger
+        };
+        
+        // Final structure to hold calculated amounts
+        let calculatedAmounts = {
+            revenue: {},
+            cogs: {},
+            expenses: {}
+        };
+
+        function formatAmount(amount) {
+            return (amount || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        }
+
+        /**
+         * Aggregates ledger data to calculate the total balance for each account.
+         */
+        async function loadFinancialData() {
+            try {
+                const ledgerSnapshot = await getDocs(collection(db, "ledger"));
+                
+                const balances = {}; // { 'Account Name': net_balance, ... }
+
+                // 1. Calculate net balance for all accounts
+                ledgerSnapshot.forEach(docSnap => {
+                    const entry = docSnap.data();
+                    const accountName = entry.account || entry.accountType; // Use 'account' from ledger.html, fallback to 'accountType'
+
+                    if (!accountName) return; 
+
+                    const debit = parseFloat(entry.debit || 0);
+                    const credit = parseFloat(entry.credit || 0);
+
+                    if (!balances[accountName]) {
+                        balances[accountName] = 0;
+                    }
+                    
+                    // The balance represents the natural balance: Debit (positive) or Credit (negative).
+                    // Revenue, Liability, Equity increase with Credit (negative net change).
+                    // Asset, Expense, COGS increase with Debit (positive net change).
+                    balances[accountName] += (debit - credit);
+                });
+                
+                // 2. Group balances into the Income Statement structure
+                calculatedAmounts = {
+                    revenue: {},
+                    cogs: {},
+                    expenses: {}
+                };
+                
+                let totalRevenue = 0;
+                let totalCOGS = 0;
+                let totalExpenses = 0;
+
+                for (const accountName in balances) {
+                    let netBalance = balances[accountName];
+                    let isGrouped = false;
+
+                    // Revenue: Natural Credit Balance (negative in our netDebit-Credit scheme)
+                    if (incomeStatementGroups.Revenue.includes(accountName)) {
+                        let amount = Math.abs(netBalance); // Revenue is always displayed as positive
+                        calculatedAmounts.revenue[accountName] = amount;
+                        totalRevenue += amount;
+                        isGrouped = true;
+                    }
+
+                    // COGS and Expenses: Natural Debit Balance (positive in our netDebit-Credit scheme)
+                    if (incomeStatementGroups.COGS.includes(accountName)) {
+                        let amount = netBalance;
+                        calculatedAmounts.cogs[accountName] = amount;
+                        totalCOGS += amount;
+                        isGrouped = true;
+                    }
+
+                    if (incomeStatementGroups['Operating Expenses'].includes(accountName)) {
+                        let amount = netBalance;
+                        calculatedAmounts.expenses[accountName] = amount;
+                        totalExpenses += amount;
+                        isGrouped = true;
+                    }
+                    
+                    // You might want to log unclassified P&L accounts here for debugging
+                    // if (!isGrouped && (netBalance !== 0)) {
+                    //     console.log(`Unclassified P&L Account: ${accountName} with balance ${netBalance}`);
+                    // }
+                }
+
+                // Store totals for final calculation
+                calculatedAmounts.totalRevenue = totalRevenue;
+                calculatedAmounts.totalCOGS = totalCOGS;
+                calculatedAmounts.totalExpenses = totalExpenses;
+
+                displayIncomeStatement();
+                
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('income-table').style.display = 'table';
+                
+            } catch (error) {
+                console.error("Error loading financial data:", error);
+                document.getElementById('loading').innerHTML = '<span class="error-text">Failed to load data. Error: ' + error.message + '</span>';
+            }
+        }
+
+        function displayIncomeStatement() {
+            const tbody = document.getElementById('income-statement-body');
+            tbody.innerHTML = '';
+            
+            const totalRevenue = calculatedAmounts.totalRevenue || 0;
+            const totalCOGS = calculatedAmounts.totalCOGS || 0;
+            const totalExpenses = calculatedAmounts.totalExpenses || 0;
+            
+            let html = '';
+
+            // --- REVENUE SECTION ---
+            html += `<tr><td class="section-header" colspan="2">Revenue</td></tr>`;
+            for (const [account, amount] of Object.entries(calculatedAmounts.revenue)) {
+                html += `
+                    <tr>
+                        <td class="account-line">${account}</td>
+                        <td>${formatAmount(amount)}</td>
+                    </tr>
+                `;
+            }
+            html += `
+                <tr class="subtotal">
+                    <td>Total Revenue</td>
+                    <td>${formatAmount(totalRevenue)}</td>
+                </tr>
+            `;
+
+            // --- COGS SECTION ---
+            html += `<tr><td class="section-header" colspan="2">Less: Cost of Goods Sold</td></tr>`;
+            for (const [account, amount] of Object.entries(calculatedAmounts.cogs)) {
+                html += `
+                    <tr>
+                        <td class="account-line">${account}</td>
+                        <td>(${formatAmount(amount)})</td>
+                    </tr>
+                `;
+            }
+            html += `
+                <tr class="subtotal">
+                    <td>Gross Profit</td>
+                    <td>${formatAmount(totalRevenue - totalCOGS)}</td>
+                </tr>
+            `;
+            
+            const grossProfit = totalRevenue - totalCOGS;
+
+            // --- EXPENSE SECTION ---
+            html += `<tr><td class="section-header" colspan="2">Less: Operating Expenses</td></tr>`;
+            for (const [account, amount] of Object.entries(calculatedAmounts.expenses)) {
+                html += `
+                    <tr>
+                        <td class="account-line">${account}</td>
+                        <td>(${formatAmount(amount)})</td>
+                    </tr>
+                `;
+            }
+            html += `
+                <tr class="subtotal">
+                    <td>Total Operating Expenses</td>
+                    <td>(${formatAmount(totalExpenses)})</td>
+                </tr>
+            `;
+
+            tbody.innerHTML = html;
+
+            // --- NET INCOME ---
+            const netIncome = grossProfit - totalExpenses;
+            
+            const netIncomeElement = document.getElementById('net-income');
+            netIncomeElement.textContent = formatAmount(Math.abs(netIncome));
+            
+            // Set text color for profit/loss and show (Loss) if negative
+            if (netIncome < 0) {
+                netIncomeElement.style.color = '#dc3545';
+                netIncomeElement.parentNode.querySelector('.final-total:first-child').textContent = 'Net Loss';
+                netIncomeElement.textContent = `(${formatAmount(Math.abs(netIncome))})`;
+            } else if (netIncome > 0) {
+                netIncomeElement.style.color = '#28a745';
+                netIncomeElement.parentNode.querySelector('.final-total:first-child').textContent = 'Net Income';
+            } else {
+                netIncomeElement.style.color = '#333';
+                netIncomeElement.parentNode.querySelector('.final-total:first-child').textContent = 'Net Income';
+            }
+        }
+
+        // --- PDF GENERATION (remains mostly the same, but uses current data) ---
+        window.generatePDF = function() {
+            const controls = document.querySelector('.controls');
+            const syncBadge = document.querySelector('.sync-badge');
+            
+            controls.style.display = 'none';
+            syncBadge.style.display = 'none';
+            
+            const element = document.querySelector('.report-container');
+            
+            const opt = {
+                margin: 10,
+                filename: 'Income-Statement-' + new Date().toLocaleDateString('en-GB').replace(/\//g, '-') + '.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { 
+                    scale: 2, // Increased scale for better resolution in PDF
+                    useCORS: true,
+                    logging: false
+                },
+                jsPDF: { 
+                    unit: 'mm', 
+                    format: 'a4', 
+                    orientation: 'portrait'
+                },
+                pagebreak: { mode: 'avoid-all' }
+            };
+            
+            html2pdf().set(opt).from(element).save().then(() => {
+                controls.style.display = 'block';
+                syncBadge.style.display = 'block';
+            }).catch(err => {
+                console.error('PDF generation error:', err);
+                controls.style.display = 'block';
+                syncBadge.style.display = 'block';
+                alert('Error generating PDF. Please try again.');
+            });
+        };
+
+        document.addEventListener('DOMContentLoaded', loadFinancialData);
+    </script>
+</body>
+</html>

@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Bilal Ehtasham Traders</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            color: #333;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #003366;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            position: relative;
+        }
+        .header h1 {
+            color: #003366;
+        }
+        .sync-status {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.3s ease;
+        }
+        .sync-status.online {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .sync-status.offline {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .sync-status.syncing {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        .sync-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: currentColor;
+            animation: none; /* Removed pulse from default */
+        }
+        .sync-status.syncing .sync-indicator {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        .stats-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #003366 0%, #005599 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-card h3 {
+            margin: 0;
+            font-size: 32px;
+        }
+        .stat-card p {
+            margin: 5px 0 0 0;
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        .section {
+            margin-bottom: 30px;
+        }
+        .section h2 {
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 5px;
+            color: #003366;
+            font-size: 1.5em;
+        }
+        .links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        .link-button {
+            display: block;
+            padding: 15px 25px;
+            background-color: #003366; /* Default Blue */
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            text-align: center;
+            flex: 1 1 200px;
+            transition: background-color 0.3s;
+        }
+        .link-button:hover {
+            background-color: #005599;
+        }
+        .link-button.accounting {
+            background-color: #2c3e50; /* Darker Blue-Grey */
+        }
+        .link-button.accounting:hover {
+            background-color: #34495e;
+        }
+        .link-button.reports {
+            background-color: #8e44ad; /* Purple */
+        }
+        .link-button.reports:hover {
+            background-color: #9b59b6;
+        }
+        .link-button.backup-export {
+            background-color: #f39c12; /* Orange for Export */
+        }
+        .link-button.backup-export:hover {
+            background-color: #e67e22;
+        }
+        .link-button.backup-import {
+            background-color: #2ecc71; /* Green for Import */
+        }
+        .link-button.backup-import:hover {
+            background-color: #27ae60;
+        }
+
+        .firebase-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #ffca28 0%, #ff6f00 100%);
+            color: white;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-left: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #003366;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 600px) {
+            .stats-overview {
+                grid-template-columns: 1fr;
+            }
+            .link-button {
+                flex: 1 1 100%;
+            }
+            .sync-status {
+                position: static;
+                margin-top: 10px;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading" id="loading">Loading dashboard...</div>
+    
+    <div class="container" style="display: none;" id="mainContent">
+        <div class="header">
+            <h1>Dashboard - Bilal Ehtasham Traders <span class="firebase-badge">CLOUD</span></h1>
+            <div id="syncStatus" class="sync-status syncing">
+                <span class="sync-indicator"></span>
+                <span id="syncText">Connecting...</span>
+            </div>
+        </div>
+
+        <div class="stats-overview">
+            <div class="stat-card">
+                <h3 id="totalDocs">0</h3>
+                <p>Total Documents</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="totalPurchaseInvoices">0</h3>
+                <p>Purchase Invoices</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="totalSalesInvoices">0</h3>
+                <p>Sales Invoices</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="totalJournals">0</h3>
+                <p>Journal Entries</p>
+            </div>
+            <div class="stat-card">
+                <h3 id="totalCashTransactions">0</h3>
+                <p>Cash Transactions</p> 
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Sales & Revenue</h2>
+            <div class="links">
+                <a href="invoice.html" class="link-button">Create Sales Invoice</a>
+                <a href="receipt.html" class="link-button">Create Payment Receipt</a>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Purchases & Expenses</h2>
+            <div class="links">
+                <a href="purchase-invoice.html" class="link-button">Create Purchase Invoice</a>
+                <a href="vendor-payment-receipt.html" class="link-button">Create Vendor Payment</a>
+            </div>
+        </div>
+        
+        <div class="section">
+            <h2>Documents & Accounting</h2>
+            <div class="links">
+                <a href="documents.html" class="link-button accounting">View All Documents</a>
+                <a href="journal-entry.html" class="link-button accounting">General Journal</a>
+                <a href="general-ledger.html" class="link-button accounting">General Ledger Report</a> 
+                <a href="trial-balance.html" class="link-button accounting">Trial Balance</a>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Financial Reports</h2>
+            <div class="links">
+                <a href="income-statement.html" class="link-button reports">Income Statement</a>
+                <a href="bank-reconciliation.html" class="link-button reports">Bank Reconciliation</a>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Backup & Restore</h2>
+            <div class="links">
+                <a href="#" class="link-button backup-export" onclick="exportData()">Export Data (Download Backup)</a>
+                <a href="#" class="link-button backup-import" onclick="document.getElementById('file-upload').click()">Import Data (Upload Backup)</a>
+                <input type="file" id="file-upload" accept=".json" style="display: none;" onchange="handleImport(event)">
+            </div>
+            <p style="margin-top: 15px; padding: 10px; background-color: #e3f2fd; border-left: 4px solid #2196f3; border-radius: 4px; font-size: 14px;">
+                <strong>Cloud Sync Active:</strong> Your data is automatically backed up to Firebase. Export/Import for local backup or migration.
+            </p>
+        </div>
+    </div>
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, getDocs, setDoc, doc, deleteDoc, query } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
+            authDomain: "bet-acc-software.firebaseapp.com",
+            projectId: "bet-acc-software",
+            storageBucket: "bet-acc-software.firebasestorage.app",
+            messagingSenderId: "879522152449",
+            appId: "1:879522152449:web:73b8ef899d5c1cbfd90000"
+        };
+
+        console.log("=== Initializing Firebase ===");
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        console.log("✓ Firebase initialized successfully");
+
+        function updateSyncStatus(status) {
+            const statusEl = document.getElementById('syncStatus');
+            const textEl = document.getElementById('syncText');
+            
+            statusEl.className = 'sync-status ' + status;
+            
+            switch(status) {
+                case 'online':
+                    textEl.textContent = 'Synced';
+                    break;
+                case 'offline':
+                    textEl.textContent = 'Offline';
+                    break;
+                case 'syncing':
+                    textEl.textContent = 'Syncing...';
+                    break;
+            }
+        }
+
+        async function loadDashboardStats() {
+            try {
+                console.log("\n=== Loading Dashboard Statistics ===");
+                let totalDocs = 0;
+                let totalPurchaseInvoices = 0;
+                let totalSalesInvoices = 0;
+                let totalJournals = 0;
+                let totalCashTransactions = 0; 
+
+                const collections = [
+                    { name: 'purchaseInvoices', counter: 'purchase' },
+                    { name: 'invoices', counter: 'sales' },
+                    { name: 'journalEntries', counter: 'journals' },
+                    { name: 'customerReceipts', counter: 'cash' },
+                    { name: 'vendorPayments', counter: 'cash' }
+                ];
+
+                for (const col of collections) {
+                    try {
+                        const snapshot = await getDocs(collection(db, col.name));
+                        const count = snapshot.size;
+                        console.log(`${col.name}: ${count} documents`);
+                        totalDocs += count;
+                        
+                        if (col.counter === 'purchase') totalPurchaseInvoices += count;
+                        else if (col.counter === 'sales') totalSalesInvoices += count;
+                        else if (col.counter === 'journals') totalJournals += count;
+                        else if (col.counter === 'cash') totalCashTransactions += count;
+                    } catch (colError) {
+                        console.error(`Error loading ${col.name}:`, colError);
+                    }
+                }
+
+                document.getElementById('totalDocs').textContent = totalDocs;
+                document.getElementById('totalPurchaseInvoices').textContent = totalPurchaseInvoices;
+                document.getElementById('totalSalesInvoices').textContent = totalSalesInvoices;
+                document.getElementById('totalJournals').textContent = totalJournals;
+                document.getElementById('totalCashTransactions').textContent = totalCashTransactions; 
+
+                console.log(`\n✓ Stats loaded - Total: ${totalDocs}`);
+
+                updateSyncStatus('online');
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('mainContent').style.display = 'block';
+            } catch (error) {
+                console.error("✗ Error loading stats:", error);
+                updateSyncStatus('offline');
+                document.getElementById('loading').innerHTML = 'Error loading dashboard. Please refresh.';
+            }
+        }
+        
+        // --- Added utility function to delete all documents in a collection ---
+        async function deleteCollection(colName) {
+            const collectionRef = collection(db, colName);
+            const q = query(collectionRef);
+            const snapshot = await getDocs(q);
+            
+            let deleteCount = 0;
+            const deletePromises = [];
+
+            snapshot.forEach(docSnap => {
+                deletePromises.push(deleteDoc(doc(db, colName, docSnap.id)));
+                deleteCount++;
+            });
+
+            await Promise.all(deletePromises);
+            console.log(`✓ Cleared ${deleteCount} documents from ${colName}`);
+        }
+        // ----------------------------------------------------------------------
+
+
+        window.exportData = async function() {
+            try {
+                updateSyncStatus('syncing');
+                console.log("\n=== Starting Data Export ===");
+                
+                const allData = {
+                    exportDate: new Date().toISOString(),
+                    purchaseInvoices: [],
+                    invoices: [],
+                    journalEntries: [],
+                    customerReceipts: [],
+                    vendorPayments: [],
+                    ledger: []
+                };
+
+                const collections = ['purchaseInvoices', 'invoices', 'journalEntries', 'customerReceipts', 'vendorPayments', 'ledger'];
+                
+                for (const colName of collections) {
+                    try {
+                        const snapshot = await getDocs(collection(db, colName));
+                        snapshot.forEach(docSnap => {
+                            allData[colName].push({
+                                ...docSnap.data(),
+                                _docId: docSnap.id // Save the original Firebase ID
+                            });
+                        });
+                        console.log(`✓ Exported ${snapshot.size} documents from ${colName}`);
+                    } catch (colError) {
+                        console.error(`✗ Error exporting ${colName}:`, colError);
+                    }
+                }
+
+                const dataStr = JSON.stringify(allData, null, 2);
+                const blob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `BET-Backup-${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                updateSyncStatus('online');
+                alert('Backup exported successfully!');
+                console.log("✓ Data export completed");
+            } catch (error) {
+                console.error("✗ Export error:", error);
+                updateSyncStatus('online');
+                alert('Error exporting data: ' + error.message);
+            }
+        };
+
+        window.handleImport = async function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const importCollections = ['purchaseInvoices', 'invoices', 'journalEntries', 'customerReceipts', 'vendorPayments', 'ledger'];
+
+            if (!confirm(`WARNING: This process will clear and then REPLACE ALL data in the following collections: ${importCollections.join(', ')}. Continue?`)) {
+                event.target.value = '';
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                try {
+                    updateSyncStatus('syncing');
+                    console.log("\n=== Starting Data Import (Clear & Replace) ===");
+                    const data = JSON.parse(e.target.result);
+                    
+                    // 1. Clear Existing Data
+                    console.log("\n--- Clearing Existing Data ---");
+                    for (const colName of importCollections) {
+                        await deleteCollection(colName);
+                    }
+                    console.log("--- Existing Data Cleared ---");
+
+                    // 2. Import New Data
+                    console.log("\n--- Importing New Data ---");
+                    for (const colName of importCollections) {
+                        if (data[colName] && Array.isArray(data[colName])) {
+                            console.log(`Importing ${data[colName].length} documents to ${colName}`);
+                            for (const item of data[colName]) {
+                                // Use document ID saved in backup
+                                const docId = item._docId || `${colName}_${Date.now()}_${Math.random()}`; 
+                                const itemData = {...item};
+                                delete itemData._docId; // Don't save the temporary ID property
+                                
+                                await setDoc(doc(db, colName, docId), itemData);
+                            }
+                            console.log(`✓ Imported to ${colName}`);
+                        }
+                    }
+                    
+                    updateSyncStatus('online');
+                    alert('Data imported successfully and synced to cloud! Refreshing dashboard stats...');
+                    console.log("✓ Data import completed");
+                    await loadDashboardStats();
+                } catch (error) {
+                    console.error("✗ Import error:", error);
+                    updateSyncStatus('online');
+                    alert('Error importing data: ' + error.message);
+                }
+                event.target.value = '';
+            };
+            reader.readAsText(file);
+        };
+
+        window.addEventListener('online', () => {
+            console.log("✓ Internet connection restored");
+            updateSyncStatus('online');
+        });
+        
+        window.addEventListener('offline', () => {
+            console.log("✗ Internet connection lost");
+            updateSyncStatus('offline');
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log("=== Page Loaded ===");
+            console.log("Starting dashboard initialization...");
+            loadDashboardStats();
+        });
+    </script>
+</body>
+</html>
