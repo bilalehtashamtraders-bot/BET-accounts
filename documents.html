@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>View Documents - Bilal Ehtasham Traders</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            width: 95%;
+            max-width: 1200px;
+            margin: 20px auto;
+            background-color: #fff;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+        .sync-badge {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 11px;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #003366;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            font-size: 24px;
+            margin: 0;
+            color: #003366;
+        }
+        .business-info {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .business-info p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        .nav-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .nav-buttons button {
+            padding: 10px 15px;
+            background-color: #003366;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .nav-buttons button:hover {
+            background-color: #005599;
+        }
+        .nav-buttons button.refresh {
+            background-color: #28a745;
+        }
+        .nav-buttons button.refresh:hover {
+            background-color: #218838;
+        }
+        .search-filter-container {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .search-filter-container input, .search-filter-container select {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .search-filter-container input {
+            width: 300px;
+        }
+        .search-filter-container button {
+            padding: 8px 12px;
+            background-color: #003366;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .search-filter-container button:hover {
+            background-color: #005599;
+        }
+        .documents-list {
+            margin-top: 20px;
+        }
+        .document-card {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #fafafa;
+        }
+        .document-card:hover {
+            background-color: #f0f0f0;
+        }
+        .document-info {
+            flex: 1;
+        }
+        .document-info h3 {
+            margin: 0 0 5px 0;
+            color: #003366;
+        }
+        .document-info p {
+            margin: 3px 0;
+            font-size: 14px;
+        }
+        .document-actions {
+            display: flex;
+            gap: 5px;
+        }
+        .document-actions button {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .view-btn {
+            background-color: #007bff;
+            color: white;
+        }
+        .edit-btn {
+            background-color: #28a745;
+            color: white;
+        }
+        .delete-btn {
+            background-color: #dc3545;
+            color: white;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #003366;
+        }
+        .no-documents {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        .stats-row {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .stat-box {
+            background: linear-gradient(135deg, #003366 0%, #005599 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            min-width: 140px;
+            margin: 5px;
+        }
+        .stat-box h3 {
+            margin: 0;
+            font-size: 24px;
+        }
+        .stat-box p {
+            margin: 5px 0 0 0;
+            font-size: 11px;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading" id="loading">Loading documents from cloud...</div>
+    
+    <div class="container" style="display: none;" id="mainContent">
+        <div class="sync-badge">SYNCED</div>
+        <div class="header">
+            <h1>All Documents</h1>
+        </div>
+
+        <div class="business-info">
+            <h2>(BET) Bilal Ehtasham Traders</h2>
+            <p>Deals in all kinds of Cotton and Polyester Yarn</p>
+            <p>Email: bilalehtashamtraders@gmail.com | Cell: (+92)-324-2479096</p>
+        </div>
+
+        <div class="stats-row" id="statsRow">
+            <div class="stat-box">
+                <h3 id="totalDocs">0</h3>
+                <p>Total Documents</p>
+            </div>
+            <div class="stat-box">
+                <h3 id="totalPurchaseInvoices">0</h3>
+                <p>Purchase Invoices</p>
+            </div>
+            <div class="stat-box">
+                <h3 id="totalSalesInvoices">0</h3>
+                <p>Sales Invoices</p>
+            </div>
+            <div class="stat-box">
+                <h3 id="totalJournals">0</h3>
+                <p>Journal Entries</p>
+            </div>
+            <div class="stat-box">
+                <h3 id="totalReceipts">0</h3>
+                <p>Receipts & Payments</p>
+            </div>
+        </div>
+
+        <div class="nav-buttons">
+            <button onclick="window.location.href='index.html'">Dashboard</button>
+            <button onclick="window.location.href='purchase-invoice.html'">New Purchase Invoice</button>
+            <button onclick="window.location.href='invoice.html'">New Sales Invoice</button>
+            <button onclick="window.location.href='journal-entry.html'">New Journal Entry</button>
+            <button onclick="window.location.href='receipt.html'">New Customer Receipt</button>
+            <button onclick="window.location.href='vendor-payment-receipt.html'">New Vendor Payment</button>
+            <button onclick="window.location.href='ledger.html'">View Ledger</button>
+            <button onclick="window.location.href='trial-balance.html'">Trial Balance</button>
+            <button onclick="location.reload()" class="refresh">Refresh</button>
+        </div>
+
+        <div class="search-filter-container">
+            <input type="text" id="searchInput" placeholder="Search by number, party name..." onkeyup="filterDocuments()">
+            <select id="typeFilter" onchange="filterDocuments()">
+                <option value="">All Types</option>
+                <option value="Purchase Invoice">Purchase Invoice</option>
+                <option value="Sales Invoice">Sales Invoice</option>
+                <option value="Journal Entry">Journal Entry</option>
+                <option value="Customer Payment">Customer Payment</option>
+                <option value="Vendor Payment">Vendor Payment</option>
+            </select>
+            <button onclick="resetFilters()">Reset</button>
+        </div>
+
+        <div class="documents-list" id="documentsList">
+            <div class="no-documents">No documents found</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, getDocs, deleteDoc, doc, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
+            authDomain: "bet-acc-software.firebaseapp.com",
+            projectId: "bet-acc-software",
+            storageBucket: "bet-acc-software.firebasestorage.app",
+            messagingSenderId: "879522152449",
+            appId: "1:879522152449:web:73b8ef899d5c1cbfd90000"
+        };
+
+        console.log("=== Initializing Firebase ===");
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        console.log("✓ Firebase initialized successfully");
+
+        let allDocuments = [];
+
+        async function loadAllDocuments() {
+            try {
+                console.log('\n=== Loading All Documents ===');
+                allDocuments = [];
+
+                const collections = [
+                    { name: 'purchaseInvoices', type: 'Purchase Invoice', editUrl: 'purchase-invoice.html' },
+                    { name: 'invoices', type: 'Sales Invoice', editUrl: 'invoice.html' },
+                    { name: 'journalEntries', type: 'Journal Entry', editUrl: 'journal-entry.html' },
+                    { name: 'customerReceipts', type: 'Customer Payment', editUrl: 'receipt.html' },
+                    { name: 'vendorPayments', type: 'Vendor Payment', editUrl: 'vendor-payment-receipt.html' }
+                ];
+
+                for (const col of collections) {
+                    try {
+                        console.log(`\n--- Loading: ${col.name} ---`);
+                        const snapshot = await getDocs(collection(db, col.name));
+                        console.log(`  Found ${snapshot.size} documents`);
+                        
+                        snapshot.forEach(docSnap => {
+                            const data = docSnap.data();
+                            const docId = docSnap.id;
+                            
+                            console.log(`  • Doc ID: ${docId}`);
+                            console.log(`    Number: ${data.number || 'N/A'}`);
+                            console.log(`    Date: ${data.date || 'N/A'}`);
+                            
+                            allDocuments.push({
+                                ...data,
+                                type: col.type,
+                                collection: col.name,
+                                docId: docId,
+                                editUrl: col.editUrl
+                            });
+                        });
+                    } catch (colError) {
+                        console.error(`✗ Error loading ${col.name}:`, colError);
+                    }
+                }
+
+                // Sort by date (newest first)
+                allDocuments.sort((a, b) => {
+                    const dateA = parseDate(a.date);
+                    const dateB = parseDate(b.date);
+                    return dateB - dateA;
+                });
+
+                console.log(`\n✓ Total documents loaded: ${allDocuments.length}`);
+                console.log('Documents:', allDocuments);
+
+                updateStats();
+                displayDocuments(allDocuments);
+
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('mainContent').style.display = 'block';
+            } catch (error) {
+                console.error("✗ Error loading documents:", error);
+                document.getElementById('loading').innerHTML = '<span style="color: #dc3545;">Error loading documents: ' + error.message + '</span>';
+            }
+        }
+
+        function parseDate(dateStr) {
+            if (!dateStr) return new Date(0);
+            // Handle DD-MM-YYYY format
+            const parts = dateStr.split('-');
+            if (parts.length === 3) {
+                return new Date(parts[2], parts[1] - 1, parts[0]);
+            }
+            return new Date(dateStr);
+        }
+
+        function updateStats() {
+            const totalDocs = allDocuments.length;
+            const purchaseInvoices = allDocuments.filter(d => d.type === 'Purchase Invoice').length;
+            const salesInvoices = allDocuments.filter(d => d.type === 'Sales Invoice').length;
+            const journals = allDocuments.filter(d => d.type === 'Journal Entry').length;
+            const receiptsAndPayments = allDocuments.filter(d => 
+                d.type === 'Customer Payment' || d.type === 'Vendor Payment'
+            ).length;
+
+            document.getElementById('totalDocs').textContent = totalDocs;
+            document.getElementById('totalPurchaseInvoices').textContent = purchaseInvoices;
+            document.getElementById('totalSalesInvoices').textContent = salesInvoices;
+            document.getElementById('totalJournals').textContent = journals;
+            document.getElementById('totalReceipts').textContent = receiptsAndPayments;
+
+            console.log('\n=== Stats Updated ===');
+            console.log(`Total: ${totalDocs}, Purchase: ${purchaseInvoices}, Sales: ${salesInvoices}, Journals: ${journals}, Receipts: ${receiptsAndPayments}`);
+        }
+
+        function displayDocuments(docs) {
+            const container = document.getElementById('documentsList');
+            
+            if (docs.length === 0) {
+                container.innerHTML = `
+                    <div class="no-documents">
+                        <h3>No Documents Found</h3>
+                        <p>Create a new document using the buttons above.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = docs.map(doc => {
+                const partyName = doc.party || doc.customerName || doc.businessLedger || doc.receivedFrom || doc.paidTo || 'N/A';
+                const amount = doc.netTotal || doc.grandTotal || doc.amountReceived || doc.amountPaid || doc.totalDebit || 0;
+                
+                return `
+                    <div class="document-card" data-doc-id="${doc.docId}">
+                        <div class="document-info">
+                            <h3>${doc.type} #${doc.number}</h3>
+                            <p><strong>Date:</strong> ${doc.date}</p>
+                            <p><strong>Party:</strong> ${partyName}</p>
+                            <p><strong>Amount:</strong> PKR ${Number(amount).toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
+                        </div>
+                        <div class="document-actions">
+                            <button class="view-btn" onclick="viewDocument('${doc.docId}', '${doc.editUrl}')">View</button>
+                            <button class="edit-btn" onclick="editDocument('${doc.docId}', '${doc.editUrl}')">Edit</button>
+                            <button class="delete-btn" onclick="deleteDocument('${doc.docId}', '${doc.collection}', '${doc.number}')">Delete</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function filterDocuments() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const typeFilter = document.getElementById('typeFilter').value;
+
+            let filtered = allDocuments;
+
+            if (searchTerm) {
+                filtered = filtered.filter(doc => {
+                    const number = (doc.number || '').toLowerCase();
+                    const party = (doc.party || '').toLowerCase();
+                    const customerName = (doc.customerName || '').toLowerCase();
+                    const businessLedger = (doc.businessLedger || '').toLowerCase();
+                    const receivedFrom = (doc.receivedFrom || '').toLowerCase();
+                    const paidTo = (doc.paidTo || '').toLowerCase();
+                    
+                    return number.includes(searchTerm) ||
+                           party.includes(searchTerm) ||
+                           customerName.includes(searchTerm) ||
+                           businessLedger.includes(searchTerm) ||
+                           receivedFrom.includes(searchTerm) ||
+                           paidTo.includes(searchTerm);
+                });
+            }
+
+            if (typeFilter) {
+                filtered = filtered.filter(doc => doc.type === typeFilter);
+            }
+
+            displayDocuments(filtered);
+        }
+
+        function resetFilters() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('typeFilter').value = '';
+            displayDocuments(allDocuments);
+        }
+
+        window.viewDocument = function(docId, editUrl) {
+            window.location.href = `${editUrl}?edit=${docId}`;
+        };
+
+        window.editDocument = function(docId, editUrl) {
+            window.location.href = `${editUrl}?edit=${docId}`;
+        };
+
+        window.deleteDocument = async function(docId, collectionName, docNumber) {
+            if (!confirm(`Are you sure you want to delete document #${docNumber}?\n\nThis will:\n• Delete the document\n• Remove all related ledger entries\n• This action CANNOT be undone!`)) {
+                return;
+            }
+
+            try {
+                console.log(`\n=== Deleting Document ===`);
+                console.log(`Doc ID: ${docId}`);
+                console.log(`Collection: ${collectionName}`);
+                console.log(`Number: ${docNumber}`);
+
+                // Delete the main document
+                await deleteDoc(doc(db, collectionName, docId));
+                console.log('✓ Main document deleted');
+
+                // Delete related ledger entries
+                const ledgerSnapshot = await getDocs(collection(db, "ledger"));
+                let deletedLedgerCount = 0;
+                
+                for (const ledgerDoc of ledgerSnapshot.docs) {
+                    const ledgerData = ledgerDoc.data();
+                    if (ledgerData.doc_number === docNumber || ledgerData.doc_number === docId) {
+                        await deleteDoc(doc(db, "ledger", ledgerDoc.id));
+                        deletedLedgerCount++;
+                        console.log(`  ✓ Deleted ledger entry: ${ledgerDoc.id}`);
+                    }
+                }
+
+                console.log(`✓ Deleted ${deletedLedgerCount} related ledger entries`);
+
+                // Remove from UI immediately
+                const cardElement = document.querySelector(`[data-doc-id="${docId}"]`);
+                if (cardElement) {
+                    cardElement.style.transition = 'opacity 0.3s';
+                    cardElement.style.opacity = '0';
+                    setTimeout(() => cardElement.remove(), 300);
+                }
+
+                // Reload data to sync
+                setTimeout(() => {
+                    loadAllDocuments();
+                }, 500);
+
+                alert(`Document #${docNumber} and ${deletedLedgerCount} related ledger entries deleted successfully!`);
+                
+            } catch (error) {
+                console.error("✗ Error deleting document:", error);
+                alert("Error deleting document: " + error.message);
+            }
+        };
+
+        window.filterDocuments = filterDocuments;
+        window.resetFilters = resetFilters;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log("=== Page Loaded ===");
+            loadAllDocuments();
+        });
+    </script>
+</body>
+</html>

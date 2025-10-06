@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Income Statement - Bilal Ehtasham Traders</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            color: #333;
+            background-color: #f4f4f4;
+        }
+        .report-container {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+            border: 1px solid #ccc;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            background-color: #fff;
+            position: relative;
+        }
+        .sync-badge {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 11px;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #003366;
+            padding-bottom: 10px;
+        }
+        .header h1 {
+            font-size: 24px;
+            margin: 0;
+            color: #003366;
+        }
+        .business-info {
+            text-align: center;
+        }
+        .business-info h2 {
+            color: #003366;
+            font-size: 18px;
+            margin: 5px 0;
+        }
+        .business-info p {
+            margin: 5px 0;
+            font-size: 12px;
+        }
+        .controls {
+            margin-bottom: 20px;
+            text-align: right;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #003366;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-left: 10px;
+        }
+        button:hover {
+            background-color: #005599;
+        }
+        .loading-text {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-style: italic;
+        }
+        .error-text {
+            text-align: center;
+            padding: 20px;
+            color: #dc3545;
+            font-weight: bold;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+            border-bottom: 2px solid #000;
+        }
+        #income-statement-body td:nth-child(2), tfoot td:nth-child(2) {
+            text-align: right;
+        }
+        .section-header {
+            font-weight: bold;
+            background-color: #e6e6e6;
+        }
+        .subtotal {
+            font-weight: bold;
+            border-top: 1px solid #ccc;
+        }
+        .final-total {
+            font-weight: bold;
+            border-top: 2px solid #000;
+            padding-top: 10px;
+        }
+        .input-field {
+            width: 90%;
+            border: 1px solid #ccc;
+            text-align: right;
+            box-sizing: border-box;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        .input-field:focus {
+            outline: none;
+            border-color: #003366;
+            box-shadow: 0 0 3px rgba(0, 51, 102, 0.3);
+        }
+        @media print {
+            .controls {
+                display: none !important;
+            }
+            .sync-badge {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="report-container">
+        <div class="sync-badge">SYNCED</div>
+        <div class="header">
+            <h1>Income Statement</h1>
+            <div class="business-info">
+                <h2>(BET) Bilal Ehtasham Traders</h2>
+                <p>Deals in all kinds of Cotton and Polyester Yarn</p>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button onclick="generatePDF()">Generate PDF</button>
+            <button onclick="window.location.href='index.html'">Back to Dashboard</button>
+        </div>
+
+        <div id="loading" class="loading-text">Loading financial data from cloud...</div>
+        
+        <table id="income-table" style="display: none;">
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th>Amount (Rs.)</th>
+                </tr>
+            </thead>
+            <tbody id="income-statement-body">
+                <tr>
+                    <td class="section-header" colspan="2">Revenue</td>
+                </tr>
+                <tr>
+                    <td>Sales Revenue</td>
+                    <td id="sales-revenue">0.00</td>
+                </tr>
+                <tr>
+                    <td class="section-header" colspan="2">Cost of Goods Sold (COGS)</td>
+                </tr>
+                <tr>
+                    <td>Purchases (Direct Cost)</td>
+                    <td id="purchases-cogs">0.00</td>
+                </tr>
+                <tr class="subtotal">
+                    <td class="subtotal">Gross Profit</td>
+                    <td class="subtotal" id="gross-profit">0.00</td>
+                </tr>
+                <tr>
+                    <td class="section-header" colspan="2">Other Operating Expenses</td>
+                </tr>
+                <tr>
+                    <td>Vendor Payments (Indirect Expenses)</td> 
+                    <td id="vendor-payments-expense">0.00</td>
+                </tr>
+                <tr>
+                    <td>Other Expenses (e.g., Rent, Salaries)</td>
+                    <td><input type="text" id="other-expenses-input" class="input-field" value="0" oninput="formatAndCalculate()"></td>
+                </tr>
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td class="final-total">Net Income</td>
+                    <td class="final-total" id="net-income">0.00</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
+            authDomain: "bet-acc-software.firebaseapp.com",
+            projectId: "bet-acc-software",
+            storageBucket: "bet-acc-software.firebasestorage.app",
+            messagingSenderId: "879522152449",
+            appId: "1:879522152449:web:73b8ef899d5c1cbfd90000"
+        };
+
+        console.log("Initializing Firebase...");
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        console.log("Firebase initialized successfully");
+
+        let salesRevenue = 0;
+        let purchasesCogs = 0;
+        let vendorPaymentsExpense = 0;
+
+        function formatAmount(amount) {
+            return (amount || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        }
+
+        window.formatAndCalculate = function() {
+            const input = document.getElementById('other-expenses-input');
+            let value = input.value.replace(/[^0-9.-]/g, '');
+            
+            if (value !== "") {
+                const numValue = parseFloat(value);
+                if (!isNaN(numValue)) {
+                    input.value = formatAmount(numValue);
+                }
+            } else {
+                input.value = "0.00";
+            }
+            calculateIncomeStatement();
+        };
+
+        async function loadFinancialData() {
+            try {
+                console.log("Loading financial data...");
+                
+                // Load Sales Revenue from invoices
+                console.log("Fetching sales invoices...");
+                const invoicesSnapshot = await getDocs(collection(db, "invoices"));
+                console.log("Sales invoices found:", invoicesSnapshot.size);
+                
+                invoicesSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    const amount = parseFloat(data.netTotal || data.total || data.amount) || 0;
+                    salesRevenue += amount;
+                });
+                console.log("Total sales revenue:", salesRevenue);
+
+                // Load COGS from purchase invoices
+                console.log("Fetching purchase invoices...");
+                const purchasesSnapshot = await getDocs(collection(db, "purchaseInvoices"));
+                console.log("Purchase invoices found:", purchasesSnapshot.size);
+                
+                purchasesSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    const amount = parseFloat(data.netTotal || data.total || data.amount) || 0;
+                    purchasesCogs += amount;
+                });
+                console.log("Total purchases (COGS):", purchasesCogs);
+
+                // Load Operating Expenses from vendor payments
+                console.log("Fetching vendor payments...");
+                const paymentsSnapshot = await getDocs(collection(db, "vendorPayments"));
+                console.log("Vendor payments found:", paymentsSnapshot.size);
+                
+                paymentsSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    // 🌟 CRITICAL FIX/UPDATE: Prioritize the new key 'amountPaid'
+                    const amount = parseFloat(data.amountPaid || data.amountReceived || data.amount || data.total) || 0; 
+                    vendorPaymentsExpense += amount;
+                });
+                console.log("Total vendor payments (Expense):", vendorPaymentsExpense);
+
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('income-table').style.display = 'table';
+                
+                calculateIncomeStatement();
+                console.log("Financial data loaded successfully");
+            } catch (error) {
+                console.error("Error loading financial data:", error);
+                document.getElementById('loading').innerHTML = '<span class="error-text">Failed to load data. Error: ' + error.message + '</span>';
+            }
+        }
+
+        function calculateIncomeStatement() {
+            const otherExpensesInput = document.getElementById('other-expenses-input').value;
+            const otherExpenses = parseFloat(otherExpensesInput.replace(/,/g, '')) || 0;
+
+            const grossProfit = salesRevenue - purchasesCogs;
+            const totalOperatingExpenses = vendorPaymentsExpense + otherExpenses;
+            const netIncome = grossProfit - totalOperatingExpenses;
+
+            console.log("Calculations:");
+            console.log("- Gross Profit:", grossProfit);
+            console.log("- Operating Expenses:", totalOperatingExpenses);
+            console.log("- Net Income:", netIncome);
+
+            document.getElementById('sales-revenue').textContent = formatAmount(salesRevenue);
+            document.getElementById('purchases-cogs').textContent = formatAmount(purchasesCogs);
+            document.getElementById('gross-profit').textContent = formatAmount(grossProfit);
+            document.getElementById('vendor-payments-expense').textContent = formatAmount(vendorPaymentsExpense);
+            document.getElementById('net-income').textContent = formatAmount(netIncome);
+
+            const netIncomeElement = document.getElementById('net-income');
+            if (netIncome < 0) {
+                netIncomeElement.style.color = '#dc3545';
+            } else if (netIncome > 0) {
+                netIncomeElement.style.color = '#28a745';
+            } else {
+                netIncomeElement.style.color = '#333';
+            }
+        }
+
+        window.generatePDF = function() {
+            const controls = document.querySelector('.controls');
+            const syncBadge = document.querySelector('.sync-badge');
+            
+            controls.style.display = 'none';
+            syncBadge.style.display = 'none';
+            
+            const element = document.querySelector('.report-container');
+            
+            const opt = {
+                margin: 10,
+                filename: 'Income-Statement-' + new Date().toLocaleDateString('en-GB').replace(/\//g, '-') + '.pdf',
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { 
+                    scale: 1,
+                    useCORS: true,
+                    logging: false
+                },
+                jsPDF: { 
+                    unit: 'mm', 
+                    format: 'a4', 
+                    orientation: 'portrait'
+                },
+                pagebreak: { mode: 'avoid-all' }
+            };
+            
+            html2pdf().set(opt).from(element).save().then(() => {
+                controls.style.display = 'block';
+                syncBadge.style.display = 'block';
+            }).catch(err => {
+                console.error('PDF generation error:', err);
+                controls.style.display = 'block';
+                syncBadge.style.display = 'block';
+                alert('Error generating PDF. Please try again.');
+            });
+        };
+
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log("Page loaded, starting data fetch...");
+            loadFinancialData();
+        });
+    </script>
+</body>
+</html>
