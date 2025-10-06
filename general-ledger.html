@@ -7,16 +7,18 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            margin: 20px;
+            margin: 0; /* Changed from 20px to 0 to maximize space */
+            padding: 20px; /* Added padding to body for overall spacing */
             color: #333;
         }
         .report-container {
             width: 100%;
-            max-width: 900px;
+            /* Removed max-width to allow it to fill 100% of the screen */
             margin: 0 auto;
             border: 1px solid #ccc;
             padding: 20px;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            box-sizing: border-box; /* Ensures padding is included in the width */
         }
         .header {
             text-align: center;
@@ -50,6 +52,7 @@
             margin: 5px;
             border: 1px solid #ccc;
             border-radius: 4px;
+            box-sizing: border-box;
         }
         .controls button {
             padding: 8px 12px;
@@ -72,27 +75,42 @@
         }
         table {
             width: 100%;
+            table-layout: fixed; /* Ensures column widths are respected */
             border-collapse: collapse;
             margin-top: 20px;
         }
         th, td {
             border: 1px solid #ccc;
-            padding: 10px;
+            padding: 8px 4px; /* Reduced padding */
             text-align: left;
+            font-size: 12px; /* Smaller default font size for table */
         }
         th {
             background-color: #f2f2f2;
         }
+        /* Specific column width optimization */
+        #ledger-table th:nth-child(1), #ledger-table td:nth-child(1) { width: 10%; } /* Date */
+        #ledger-table th:nth-child(2), #ledger-table td:nth-child(2) { width: 20%; } /* Account */
+        #ledger-table th:nth-child(3), #ledger-table td:nth-child(3) { 
+            width: 30%; /* Description */
+            word-wrap: break-word; /* Crucial for preventing horizontal scroll */
+        } 
+        #ledger-table th:nth-child(4), #ledger-table td:nth-child(4) { width: 8%; } /* Doc # */
+        #ledger-table th:nth-child(5), #ledger-table td:nth-child(5) { width: 10%; } /* Debit */
+        #ledger-table th:nth-child(6), #ledger-table td:nth-child(6) { width: 10%; } /* Credit */
+        #ledger-table th:nth-child(7), #ledger-table td:nth-child(7) { width: 12%; } /* Balance */
+
+
         tfoot td {
             font-weight: bold;
             background-color: #e6e6ff;
         }
         .debit-amount, .credit-amount, .balance-column {
             text-align: right;
+            font-family: 'Courier New', monospace;
         }
         .balance-column {
             font-weight: bold;
-            width: 15%;
         }
         .loading {
             text-align: center;
@@ -108,15 +126,34 @@
             color: #002244;
         }
 
-        @media (max-width: 600px) {
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
             .controls input[type="text"], .controls select {
-                width: 90%;
+                width: 100%;
+            }
+            .filter-section {
+                flex-direction: column;
+            }
+            .controls button {
+                width: 45%;
             }
             table, th, td {
-                font-size: 10px;
-                padding: 5px;
+                font-size: 10px; /* Reduced font size further on mobile */
+                padding: 3px;
             }
+            /* Even tighter widths for mobile */
+            #ledger-table th:nth-child(1), #ledger-table td:nth-child(1) { width: 10%; } /* Date */
+            #ledger-table th:nth-child(2), #ledger-table td:nth-child(2) { width: 18%; } /* Account */
+            #ledger-table th:nth-child(3), #ledger-table td:nth-child(3) { width: 25%; } /* Description */
+            #ledger-table th:nth-child(4), #ledger-table td:nth-child(4) { width: 7%; } /* Doc # */
+            #ledger-table th:nth-child(5), #ledger-table td:nth-child(5),
+            #ledger-table th:nth-child(6), #ledger-table td:nth-child(6) { width: 10%; } /* Debit/Credit */
+            #ledger-table th:nth-child(7), #ledger-table td:nth-child(7) { width: 20%; } /* Balance */
         }
+
+        /* Important: Don't change PDF specific styles (inside generatePDF function) */
     </style>
 </head>
 <body>
@@ -447,6 +484,7 @@
 
         document.addEventListener('DOMContentLoaded', loadLedgerData);
 
+        // Expose functions to the global scope for inline onclick events
         window.filterLedger = filterLedger;
         window.resetLedger = resetLedger;
         window.generatePDF = generatePDF;
