@@ -164,7 +164,7 @@
 
             const weightKg = quantity * packingKg;
             const weightLbs = weightKg * LBS_IN_KG;
-            const amount = weightLbs * price; 
+            const amount = weightLbs * price;
 
             row.querySelector('.weightKg').value = weightKg.toFixed(2);
             row.querySelector('.weightLbs').value = weightLbs.toFixed(2);
@@ -311,6 +311,9 @@
             }
 
             try {
+                const docNumber = `SI-${invoiceNumber}`;
+                const timestamp = new Date().toISOString();
+
                 const invoiceData = {
                     type: 'Sales Invoice',
                     number: invoiceNumber,
@@ -321,18 +324,20 @@
                     lineItems: lineItems,
                     cartage: cartage,
                     grossTotal: grossTotal,
-                    grandTotal: netTotal
+                    grandTotal: netTotal,
+                    timestamp: timestamp
                 };
 
                 await setDoc(doc(db, "salesInvoices", invoiceNumber), invoiceData);
 
-                if (isEditing && originalDocNumber !== invoiceNumber) {
+                if (isEditing && originalDocNumber && originalDocNumber !== invoiceNumber) {
                     await deleteDoc(doc(db, "salesInvoices", originalDocNumber));
+                    const oldDocNumber = `SI-${originalDocNumber}`;
                     const ledgerQuery = query(collection(db, "ledger"));
                     const ledgerSnapshot = await getDocs(ledgerQuery);
                     for (const docSnap of ledgerSnapshot.docs) {
                         const ledgerEntry = docSnap.data();
-                        if (ledgerEntry.doc_number === originalDocNumber) {
+                        if (ledgerEntry.doc_number === oldDocNumber) {
                             await deleteDoc(doc(db, "ledger", docSnap.id));
                         }
                     }
@@ -342,7 +347,7 @@
                 const ledgerSnapshot = await getDocs(existingLedgerQuery);
                 for (const docSnap of ledgerSnapshot.docs) {
                     const entry = docSnap.data();
-                    if (entry.doc_number === invoiceNumber) {
+                    if (entry.doc_number === docNumber) {
                         await deleteDoc(doc(db, "ledger", docSnap.id));
                     }
                 }
@@ -350,30 +355,33 @@
                 const ledgerEntries = [
                     {
                         date: invoiceDate,
-                        doc_number: invoiceNumber,
+                        doc_number: docNumber,
                         account: customerName,
                         debit: netTotal,
                         credit: 0,
-                        description: `Sales Invoice #${invoiceNumber}`
+                        description: `Sales to ${customerName}`,
+                        timestamp: timestamp
                     },
                     {
                         date: invoiceDate,
-                        doc_number: invoiceNumber,
+                        doc_number: docNumber,
                         account: "Sales Revenue",
                         debit: 0,
                         credit: grossTotal,
-                        description: `Sales Invoice #${invoiceNumber}`
+                        description: `Sales Invoice - ${customerName}`,
+                        timestamp: timestamp
                     }
                 ];
 
                 if (cartage > 0) {
                     ledgerEntries.push({
                         date: invoiceDate,
-                        doc_number: invoiceNumber,
+                        doc_number: docNumber,
                         account: "Cartage Income",
                         debit: 0,
                         credit: cartage,
-                        description: `Sales Invoice #${invoiceNumber} - Cartage`
+                        description: `Cartage charges - ${customerName}`,
+                        timestamp: timestamp
                     });
                 }
 
@@ -399,11 +407,12 @@
             try {
                 await deleteDoc(doc(db, "salesInvoices", invoiceNumber));
 
+                const docNumber = `SI-${invoiceNumber}`;
                 const ledgerQuery = query(collection(db, "ledger"));
                 const ledgerSnapshot = await getDocs(ledgerQuery);
                 for (const docSnap of ledgerSnapshot.docs) {
                     const ledgerEntry = docSnap.data();
-                    if (ledgerEntry.doc_number === invoiceNumber) {
+                    if (ledgerEntry.doc_number === docNumber) {
                         await deleteDoc(doc(db, "ledger", docSnap.id));
                     }
                 }
@@ -433,14 +442,15 @@
             const editNumber = urlParams.get('edit');
 
             if (editNumber) {
+                const cleanNumber = editNumber.replace('SI-', '');
                 try {
-                    const docRef = doc(db, "salesInvoices", editNumber);
+                    const docRef = doc(db, "salesInvoices", cleanNumber);
                     const docSnap = await getDoc(docRef);
                     
                     if (docSnap.exists()) {
                         populateForm(docSnap.data());
                         isEditing = true;
-                        originalDocNumber = editNumber;
+                        originalDocNumber = cleanNumber;
                         document.getElementById('deleteButton').style.display = 'inline-block';
                     } else {
                         alert("Invoice not found.");
