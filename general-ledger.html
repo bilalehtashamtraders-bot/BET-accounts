@@ -13,6 +13,7 @@
         }
         .report-container {
             width: 100%;
+            max-width: 1200px; /* Set max width for better viewing */
             margin: 0 auto;
             border: 1px solid #ccc;
             padding: 20px;
@@ -157,6 +158,7 @@
             #ledger-table th:nth-child(7), #ledger-table td:nth-child(7) { width: auto; }
         }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
     <div class="loading" id="loading">Loading ledger data...</div>
@@ -316,11 +318,13 @@
                 const debit = parseFloat(entry.debit || 0);
                 const credit = parseFloat(entry.credit || 0);
                 
+                // Balance calculation: Debit - Credit
                 runningBalance += (debit - credit);
 
                 const displayAccount = getAccountName(entry);
                 const docNumber = entry.doc_number || '';
                 const docCellContent = docNumber ? 
+                    // Use window.viewDocument here
                     `<span class="doc-link" onclick="window.viewDocument('${docNumber}')">${docNumber}</span>` : 
                     'N/A';
 
@@ -386,24 +390,28 @@
             displayLedger(allLedgerEntries);
         }
 
+        // *** CORRECTION APPLIED HERE ***
         function viewDocument(docNumber) {
             if (!docNumber) return;
             
             let targetURL = '';
             const upperDoc = docNumber.toUpperCase();
 
-            if (upperDoc.startsWith('CR-')) {
-                targetURL = `customer-receipt.html?edit=${docNumber}`;
-            } else if (upperDoc.startsWith('VP-')) {
+            // Customer Receipt Voucher (e.g., CR-00100 or simply 00100 for older)
+            if (upperDoc.includes('CR') || (upperDoc.length === 4 && upperDoc.startsWith('0'))) {
+                targetURL = `receipt.html?edit=${docNumber}`;
+            // Vendor Payment Receipt/Voucher (e.g., VP-00100)
+            } else if (upperDoc.includes('VP')) {
                 targetURL = `vendor-payment-receipt.html?edit=${docNumber}`;
-            } else if (upperDoc.startsWith('SI-')) {
+            // Assuming other document prefixes
+            } else if (upperDoc.includes('SI')) {
                 targetURL = `invoice.html?edit=${docNumber}`; 
-            } else if (upperDoc.startsWith('PI-')) {
+            } else if (upperDoc.includes('PI')) {
                 targetURL = `purchase-invoice.html?edit=${docNumber}`;
-            } else if (upperDoc.startsWith('JE-')) {
+            } else if (upperDoc.includes('JE')) {
                 targetURL = `journal-entry.html?edit=${docNumber}`;
             } else {
-                alert(`Unrecognized document type for: ${docNumber}. Cannot open the document.`);
+                alert(`Unrecognized document type for: ${docNumber}. Cannot open the document. Please ensure documents have a prefix (e.g., CR-, VP-).`);
                 return;
             }
             
@@ -411,91 +419,23 @@
                 window.location.href = targetURL;
             }
         }
+        // ********************************
 
+        // *** MODIFIED PDF GENERATION TO USE HTML2PDF.JS ***
         function generatePDF() {
-            const title = document.getElementById('current-ledger-title').textContent;
-            const currentDate = new Date().toLocaleDateString('en-GB');
+            const element = document.getElementById('mainContent');
+            const title = document.getElementById('current-ledger-title').textContent.replace(/ /g, '_');
             
-            let pdfContent = `
-                <html>
-                <head>
-                    <style>
-                        body { font-family: Arial, sans-serif; padding: 20px; }
-                        h2, h3 { text-align: center; color: #003366; margin: 10px 0; }
-                        p { margin: 5px 0; }
-                        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 10px; }
-                        th, td { border: 1px solid #ccc; padding: 6px; }
-                        th { background-color: #f2f2f2; font-weight: bold; }
-                        .text-right { text-align: right; }
-                        .text-center { text-align: center; }
-                        tfoot td { background-color: #e6e6ff; font-weight: bold; }
-                    </style>
-                </head>
-                <body>
-                    <h2>General Ledger Report</h2>
-                    <div class="text-center">
-                        <h3>(BET) Bilal Ehtasham Traders</h3>
-                        <p>Deals in all kinds of Cotton and Polyester Yarn</p>
-                        <p>Email: bilalehtashamtraders@gmail.com | Cell: (+92)-324-2479096</p>
-                    </div>
-                    <p><strong>Report:</strong> ${title}</p>
-                    <p><strong>Generated:</strong> ${currentDate}</p>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Date</th>
-                                <th>Account</th>
-                                <th>Description</th>
-                                <th>Doc #</th>
-                                <th class="text-right">Debit (Rs.)</th>
-                                <th class="text-right">Credit (Rs.)</th>
-                                <th class="text-right">Balance (Rs.)</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-            `;
+            const opt = {
+                margin: 10,
+                filename: `General_Ledger_Report_${title}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+            };
 
-            const rows = document.querySelectorAll('#ledger-body tr');
-            rows.forEach(row => {
-                const cells = row.querySelectorAll('td');
-                if (cells.length >= 7) {
-                    pdfContent += `
-                        <tr>
-                            <td>${cells[0].textContent}</td>
-                            <td>${cells[1].textContent}</td>
-                            <td>${cells[2].textContent}</td>
-                            <td>${cells[3].textContent.replace(/<[^>]*>/g, '')}</td>
-                            <td class="text-right">${cells[4].textContent}</td>
-                            <td class="text-right">${cells[5].textContent}</td>
-                            <td class="text-right">${cells[6].textContent}</td>
-                        </tr>
-                    `;
-                }
-            });
-
-            const totalDebit = document.getElementById('total-debit').textContent;
-            const totalCredit = document.getElementById('total-credit').textContent;
-            const finalBalance = document.getElementById('final-balance').textContent;
-
-            pdfContent += `
-                        </tbody>
-                        <tfoot>
-                            <tr>
-                                <td colspan="4">TOTAL</td>
-                                <td class="text-right">${totalDebit}</td>
-                                <td class="text-right">${totalCredit}</td>
-                                <td class="text-right">${finalBalance}</td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </body>
-                </html>
-            `;
-
-            const printWindow = window.open('', '', 'height=600,width=800');
-            printWindow.document.write(pdfContent);
-            printWindow.document.close();
-            printWindow.print();
+            // Use the hidden mainContent div as the source
+            html2pdf().set(opt).from(element).save();
         }
 
         document.addEventListener('DOMContentLoaded', loadLedgerData);
