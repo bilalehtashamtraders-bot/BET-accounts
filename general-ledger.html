@@ -236,16 +236,30 @@
         let allLedgerEntries = [];
         let uniqueAccounts = new Set();
 
-        // *** CRUCIAL FIX: Ensure reliable date parsing for DD-MM-YYYY format ***
-        function parseDate(dateStr) {
-            if (!dateStr) return new Date(0);
+        // *** CRITICAL FIX: Ensure reliable date parsing for DD-MM-YYYY format and return a comparable timestamp ***
+        function getEntrySortKey(entry) {
+            const dateStr = entry.date || '';
+            const timestampStr = entry.timestamp || '';
+
+            // Handle date parsing (DD-MM-YYYY to YYYY-MM-DD for reliable Date object creation)
+            let date = new Date(0); // Default to epoch
             const parts = dateStr.split('-');
             if (parts.length === 3) {
-                // Return YYYY-MM-DD format date string for reliable parsing
+                // YYYY-MM-DD format is necessary for reliable parsing across browsers
                 const isoDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
-                return new Date(isoDate);
+                date = new Date(isoDate);
             }
-            return new Date(dateStr);
+            
+            // Generate a combined sort key: Date in milliseconds + (Time string converted to number)
+            // The timestamp (ISO string) is a better tie-breaker than just time, 
+            // but for simplicity and robustness in JS sorting:
+            // 1. Convert Date to milliseconds.
+            // 2. Append a unique, sortable value (like the raw timestamp string)
+            
+            const dateMillis = date.getTime();
+            
+            // Use the raw timestamp string (which is already chronologically sortable) as the tie-breaker
+            return { dateMillis, timestampStr };
         }
 
         function getAccountName(entry) {
@@ -271,20 +285,18 @@
                     allLedgerEntries.push(data);
                 });
 
-                // *** SORTING LOGIC: Date first, then Timestamp (time of creation) ***
+                // *** SORTING LOGIC: Date in milliseconds first, then Timestamp string ***
                 allLedgerEntries.sort((a, b) => {
-                    const dateA = parseDate(a.date);
-                    const dateB = parseDate(b.date);
+                    const keyA = getEntrySortKey(a);
+                    const keyB = getEntrySortKey(b);
                     
                     // 1. Sort by Date (primary)
-                    if (dateA.getTime() !== dateB.getTime()) {
-                        return dateA - dateB;
+                    if (keyA.dateMillis !== keyB.dateMillis) {
+                        return keyA.dateMillis - keyB.dateMillis;
                     }
                     
                     // 2. Sort by Timestamp (secondary, for same-day transactions)
-                    const timeA = a.timestamp || '';
-                    const timeB = b.timestamp || '';
-                    return timeA.localeCompare(timeB);
+                    return keyA.timestampStr.localeCompare(keyB.timestampStr);
                 });
                 // *******************************************************************
                 
@@ -375,16 +387,15 @@
                 });
             }
             
-            // Re-sort the filtered entries to maintain chronological balance display
+            // Re-sort the filtered entries using the same reliable logic
             filteredEntries.sort((a, b) => {
-                const dateA = parseDate(a.date);
-                const dateB = parseDate(b.date);
-                if (dateA.getTime() !== dateB.getTime()) {
-                    return dateA - dateB;
+                const keyA = getEntrySortKey(a);
+                const keyB = getEntrySortKey(b);
+                
+                if (keyA.dateMillis !== keyB.dateMillis) {
+                    return keyA.dateMillis - keyB.dateMillis;
                 }
-                const timeA = a.timestamp || '';
-                const timeB = b.timestamp || '';
-                return timeA.localeCompare(timeB);
+                return keyA.timestampStr.localeCompare(keyB.timestampStr);
             });
 
             let titleText = 'All Transactions';
