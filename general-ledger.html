@@ -236,15 +236,14 @@
         let allLedgerEntries = [];
         let uniqueAccounts = new Set();
 
+        // *** CRUCIAL FIX: Ensure reliable date parsing for DD-MM-YYYY format ***
         function parseDate(dateStr) {
             if (!dateStr) return new Date(0);
-            // Assuming dateStr is in DD-MM-YYYY format (en-GB)
             const parts = dateStr.split('-');
             if (parts.length === 3) {
-                const day = parseInt(parts[0], 10);
-                const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed
-                const year = parseInt(parts[2], 10);
-                return new Date(year, month, day);
+                // Return YYYY-MM-DD format date string for reliable parsing
+                const isoDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                return new Date(isoDate);
             }
             return new Date(dateStr);
         }
@@ -272,7 +271,7 @@
                     allLedgerEntries.push(data);
                 });
 
-                // *** CORRECTED SORTING LOGIC FOR CHRONOLOGICAL DISPLAY ***
+                // *** SORTING LOGIC: Date first, then Timestamp (time of creation) ***
                 allLedgerEntries.sort((a, b) => {
                     const dateA = parseDate(a.date);
                     const dateB = parseDate(b.date);
@@ -283,12 +282,11 @@
                     }
                     
                     // 2. Sort by Timestamp (secondary, for same-day transactions)
-                    // The 'timestamp' is assumed to be an ISO string (e.g., from new Date().toISOString())
                     const timeA = a.timestamp || '';
                     const timeB = b.timestamp || '';
                     return timeA.localeCompare(timeB);
                 });
-                // *******************************************************
+                // *******************************************************************
                 
                 populateAccountFilter();
                 displayLedger(allLedgerEntries);
@@ -376,6 +374,18 @@
                     return getAccountName(entry) === accountName;
                 });
             }
+            
+            // Re-sort the filtered entries to maintain chronological balance display
+            filteredEntries.sort((a, b) => {
+                const dateA = parseDate(a.date);
+                const dateB = parseDate(b.date);
+                if (dateA.getTime() !== dateB.getTime()) {
+                    return dateA - dateB;
+                }
+                const timeA = a.timestamp || '';
+                const timeB = b.timestamp || '';
+                return timeA.localeCompare(timeB);
+            });
 
             let titleText = 'All Transactions';
             if (searchTerm && accountName) {
