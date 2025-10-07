@@ -85,6 +85,14 @@
             color: #dc3545;
             font-weight: bold;
         }
+        .debug-info {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-size: 12px;
+        }
         table {
             width: 100%;
             border-collapse: collapse;
@@ -126,7 +134,7 @@
             color: #dc3545;
         }
         @media print {
-            .controls {
+            .controls, .debug-info {
                 display: none !important;
             }
             .sync-badge {
@@ -147,8 +155,14 @@
         </div>
 
         <div class="controls">
+            <button onclick="toggleDebug()">Toggle Debug Info</button>
             <button onclick="generatePDF()">Generate PDF</button>
             <button onclick="window.location.href='index.html'">Back to Dashboard</button>
+        </div>
+
+        <div id="debug-panel" class="debug-info" style="display: none;">
+            <strong>Debug Information:</strong>
+            <div id="debug-content"></div>
         </div>
 
         <div id="loading" class="loading-text">Calculating Income Statement from Ledger...</div>
@@ -161,7 +175,7 @@
                 </tr>
             </thead>
             <tbody id="income-statement-body">
-                </tbody>
+            </tbody>
             <tfoot>
                 <tr>
                     <td class="final-total">Net Income / (Loss)</td>
@@ -188,59 +202,69 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // Define groups for the Income Statement based on common account names/types
-        // FIX: Added common account names used in document creation (e.g., Sales Invoices, Purchase Invoices)
         const incomeStatementGroups = {
-            'Revenue': [
-                'Sales Revenue', 
-                'Other Income',
-                'Sales Invoices', // <-- FIX: Added this common name
-                'Invoice'         // <-- FIX: Added this common name
+            'Sales Revenue': [
+                'Sales Revenue', 'Sales', 'SALES', 'Revenue', 'Income', 
+                'Sales Income', 'Trading Revenue'
+            ],
+            'Other Revenue': [
+                'Commission Earned', 'Cartage Income', 'Other Income', 
+                'Interest Income', 'Miscellaneous Income'
             ],
             'COGS': [
-                'Cost of Goods Sold (COGS)', 
-                'Purchases',
-                'Purchase Invoices' // <-- FIX: Added this common name for COGS/Purchases
+                'Cost of Goods Sold', 'COGS', 'Purchases', 'Purchase', 
+                'Purchase Invoices', 'Inventory Purchases', 'Cost of Sales',
+                'Direct Costs', 'Materials', 'Goods Purchased', 'Stock Purchase',
+                'Supplier', 'Vendor'
             ],
             'Operating Expenses': [
-                'Salaries Expense', 
-                'Rent Expense', 
-                'Utilities Expense', 
-                'Depreciation Expense', 
-                'Other Expense', 
-                'Vendor Payments',
-                'BET Expense Acc' 
+                'Salaries Expense', 'Rent Expense', 'Utilities Expense',
+                'Depreciation Expense', 'Other Expense', 'Cartage Expense',
+                'Transportation Expense', 'Office Expense', 'BET Expense',
+                'General Expenses', 'Administrative Expense', 'Selling Expense'
             ]
-            // NOTE: If you have other specific Expense accounts, add them to 'Operating Expenses' here!
         };
         
-        // Final structure to hold calculated amounts
         let calculatedAmounts = {
-            revenue: {},
+            salesRevenue: {},
+            otherRevenue: {},
             cogs: {},
             expenses: {}
         };
+
+        let debugInfo = [];
 
         function formatAmount(amount) {
             return (amount || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         }
 
-        /**
-         * Aggregates ledger data to calculate the total balance for each account.
-         */
+        function matchesGroup(accountName, groupArray) {
+            if (!accountName) return false;
+            const lowerAccount = accountName.toLowerCase().trim();
+            return groupArray.some(pattern => {
+                const lowerPattern = pattern.toLowerCase().trim();
+                return lowerAccount.includes(lowerPattern) || lowerPattern.includes(lowerAccount);
+            });
+        }
+
         async function loadFinancialData() {
             try {
+                debugInfo = [];
                 const ledgerSnapshot = await getDocs(collection(db, "ledger"));
+                const purchaseInvoicesSnapshot = await getDocs(collection(db, "purchaseInvoices"));
                 
-                const balances = {}; // { 'Account Name': net_balance (Debit - Credit), ... }
+                debugInfo.push(`Total Ledger Entries: ${ledgerSnapshot.size}`);
+                debugInfo.push(`Total Purchase Invoices: ${purchaseInvoicesSnapshot.size}`);
+                
+                const balances = {};
+                const allAccounts = new Set();
 
-                // 1. Calculate net balance for all accounts
                 ledgerSnapshot.forEach(docSnap => {
                     const entry = docSnap.data();
-                    // Using `account` is usually correct, but sometimes a collection name is logged.
-                    const accountName = entry.account || entry.accountType; 
+                    const accountName = entry.account || entry.accountType || entry.accountName || entry.doc_type || entry.description;
 
-                    if (!accountName) return; 
+                    if (!accountName) return;
+                    allAccounts.add(accountName);
 
                     const debit = parseFloat(entry.debit || 0);
                     const credit = parseFloat(entry.credit || 0);
@@ -249,50 +273,101 @@
                         balances[accountName] = 0;
                     }
                     
-                    // Balance: Debit (increase for Asset/Expense/COGS) - Credit (increase for Liability/Equity/Revenue)
-                    // This is correct: Revenue has a natural CREDIT balance (Credit > Debit), resulting in a negative net_balance here.
                     balances[accountName] += (debit - credit);
                 });
                 
-                // 2. Group balances into the Income Statement structure
+                debugInfo.push(`Unique Account Names Found: ${allAccounts.size}`);
+                debugInfo.push(`Account Names: ${Array.from(allAccounts).join(', ')}`);
+                
                 calculatedAmounts = {
-                    revenue: {},
+                    salesRevenue: {},
+                    otherRevenue: {},
                     cogs: {},
                     expenses: {}
                 };
                 
-                let totalRevenue = 0;
+                let totalSalesRevenue = 0;
+                let totalOtherRevenue = 0;
                 let totalCOGS = 0;
                 let totalExpenses = 0;
 
                 for (const accountName in balances) {
                     let netBalance = balances[accountName];
 
-                    // Revenue: Natural Credit Balance (netBalance will be negative). Display as positive.
-                    if (incomeStatementGroups.Revenue.includes(accountName) && netBalance < 0) {
-                        let amount = Math.abs(netBalance); 
-                        calculatedAmounts.revenue[accountName] = amount;
-                        totalRevenue += amount;
+                    if (matchesGroup(accountName, incomeStatementGroups['Sales Revenue'])) {
+                        if (netBalance < 0) {
+                            let amount = Math.abs(netBalance);
+                            calculatedAmounts.salesRevenue[accountName] = amount;
+                            totalSalesRevenue += amount;
+                            debugInfo.push(`✓ Sales Revenue: ${accountName} = ${formatAmount(amount)}`);
+                        }
                     }
-
-                    // COGS and Expenses: Natural Debit Balance (netBalance will be positive).
-                    if (incomeStatementGroups.COGS.includes(accountName) && netBalance > 0) {
-                        let amount = netBalance;
-                        calculatedAmounts.cogs[accountName] = amount;
-                        totalCOGS += amount;
+                    else if (matchesGroup(accountName, incomeStatementGroups['Other Revenue'])) {
+                        if (netBalance < 0) {
+                            let amount = Math.abs(netBalance);
+                            calculatedAmounts.otherRevenue[accountName] = amount;
+                            totalOtherRevenue += amount;
+                            debugInfo.push(`✓ Other Revenue: ${accountName} = ${formatAmount(amount)}`);
+                        }
                     }
-
-                    if (incomeStatementGroups['Operating Expenses'].includes(accountName) && netBalance > 0) {
-                        let amount = netBalance;
-                        calculatedAmounts.expenses[accountName] = amount;
-                        totalExpenses += amount;
+                    else if (matchesGroup(accountName, incomeStatementGroups.COGS)) {
+                        if (netBalance > 0) {
+                            let amount = netBalance;
+                            calculatedAmounts.cogs[accountName] = amount;
+                            totalCOGS += amount;
+                            debugInfo.push(`✓ COGS from Ledger: ${accountName} = ${formatAmount(amount)}`);
+                        } else if (netBalance < 0) {
+                            debugInfo.push(`⚠ COGS account with credit balance: ${accountName} = ${formatAmount(netBalance)}`);
+                        }
+                    }
+                    else if (matchesGroup(accountName, incomeStatementGroups['Operating Expenses'])) {
+                        if (netBalance > 0) {
+                            let amount = netBalance;
+                            calculatedAmounts.expenses[accountName] = amount;
+                            totalExpenses += amount;
+                            debugInfo.push(`✓ Operating Expense: ${accountName} = ${formatAmount(amount)}`);
+                        }
                     }
                 }
 
-                // Store totals for final calculation
-                calculatedAmounts.totalRevenue = totalRevenue;
+                let cogsFromPurchases = 0;
+                purchaseInvoicesSnapshot.forEach(docSnap => {
+                    const invoice = docSnap.data();
+                    const total = parseFloat(invoice.grandTotal || invoice.totalAmount || invoice.total || 0);
+                    if (total > 0) {
+                        cogsFromPurchases += total;
+                        debugInfo.push(`Purchase Invoice: ${invoice.invoiceNumber || 'N/A'} = ${formatAmount(total)}`);
+                    }
+                });
+
+                debugInfo.push(`Total COGS from Purchase Invoices: ${formatAmount(cogsFromPurchases)}`);
+
+                if (cogsFromPurchases > 0) {
+                    if (totalCOGS === 0) {
+                        calculatedAmounts.cogs['Purchases (from Purchase Invoices)'] = cogsFromPurchases;
+                        totalCOGS = cogsFromPurchases;
+                        debugInfo.push(`✓ Using Purchase Invoices as COGS: ${formatAmount(cogsFromPurchases)}`);
+                    } else {
+                        debugInfo.push(`⚠ COGS found in ledger (${formatAmount(totalCOGS)}), not adding purchase invoices`);
+                    }
+                }
+
+                if (totalCOGS === 0 && cogsFromPurchases === 0) {
+                    debugInfo.push(`❌ WARNING: No COGS data found in ledger or purchase invoices!`);
+                }
+
+                calculatedAmounts.totalSalesRevenue = totalSalesRevenue;
+                calculatedAmounts.totalOtherRevenue = totalOtherRevenue;
                 calculatedAmounts.totalCOGS = totalCOGS;
                 calculatedAmounts.totalExpenses = totalExpenses;
+
+                debugInfo.push(`<br><strong>Summary:</strong>`);
+                debugInfo.push(`Total Sales Revenue: ${formatAmount(totalSalesRevenue)}`);
+                debugInfo.push(`Total Other Revenue: ${formatAmount(totalOtherRevenue)}`);
+                debugInfo.push(`Total COGS: ${formatAmount(totalCOGS)}`);
+                debugInfo.push(`Total Expenses: ${formatAmount(totalExpenses)}`);
+
+                document.getElementById('debug-content').innerHTML = debugInfo.join('<br>');
 
                 displayIncomeStatement();
                 
@@ -309,15 +384,16 @@
             const tbody = document.getElementById('income-statement-body');
             tbody.innerHTML = '';
             
-            const totalRevenue = calculatedAmounts.totalRevenue || 0;
+            const totalSalesRevenue = calculatedAmounts.totalSalesRevenue || 0;
+            const totalOtherRevenue = calculatedAmounts.totalOtherRevenue || 0;
             const totalCOGS = calculatedAmounts.totalCOGS || 0;
             const totalExpenses = calculatedAmounts.totalExpenses || 0;
             
             let html = '';
 
-            // --- REVENUE SECTION ---
             html += `<tr><td class="section-header" colspan="2">Revenue</td></tr>`;
-            for (const [account, amount] of Object.entries(calculatedAmounts.revenue)) {
+            
+            for (const [account, amount] of Object.entries(calculatedAmounts.salesRevenue)) {
                 html += `
                     <tr>
                         <td class="account-line">${account}</td>
@@ -325,6 +401,19 @@
                     </tr>
                 `;
             }
+
+            if (Object.keys(calculatedAmounts.otherRevenue).length > 0) {
+                for (const [account, amount] of Object.entries(calculatedAmounts.otherRevenue)) {
+                    html += `
+                        <tr>
+                            <td class="account-line">${account}</td>
+                            <td>${formatAmount(amount)}</td>
+                        </tr>
+                    `;
+                }
+            }
+
+            const totalRevenue = totalSalesRevenue + totalOtherRevenue;
             html += `
                 <tr class="subtotal">
                     <td>Total Revenue</td>
@@ -332,35 +421,54 @@
                 </tr>
             `;
 
-            // --- COGS SECTION ---
             html += `<tr><td class="section-header" colspan="2">Less: Cost of Goods Sold</td></tr>`;
-            for (const [account, amount] of Object.entries(calculatedAmounts.cogs)) {
+            
+            if (Object.keys(calculatedAmounts.cogs).length > 0) {
+                for (const [account, amount] of Object.entries(calculatedAmounts.cogs)) {
+                    html += `
+                        <tr>
+                            <td class="account-line">${account}</td>
+                            <td class="negative-amount">(${formatAmount(amount)})</td>
+                        </tr>
+                    `;
+                }
+            } else {
                 html += `
                     <tr>
-                        <td class="account-line">${account}</td>
-                        <td class="negative-amount">(${formatAmount(amount)})</td>
+                        <td class="account-line" style="color: #999; font-style: italic;">No COGS entries found</td>
+                        <td class="negative-amount">(0.00)</td>
                     </tr>
                 `;
             }
+
+            const grossProfit = totalRevenue - totalCOGS;
             html += `
                 <tr class="subtotal">
                     <td>Gross Profit</td>
-                    <td>${formatAmount(totalRevenue - totalCOGS)}</td>
+                    <td>${formatAmount(grossProfit)}</td>
                 </tr>
             `;
-            
-            const grossProfit = totalRevenue - totalCOGS;
 
-            // --- EXPENSE SECTION ---
             html += `<tr><td class="section-header" colspan="2">Less: Operating Expenses</td></tr>`;
-            for (const [account, amount] of Object.entries(calculatedAmounts.expenses)) {
+            
+            if (Object.keys(calculatedAmounts.expenses).length > 0) {
+                for (const [account, amount] of Object.entries(calculatedAmounts.expenses)) {
+                    html += `
+                        <tr>
+                            <td class="account-line">${account}</td>
+                            <td class="negative-amount">(${formatAmount(amount)})</td>
+                        </tr>
+                    `;
+                }
+            } else {
                 html += `
                     <tr>
-                        <td class="account-line">${account}</td>
-                        <td class="negative-amount">(${formatAmount(amount)})</td>
+                        <td class="account-line" style="color: #999; font-style: italic;">No expense entries found</td>
+                        <td class="negative-amount">(0.00)</td>
                     </tr>
                 `;
             }
+
             html += `
                 <tr class="subtotal">
                     <td>Total Operating Expenses</td>
@@ -370,12 +478,9 @@
 
             tbody.innerHTML = html;
 
-            // --- NET INCOME ---
             const netIncome = grossProfit - totalExpenses;
-            
             const netIncomeElement = document.getElementById('net-income');
             
-            // Set text and color for profit/loss
             if (netIncome < 0) {
                 netIncomeElement.style.color = '#dc3545';
                 netIncomeElement.parentNode.querySelector('.final-total:first-child').textContent = 'Net Loss';
@@ -391,13 +496,19 @@
             }
         }
 
-        // --- PDF GENERATION ---
+        window.toggleDebug = function() {
+            const panel = document.getElementById('debug-panel');
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        };
+
         window.generatePDF = function() {
             const controls = document.querySelector('.controls');
             const syncBadge = document.querySelector('.sync-badge');
+            const debugPanel = document.getElementById('debug-panel');
             
             controls.style.display = 'none';
             syncBadge.style.display = 'none';
+            debugPanel.style.display = 'none';
             
             const element = document.querySelector('.report-container');
             
