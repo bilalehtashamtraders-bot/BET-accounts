@@ -238,10 +238,11 @@
 
         function parseDate(dateStr) {
             if (!dateStr) return new Date(0);
+            // Assuming dateStr is in DD-MM-YYYY format (en-GB)
             const parts = dateStr.split('-');
             if (parts.length === 3) {
                 const day = parseInt(parts[0], 10);
-                const month = parseInt(parts[1], 10) - 1;
+                const month = parseInt(parts[1], 10) - 1; // Month is 0-indexed
                 const year = parseInt(parts[2], 10);
                 return new Date(year, month, day);
             }
@@ -271,16 +272,23 @@
                     allLedgerEntries.push(data);
                 });
 
+                // *** CORRECTED SORTING LOGIC FOR CHRONOLOGICAL DISPLAY ***
                 allLedgerEntries.sort((a, b) => {
                     const dateA = parseDate(a.date);
                     const dateB = parseDate(b.date);
+                    
+                    // 1. Sort by Date (primary)
                     if (dateA.getTime() !== dateB.getTime()) {
                         return dateA - dateB;
                     }
+                    
+                    // 2. Sort by Timestamp (secondary, for same-day transactions)
+                    // The 'timestamp' is assumed to be an ISO string (e.g., from new Date().toISOString())
                     const timeA = a.timestamp || '';
                     const timeB = b.timestamp || '';
                     return timeA.localeCompare(timeB);
                 });
+                // *******************************************************
                 
                 populateAccountFilter();
                 displayLedger(allLedgerEntries);
@@ -324,7 +332,6 @@
                 const displayAccount = getAccountName(entry);
                 const docNumber = entry.doc_number || '';
                 const docCellContent = docNumber ? 
-                    // Use window.viewDocument here
                     `<span class="doc-link" onclick="window.viewDocument('${docNumber}')">${docNumber}</span>` : 
                     'N/A';
 
@@ -390,7 +397,6 @@
             displayLedger(allLedgerEntries);
         }
 
-        // *** CORRECTION APPLIED HERE ***
         function viewDocument(docNumber) {
             if (!docNumber) return;
             
@@ -419,9 +425,7 @@
                 window.location.href = targetURL;
             }
         }
-        // ********************************
 
-        // *** MODIFIED PDF GENERATION TO USE HTML2PDF.JS ***
         function generatePDF() {
             const element = document.getElementById('mainContent');
             const title = document.getElementById('current-ledger-title').textContent.replace(/ /g, '_');
@@ -434,7 +438,6 @@
                 jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
             };
 
-            // Use the hidden mainContent div as the source
             html2pdf().set(opt).from(element).save();
         }
 
