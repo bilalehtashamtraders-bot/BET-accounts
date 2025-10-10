@@ -219,9 +219,10 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        // Ensure you import 'deleteDoc' and 'writeBatch' if you move deletion logic here, 
+        // but for now, we only need read functions.
         import { getFirestore, collection, getDocs, query } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // *** YOUR ORIGINAL FIREBASE CONFIGURATION ***
         const firebaseConfig = {
             apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
             authDomain: "bet-acc-software.firebaseapp.com",
@@ -230,7 +231,6 @@
             messagingSenderId: "879522152449",
             appId: "1:879522152449:web:73b8ef899d5c1cbfd90000"
         };
-        // *******************************************
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
@@ -238,37 +238,28 @@
         let allLedgerEntries = [];
         let uniqueAccounts = new Set();
 
-        // This function is CRITICAL for correct sorting.
         function getEntrySortKey(entry) {
             const dateStr = entry.date || '';
             const timestampStr = entry.timestamp || '';
-
-            // Handle date parsing (DD-MM-YYYY to YYYY-MM-DD for reliable Date object creation)
-            let date = new Date(0); // Default to epoch
+            let date = new Date(0); 
             const parts = dateStr.split('-');
             if (parts.length === 3) {
-                // YYYY-MM-DD format is necessary for reliable parsing across browsers
                 const isoDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
                 date = new Date(isoDate);
             }
-            
             const dateMillis = date.getTime();
-            
-            // The timestamp (ISO string) ensures transactions posted in quick succession
-            // (e.g., the debit and credit side of an invoice) are ordered correctly.
             return { dateMillis, timestampStr };
         }
 
         function getAccountName(entry) {
-            // Note: entry.account is the preferred field from the new invoice/receipt code
             return entry.account || entry.accountType || entry.doc_type || 'Unknown';
         }
 
-        // *** MODIFIED loadLedgerData to reset loading state ***
+        // loadLedgerData is now global and used by the Refresh button
         async function loadLedgerData() {
-            // Show loading state and hide content temporarily for a clean refresh
             document.getElementById('loading').style.display = 'block';
             document.getElementById('mainContent').style.display = 'none';
+            document.getElementById('loading').textContent = 'Loading ledger data...';
 
             try {
                 const ledgerQuery = query(collection(db, "ledger"));
@@ -288,20 +279,15 @@
                     allLedgerEntries.push(data);
                 });
 
-                // *** SORTING LOGIC: Date in milliseconds first, then Timestamp string ***
                 allLedgerEntries.sort((a, b) => {
                     const keyA = getEntrySortKey(a);
                     const keyB = getEntrySortKey(b);
                     
-                    // 1. Sort by Date (primary)
                     if (keyA.dateMillis !== keyB.dateMillis) {
                         return keyA.dateMillis - keyB.dateMillis;
                     }
-                    
-                    // 2. Sort by Timestamp (secondary, for same-day transactions)
                     return keyA.timestampStr.localeCompare(keyB.timestampStr);
                 });
-                // *******************************************************************
                 
                 populateAccountFilter();
                 displayLedger(allLedgerEntries);
@@ -314,7 +300,6 @@
                 document.getElementById('loading').innerHTML = 'Error loading ledger data. Please refresh the page.';
             }
         }
-        // ***************************************************************
 
         function populateAccountFilter() {
             const accountFilter = document.getElementById('account-filter');
@@ -336,12 +321,17 @@
             let runningBalance = 0;
             ledgerBody.innerHTML = '';
 
+            if (entries.length === 0) {
+                 // Add a row to indicate no data
+                const row = ledgerBody.insertRow();
+                row.innerHTML = `<td colspan="7" style="text-align: center; font-style: italic; color: #888;">No entries found in the General Ledger.</td>`;
+            }
+
             entries.forEach(entry => {
                 const row = ledgerBody.insertRow();
                 const debit = parseFloat(entry.debit || 0);
                 const credit = parseFloat(entry.credit || 0);
                 
-                // Balance calculation: Debit - Credit
                 runningBalance += (debit - credit);
 
                 const displayAccount = getAccountName(entry);
@@ -392,7 +382,6 @@
                 });
             }
             
-            // The filtered list must also be sorted to ensure correct running balance calculation.
             filteredEntries.sort((a, b) => {
                 const keyA = getEntrySortKey(a);
                 const keyB = getEntrySortKey(b);
@@ -416,7 +405,6 @@
             displayLedger(filteredEntries);
         }
 
-        // *** NEW HELPER FUNCTION to reset filter and title ***
         function resetFilterState() {
             document.getElementById('search-bar').value = '';
             document.getElementById('account-filter').value = '';
@@ -430,11 +418,9 @@
 
         function viewDocument(docNumber) {
             if (!docNumber) return;
-            
             let targetURL = '';
             const upperDoc = docNumber.toUpperCase();
 
-            // All document prefixes should be handled here to provide the link to edit/view
             if (upperDoc.startsWith('CR-')) {
                 targetURL = `receipt.html?edit=${docNumber}`;
             } else if (upperDoc.startsWith('VP-')) {
@@ -445,11 +431,10 @@
                 targetURL = `purchase-invoice.html?edit=${docNumber}`;
             } else if (upperDoc.startsWith('JE-')) {
                 targetURL = `journal-entry.html?edit=${docNumber}`;
-            // Handle older, numeric-only sales invoices (00135)
             } else if (!isNaN(parseInt(upperDoc)) && upperDoc.length === 5) {
                 targetURL = `invoice.html?edit=${upperDoc}`;
             } else {
-                alert(`Unrecognized document type for: ${docNumber}. Cannot open the document. Please ensure documents have a valid prefix (e.g., SI-, PI-, CR-, VP-, JE-).`);
+                alert(`Unrecognized document type for: ${docNumber}. Cannot open the document.`);
                 return;
             }
             
@@ -478,7 +463,6 @@
         window.filterLedger = filterLedger;
         window.resetLedger = resetLedger;
         window.generatePDF = generatePDF;
-        // Make the main data loading function globally accessible for the refresh button
         window.loadLedgerData = loadLedgerData; 
         window.viewDocument = viewDocument;
     </script>
