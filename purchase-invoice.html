@@ -312,7 +312,7 @@
             return lineItems;
         }
 
-        // --- START OF CRITICAL FIXES FOR LEDGER ENTRY ---
+        // --- START OF CORRECTED CRITICAL LEDGER ENTRY LOGIC ---
         window.saveInvoice = async function() {
             const invoiceNumber = document.getElementById('invoiceNumber').value;
             const invoiceDate = document.getElementById('invoiceDate').value;
@@ -336,7 +336,7 @@
                 const numericNumber = parseInt(invoiceNumber.replace('PI-', ''), 10);
                 const initialTimestamp = new Date();
                 
-                // 1. Generate Summarized Description (like Sales Invoice)
+                // 1. Generate Summarized Description
                 let itemDescriptions = lineItems.map(item => item.description).filter(d => d.trim() !== '');
                 let goodsSummary = "Goods Purchased";
                 if (itemDescriptions.length > 0) {
@@ -348,13 +348,13 @@
                         goodsSummary = `${itemDescriptions[0]} & ${itemDescriptions.length - 1} other items`;
                     }
                 }
-                const purchaseDescription = `Purchase from ${partyName}: ${goodsSummary}`;
+                const purchaseDescription = `Purchase from ${partyName} : ${goodsSummary}`;
 
 
                 const invoiceData = {
                     type: 'Purchase Invoice',
                     number: invoiceNumber,
-                    numericNumber: numericNumber, // FIX: Save numeric part for sorting
+                    numericNumber: numericNumber, 
                     date: invoiceDate,
                     party: partyName,
                     paymentMethod: paymentMethod,
@@ -372,7 +372,6 @@
                 // Handle deletion of old document if invoice number changed
                 if (isEditing && originalDocNumber !== invoiceNumber) {
                     await deleteDoc(doc(db, "purchaseInvoices", originalDocNumber));
-                    // The old doc number is already the correct PI-XXXXX format
                     const oldDocNumber = originalDocNumber; 
                     const ledgerQuery = query(collection(db, "ledger"));
                     const ledgerSnapshot = await getDocs(ledgerQuery);
@@ -401,23 +400,30 @@
                     {
                         date: invoiceDate,
                         doc_number: invoiceNumber,
-                        account: "Inventory", // or "Purchases"
+                        doc_type: 'Purchase Invoice',
+                        account: "Inventory", 
+                        party: partyName,
                         debit: grossTotal,
                         credit: 0,
-                        // FIX 2: Use summarized description
+                        // Description: detailed summary
                         description: purchaseDescription, 
-                        // FIX 1: Use initial unique timestamp
+                        // **FIX**: Save the goods summary in a dedicated field for easy lookup
+                        goods_summary: goodsSummary, 
                         timestamp: initialTimestamp.toISOString()
                     },
                     // 2. Vendor/Party Name Entry (CREDIT - Net Total owed)
                     {
                         date: invoiceDate,
                         doc_number: invoiceNumber,
+                        doc_type: 'Purchase Invoice', 
                         account: partyName,
+                        party: partyName, 
                         debit: 0,
                         credit: netTotal,
-                        // FIX 1: Use unique timestamp (incremented by 1 millisecond)
-                        description: `Amount payable to ${partyName} for PI #${numericNumber}`,
+                        // **FIX**: Use the detailed description for the Payable Account as well
+                        description: purchaseDescription,
+                        // **FIX**: Save the goods summary in a dedicated field
+                        goods_summary: goodsSummary,
                         timestamp: new Date(initialTimestamp.getTime() + (++timeOffset)).toISOString()
                     }
                 ];
@@ -427,11 +433,15 @@
                     ledgerEntries.push({
                         date: invoiceDate,
                         doc_number: invoiceNumber,
-                        account: "Commission Expense", // Or "Commission Paid"
+                        doc_type: 'Purchase Invoice', 
+                        account: "Commission Expense", 
+                        party: partyName, 
                         debit: commissionAmount,
                         credit: 0,
-                        // FIX 1: Use unique timestamp (incremented by 2 milliseconds)
-                        description: `Commission paid on PI #${numericNumber}`,
+                        // Description tailored for Commission
+                        description: `Commission paid on PI #${numericNumber} (for ${goodsSummary})`,
+                        // **FIX**: Save the goods summary in a dedicated field
+                        goods_summary: goodsSummary,
                         timestamp: new Date(initialTimestamp.getTime() + (++timeOffset)).toISOString()
                     });
                 }
@@ -443,7 +453,7 @@
                 }
 
                 alert(isEditing ? `Purchase Invoice ${invoiceNumber} updated successfully!` : `New Purchase Invoice ${invoiceNumber} saved successfully!`);
-                window.location.href = 'documents.html';
+                setTimeout(() => window.location.href = 'documents.html', 500); 
             } catch (error) {
                 console.error("Error saving invoice:", error);
                 alert("Error saving invoice. Please check console for details.");
