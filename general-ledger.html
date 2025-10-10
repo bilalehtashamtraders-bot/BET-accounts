@@ -184,7 +184,8 @@
                 <button onclick="filterLedger()">Filter</button>
                 <button onclick="resetLedger()">Show All</button>
                 <button onclick="generatePDF()">Generate PDF</button>
-                <button onclick="loadLedgerData()">Refresh Ledger</button> <button onclick="window.location.href='documents.html'">Back to Documents</button>
+                <button onclick="loadLedgerData()">Refresh Ledger</button> 
+                <button onclick="window.location.href='documents.html'">Back to Documents</button>
             </div>
         </div>
 
@@ -219,8 +220,6 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        // Ensure you import 'deleteDoc' and 'writeBatch' if you move deletion logic here, 
-        // but for now, we only need read functions.
         import { getFirestore, collection, getDocs, query } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -255,13 +254,13 @@
             return entry.account || entry.accountType || entry.doc_type || 'Unknown';
         }
 
-        // loadLedgerData is now global and used by the Refresh button
         async function loadLedgerData() {
             document.getElementById('loading').style.display = 'block';
             document.getElementById('mainContent').style.display = 'none';
             document.getElementById('loading').textContent = 'Loading ledger data...';
 
             try {
+                // This is the CRITICAL line: it reads from the 'ledger' collection.
                 const ledgerQuery = query(collection(db, "ledger"));
                 const snapshot = await getDocs(ledgerQuery);
                 
@@ -291,13 +290,13 @@
                 
                 populateAccountFilter();
                 displayLedger(allLedgerEntries);
-                resetFilterState(); // Reset filters and title on full refresh
+                resetFilterState(); 
                 
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('mainContent').style.display = 'block';
             } catch (error) {
                 console.error("Error loading ledger:", error);
-                document.getElementById('loading').innerHTML = 'Error loading ledger data. Please refresh the page.';
+                document.getElementById('loading').innerHTML = 'Error loading ledger data. Please check your Firebase connection.';
             }
         }
 
@@ -322,7 +321,6 @@
             ledgerBody.innerHTML = '';
 
             if (entries.length === 0) {
-                 // Add a row to indicate no data
                 const row = ledgerBody.insertRow();
                 row.innerHTML = `<td colspan="7" style="text-align: center; font-style: italic; color: #888;">No entries found in the General Ledger.</td>`;
             }
@@ -421,6 +419,7 @@
             let targetURL = '';
             const upperDoc = docNumber.toUpperCase();
 
+            // The list of pages to view/edit the document
             if (upperDoc.startsWith('CR-')) {
                 targetURL = `receipt.html?edit=${docNumber}`;
             } else if (upperDoc.startsWith('VP-')) {
@@ -434,13 +433,13 @@
             } else if (!isNaN(parseInt(upperDoc)) && upperDoc.length === 5) {
                 targetURL = `invoice.html?edit=${upperDoc}`;
             } else {
-                alert(`Unrecognized document type for: ${docNumber}. Cannot open the document.`);
+                alert(`Document Type Unrecognized: ${docNumber}. Cannot open the document.`);
                 return;
             }
             
-            if (targetURL) {
-                window.location.href = targetURL;
-            }
+            // Check if the document exists before navigating (Optional improvement, but requires fetching the doc)
+            // Since the user is already complaining it's missing, we rely on the deletion fix.
+            window.location.href = targetURL;
         }
 
         function generatePDF() {
