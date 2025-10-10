@@ -312,6 +312,7 @@
             });
         }
 
+        // --- START OF CORRECTED CRITICAL DISPLAY LOGIC ---
         function displayLedger(entries) {
             const ledgerBody = document.getElementById('ledger-body');
             let totalDebit = 0;
@@ -337,33 +338,24 @@
                     `<span class="doc-link" onclick="window.viewDocument('${docNumber}')">${docNumber}</span>` : 
                     'N/A';
 
-                // --- NEW LOGIC FOR DETAILED DESCRIPTION ---
                 let displayDescription = entry.description || '';
                 
-                // Check if the entry is from a Purchase Invoice (PI) and if it has the extra detail fields
-                if (docNumber.toUpperCase().startsWith('PI-') && entry.itemDescription) {
-                    // This assumes your ledger entry for PI includes fields like:
-                    // itemDescription (e.g., '150.144.sim AA grade (Holding)')
-                    // party (e.g., 'Polyester Doctor Faisal')
-                    // Note: If you want to customize the description further, you'd modify the line below.
-                    
-                    // Use the detailed item description regardless of the account (for consistency)
+                // If it's a Purchase Invoice (PI) entry, use the goods_summary field (saved by purchase-invoice.html)
+                if (docNumber.toUpperCase().startsWith('PI-') && entry.goods_summary) {
+                    const partyName = entry.party || 'Vendor'; 
+                    const goodsSummary = entry.goods_summary;
+
+                    // If the account is Inventory OR the Payable Party, use the standard detailed format
                     if (displayAccount.toUpperCase() === 'INVENTORY' || entry.party === displayAccount) {
-                        // Example structure from your screenshot: "Purchase from Polyester Doctor Faisal : 150.144.sim AA grade (Holding)"
-                        const partyName = entry.party || 'Vendor'; 
-                        
-                        // Construct the detailed description
-                        if (displayAccount.toUpperCase() === 'INVENTORY') {
-                             displayDescription = `Purchase from ${partyName} : ${entry.itemDescription}`;
-                        } else if (entry.party === displayAccount) {
-                             displayDescription = `Amount payable to ${partyName} for PI #${docNumber}`;
-                             // If you specifically want to add itemDescription to the payable ledger, uncomment the line below:
-                             displayDescription += ` | Item: ${entry.itemDescription}`; 
-                        }
-                        
+                         displayDescription = `Purchase from ${partyName} : ${goodsSummary}`;
+                    } 
+                    // For Commission Expense, use the specific description that includes context
+                    else if (displayAccount.toUpperCase() === 'COMMISSION EXPENSE') {
+                         displayDescription = entry.description; // Uses the detailed description saved in saveInvoice()
                     }
+                    // All other PI entries (like Sales Tax) will use the default entry.description
                 }
-                // --- END NEW LOGIC ---
+                // --- END OF CORRECTED CRITICAL DISPLAY LOGIC ---
 
                 row.innerHTML = `
                     <td>${entry.date || 'N/A'}</td>
@@ -395,13 +387,13 @@
                     const description = (entry.description || '').toLowerCase();
                     const docNumber = (entry.doc_number || '').toLowerCase();
                     
-                    // Add item description search for PI entries
-                    const itemDescription = (entry.itemDescription || '').toLowerCase();
+                    // Add goods_summary search for PI entries
+                    const goodsSummary = (entry.goods_summary || '').toLowerCase();
 
                     return account.includes(searchTerm) || 
                            description.includes(searchTerm) || 
                            docNumber.includes(searchTerm) ||
-                           itemDescription.includes(searchTerm);
+                           goodsSummary.includes(searchTerm);
                 });
             }
 
