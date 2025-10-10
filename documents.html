@@ -71,11 +71,12 @@
         .nav-buttons button:hover {
             background-color: #005599;
         }
+        /* CHANGE: Use a different color for the bulk clearing button */
         .nav-buttons button.refresh {
-            background-color: #28a745;
+            background-color: #dc3545; /* Red for the potentially dangerous full clear */
         }
         .nav-buttons button.refresh:hover {
-            background-color: #218838;
+            background-color: #c82333;
         }
         .search-filter-container {
             display: flex;
@@ -253,7 +254,7 @@
             <button onclick="window.location.href='vendor-payment-receipt.html'">New Vendor Payment</button>
             <button onclick="window.location.href='general-ledger.html'">View General Ledger</button>
             <button onclick="window.location.href='trial-balance.html'">Trial Balance</button>
-            <button onclick="location.reload()" class="refresh">Refresh</button>
+            <button onclick="clearAllDataAndRefresh()" class="refresh">Clear & Refresh All</button> 
         </div>
 
         <div class="search-filter-container">
@@ -276,7 +277,6 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        // NOTE: Added getDocs, query, where for optimized ledger deletion
         import { getFirestore, collection, getDocs, deleteDoc, doc, query, where, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -294,6 +294,65 @@
         console.log("✓ Firebase initialized successfully");
 
         let allDocuments = [];
+        
+        // --- NEW FUNCTION: BULK LEDGER CLEAR ---
+        async function clearAllLedgerEntries() {
+            if (!confirm("🚨 WARNING: This will delete ALL transactions from the General Ledger. Are you absolutely sure? This is IRREVERSIBLE.")) {
+                return false;
+            }
+            
+            console.log("\n=== Starting Bulk Ledger Clear ===");
+            const ledgerCollectionRef = collection(db, "ledger");
+            try {
+                const snapshot = await getDocs(ledgerCollectionRef);
+                
+                if (snapshot.empty) {
+                    console.log("Ledger is already empty. Nothing to delete.");
+                    return true;
+                }
+
+                const batch = writeBatch(db);
+                snapshot.forEach((ledgerDoc) => {
+                    batch.delete(ledgerDoc.ref);
+                });
+                
+                await batch.commit();
+
+                console.log(`✓ Successfully cleared ${snapshot.size} entries from the General Ledger.`);
+                return true; 
+
+            } catch (error) {
+                console.error("✗ CRITICAL ERROR: Failed to clear General Ledger entries.", error);
+                alert("CRITICAL ERROR: Failed to clear General Ledger entries. Check console for details.");
+                return false;
+            }
+        }
+        
+        // --- NEW FUNCTION: BULK DOCUMENT CLEAR (If needed, otherwise use this to call the Ledger clear) ---
+        async function clearAllDataAndRefresh() {
+             // You confirmed your documents are already showing 0, so the main document clear is working 
+             // in some other script/process. The only thing left is the ledger.
+             
+             // If you have a separate function like 'clearAllMainDocumentCollections()', call it here first.
+             // Example: await clearAllMainDocumentCollections();
+
+             // The essential step to fix your issue:
+             const ledgerCleared = await clearAllLedgerEntries();
+             
+             if (ledgerCleared) {
+                 // Reload to update stats and show the empty document list (which is already working)
+                 // This ensures the General Ledger is truly empty next time you check.
+                 console.log("✓ All data cleared. Reloading page...");
+                 window.location.reload(); 
+             } else {
+                 alert("Clearance canceled or failed.");
+             }
+        }
+        // Expose the new function globally
+        window.clearAllDataAndRefresh = clearAllDataAndRefresh;
+
+
+        // --- EXISTING LOGIC BELOW (Mostly untouched, except to expose new function) ---
 
         async function loadAllDocuments() {
             try {
@@ -463,6 +522,7 @@
             window.location.href = `${editUrl}?edit=${docId}`;
         };
 
+        // This function handles SINGLE document deletion and its corresponding ledger entries.
         window.deleteDocument = async function(docId, collectionName, docIdentifier) {
             if (!confirm(`Are you sure you want to delete document #${docIdentifier} from ${collectionName}?\n\nThis will:\n• Delete the main document.\n• Remove ALL related entries from the 'ledger' collection.\n• This action CANNOT be undone!`)) {
                 return;
@@ -476,7 +536,7 @@
                 await deleteDoc(doc(db, collectionName, docId));
                 console.log('✓ Main document deleted');
 
-                // 2. Delete related ledger entries (Optimized using batch for up to 500 documents)
+                // 2. Delete related ledger entries (Optimized using batch)
                 const ledgerQuery = query(collection(db, "ledger"), where("doc_number", "==", docIdentifier));
                 const ledgerSnapshot = await getDocs(ledgerQuery);
                 
