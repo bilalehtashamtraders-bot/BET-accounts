@@ -1,0 +1,1332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vendor Payment Voucher - Bilal Ehtasham Traders</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            color: #333;
+        }
+        .receipt-container {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            border: 1px solid #ccc;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #003366;
+            padding-bottom: 10px;
+        }
+        .header h1 {
+            font-size: 24px;
+            margin: 0;
+            color: #003366;
+        }
+        .business-info {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .business-info p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        .business-info h2 {
+            color: #003366;
+        }
+        .details-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .details-table td {
+            padding: 8px 0;
+            font-size: 14px;
+        }
+        .details-table .label {
+            font-weight: bold;
+            width: 150px;
+        }
+        .editable-field {
+            border: none;
+            border-bottom: 1px solid #ccc;
+            font-size: 14px;
+            width: calc(100% - 160px);
+            padding: 2px 0;
+            background: transparent;
+        }
+        #amount-in-words-container {
+            width: calc(100% - 100px);
+        }
+        #amount-in-words {
+            width: 100%;
+            border: none;
+            border-bottom: 1px solid #ccc;
+            font-size: 14px;
+            background: transparent;
+        }
+        .amount-section {
+            border-top: 1px solid #ccc;
+            padding-top: 15px;
+        }
+        .amount-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .amount-row .label {
+            font-weight: bold;
+        }
+        .calculated-value {
+            font-weight: bold;
+        }
+        .action-buttons button {
+            padding: 10px;
+            margin: 10px 5px 10px 0; 
+            cursor: pointer;
+            background-color: #003366;
+            color: white;
+            border: none;
+        }
+        .action-buttons button:hover {
+            background-color: #002244;
+        }
+        .delete-button {
+            background-color: #cc0000 !important;
+        }
+        .delete-button:hover {
+            background-color: #aa0000 !important;
+        }
+        .payment-method {
+            margin-bottom: 15px;
+        }
+        .input-group {
+            display: flex;
+            align-items: center;
+            width: 100%;
+        }
+        .input-group input, .input-group select {
+            flex-grow: 1; 
+            text-align: right;
+            border: none;
+            border-bottom: 1px solid #ccc;
+            background: transparent;
+            padding: 2px 0;
+        }
+        .input-group .suffix {
+            margin-left: 5px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        .input-group span:first-child {
+            font-weight: bold;
+            margin-right: 5px;
+            white-space: nowrap;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #003366;
+        }
+        .balance-loading {
+            color: #003366;
+            font-size: 12px;
+            font-style: italic;
+        }
+        .balance-success {
+            color: #008800;
+            font-size: 12px;
+        }
+        .balance-error {
+            color: #cc0000;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading" id="loading">Loading...</div>
+    <div style="display: none;" id="mainContent">
+        <div class="action-buttons" style="max-width: 600px; margin: 0 auto; margin-bottom: 20px;">
+            <button onclick="savePayment()">Save/Update Payment</button>
+            <button onclick="deletePayment()" id="deleteButton" class="delete-button" style="display: none;">Delete Payment</button>
+            <button onclick="generatePDF()">Generate PDF</button>
+            <button onclick="window.location.href='documents.html'">View All Documents</button>
+        </div>
+
+        <div class="receipt-container">
+            <div class="header">
+                <h1>VENDOR PAYMENT VOUCHER</h1>
+            </div>
+            <div class="business-info">
+                <h2 style="color: #003366;">(BET) Bilal Ehtasham Traders</h2>
+                <p>Deals in all kinds of Cotton and Polyester Yarn</p>
+                <p>Email: bilalehtashamtraders@gmail.com</p>
+                <p>Cell: (+92)-324-2479096</p>
+            </div>
+        
+            <table class="details-table">
+                <tr>
+                    <td class="label">Voucher No:</td>
+                    <td><input type="text" class="editable-field" id="receipt-no" placeholder="e.g., 00100" readonly></td>
+                </tr>
+                <tr>
+                    <td class="label">Date:</td>
+                    <td><input type="text" class="editable-field" id="receipt-date" placeholder="e.g., 27-09-2025"></td>
+                </tr>
+                <tr>
+                    <td class="label">Paid To:</td>
+                    <td><input type="text" class="editable-field" id="paid-to" placeholder="e.g., XYZ Suppliers"></td>
+                </tr>
+                <tr>
+                    <td class="label">Business (Ledger):</td>
+                    <td>
+                        <input type="text" class="editable-field" id="business-ledger" placeholder="e.g., Vendor Name">
+                        <div id="balance-status" class="balance-loading" style="display: none; margin-top: 5px;"></div>
+                    </td>
+                </tr>
+            </table>
+        
+            <div class="payment-method">
+                <label for="paidFromAccount">Paid From Account:</label>
+                <select id="paidFromAccount" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"></select>
+            </div>
+        
+            <table class="details-table">
+                <tr>
+                    <td class="label">Previous Payable:</td>
+                    <td>
+                        <div class="input-group">
+                            <span>PKR:</span>
+                            <input type="text" id="previous-payable" style="width: 100%; text-align: right;" readonly>
+                            <span class="suffix">/=</span>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="label">Cheque/Online Ref:</td>
+                    <td><input type="text" class="editable-field" id="cheque-ref" placeholder="e.g., 344151"></td>
+                </tr>
+                <tr>
+                    <td class="label">Cheque/Bank name:</td>
+                    <td><input type="text" class="editable-field" id="cheque-bank" placeholder="e.g., HBL"></td>
+                </tr>
+                <tr>
+                    <td class="label">Account Title:</td>
+                    <td><input type="text" class="editable-field" id="account-title" placeholder="e.g., Vendor Account Title"></td>
+                </tr>
+            </table>
+        
+            <div class="amount-section">
+                <div class="amount-row">
+                    <span class="label">Amount Paid:</span>
+                    <div class="input-group">
+                        <span>PKR:</span>
+                        <input type="text" id="amount-paid" style="width: 100%; text-align: right;">
+                        <span class="suffix">/=</span>
+                    </div>
+                </div>
+                <div class="amount-row">
+                    <span class="label">In Words:</span>
+                    <span id="amount-in-words-container">
+                        <input type="text" id="amount-in-words" placeholder="e.g., Fifty seven thousand only" readonly>
+                    </span>
+                </div>
+            </div>
+        
+            <div class="amount-section">
+                <div class="amount-row">
+                    <span class="label">Remaining Payable:</span>
+                    <span class="calculated-value" id="remaining-payable">PKR: 0/=</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4", 
+            authDomain: "bet-acc-software.firebaseapp.com",
+            projectId: "bet-acc-software",
+            storageBucket: "bet-acc-software.firebasestorage.app",
+            messagingSenderId: "879522152449",
+            appId: "1:879522152449:web:73b8ef899d5c1cbfd90000"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        let isEditing = false;
+        let originalDocNumber = null;
+        let debounceTimer = null;
+        const STARTING_PAYMENT_NUMBER = 99;
+
+        const cashAndBankAccounts = [
+            { id: "CashInHand", name: "Cash in Hand", type: "Asset - Cash" },
+            { id: "MeezanBank", name: "Meezan Bank", type: "Asset - Bank" },
+            { id: "UnitedBank", name: "United Bank Ltd", type: "Asset - Bank" },
+            { id: "BankAlHabib", name: "Bank Al Habib", type: "Asset - Bank" },
+            { id: "DirectPartyAccount", name: "Direct Party Account", type: "Special - Direct Settlement" },
+            { id: "BET_Dasti", name: "BET (Dasti) Account", type: "Other Balances" },
+            { id: "BET_Expense", name: "BET (Expense) Account", type: "Other Balances" },
+        ];
+
+        function populatePaymentAccounts() {
+            const select = document.getElementById('paidFromAccount');
+            select.innerHTML = ''; 
+
+            cashAndBankAccounts.forEach(account => {
+                const option = document.createElement('option');
+                option.value = account.id; 
+                option.textContent = `${account.name} (${account.type})`;
+                select.appendChild(option);
+            });
+        }
+
+        async function getNextVoucherNumber() {
+            try {
+                const q = query(collection(db, "vendorPayments"), orderBy("number", "desc"), limit(1));
+                const snapshot = await getDocs(q);
+                
+                if (!snapshot.empty) {
+                    const lastDoc = snapshot.docs[0].data();
+                    const lastNumber = parseInt(lastDoc.number) || STARTING_PAYMENT_NUMBER;
+                    const nextNumber = lastNumber + 1;
+                    return String(nextNumber).padStart(4, '0');
+                } else {
+                    return String(STARTING_PAYMENT_NUMBER + 1).padStart(4, '0');
+                }
+            } catch (error) {
+                console.error("Error getting next voucher number:", error);
+                return String(STARTING_PAYMENT_NUMBER + 1).padStart(4, '0');
+            }
+        }
+
+        async function fetchPreviousPayable(vendorName) {
+            const previousPayableInput = document.getElementById('previous-payable');
+            const statusDiv = document.getElementById('balance-status');
+
+            if (!vendorName || vendorName.trim() === '') {
+                previousPayableInput.value = '0';
+                statusDiv.style.display = 'none';
+                calculateRemainingPayable();
+                return;
+            }
+
+            statusDiv.style.display = 'block';
+            statusDiv.className = 'balance-loading';
+            statusDiv.textContent = 'Fetching payable...';
+
+            try {
+                const ledgerQuery = query(collection(db, "ledger"));
+                const ledgerSnapshot = await getDocs(ledgerQuery);
+
+                let vendorPayable = 0;
+                let foundEntries = 0;
+
+                ledgerSnapshot.forEach((doc) => {
+                    const entry = doc.data();
+                    
+                    if (entry.account && 
+                        entry.account.toLowerCase().includes(vendorName.toLowerCase())) {
+                        
+                        vendorPayable += parseFloat(entry.credit || 0);
+                        vendorPayable -= parseFloat(entry.debit || 0);
+                        foundEntries++;
+                    }
+                });
+
+                previousPayableInput.value = vendorPayable.toLocaleString('en-US', {maximumFractionDigits: 0});
+                
+                if (foundEntries > 0) {
+                    statusDiv.className = 'balance-success';
+                    statusDiv.textContent = `✓ Found ${foundEntries} transaction(s) | Payable: ${vendorPayable.toLocaleString()}`;
+                    setTimeout(() => {
+                        statusDiv.style.display = 'none';
+                    }, 3000);
+                } else {
+                    statusDiv.className = 'balance-error';
+                    statusDiv.textContent = '✗ No transactions found for this vendor';
+                    previousPayableInput.value = '0';
+                    setTimeout(() => {
+                        statusDiv.style.display = 'none';
+                    }, 3000);
+                }
+
+                calculateRemainingPayable();
+
+            } catch (error) {
+                console.error("Error fetching previous payable:", error);
+                statusDiv.className = 'balance-error';
+                statusDiv.textContent = '✗ Error fetching payable';
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 3000);
+            }
+        }
+
+        function onLedgerNameChange(event) {
+            const vendorName = event.target.value;
+            
+            if (debounceTimer) {
+                clearTimeout(debounceTimer);
+            }
+
+            debounceTimer = setTimeout(() => {
+                fetchPreviousPayable(vendorName);
+            }, 500);
+        }
+
+        function populateForm(doc) {
+            document.getElementById('receipt-no').value = doc.number;
+            document.getElementById('receipt-date').value = doc.date;
+            document.getElementById('paid-to').value = doc.paidTo;
+            document.getElementById('business-ledger').value = doc.businessLedger;
+            
+            document.getElementById('paidFromAccount').value = doc.paidFromAccountID || 'DirectPartyAccount'; 
+            
+            document.getElementById('previous-payable').value = (doc.previousPayable || 0).toLocaleString('en-US', {maximumFractionDigits: 0});
+            document.getElementById('cheque-ref').value = doc.chequeRef || '';
+            document.getElementById('cheque-bank').value = doc.chequeBank || '';
+            document.getElementById('account-title').value = doc.accountTitle || '';
+            document.getElementById('amount-paid').value = (doc.amountPaid || 0).toLocaleString('en-US', {maximumFractionDigits: 0});
+            
+            updateAmountInWords();
+            calculateRemainingPayable();
+            fetchPreviousPayable(doc.businessLedger);
+        }
+
+        function formatAndCalculate(event) {
+            const input = event.target;
+            let value = input.value.replace(/[^0-9.]/g, ''); 
+
+            if (value !== "") {
+                const parts = value.split('.');
+                if (parts.length > 2) {
+                    value = parts[0] + '.' + parts.slice(1).join('');
+                }
+                input.value = value;
+            }
+            
+            input.addEventListener('blur', function() {
+                let blurredValue = input.value.replace(/[^0-9.]/g, '');
+                if (blurredValue !== "") {
+                    input.value = parseFloat(blurredValue).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                }
+            }, { once: true });
+            
+            updateAmountInWords();
+            calculateRemainingPayable();
+        }
+
+        function updateAmountInWords() {
+            const amountPaidInput = document.getElementById('amount-paid');
+            const amountInWordsInput = document.getElementById('amount-in-words');
+            let amountValue = parseFloat(amountPaidInput.value.replace(/,/g, '')) || 0;
+            
+            const words = numberToWords(amountValue);
+            amountInWordsInput.value = words ? words + " only" : "";
+        }
+
+        function numberToWords(num) {
+            if (num === 0) return 'Zero';
+            const a = ['', 'one ', 'two ', 'three ', 'four ', 'five ', 'six ', 'seven ', 'eight ', 'nine ', 'ten ', 'eleven ', 'twelve ', 'thirteen ', 'fourteen ', 'fifteen ', 'sixteen ', 'seventeen ', 'eighteen ', 'nineteen '];
+            const b = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+            let n = ('000000000' + Math.floor(num)).substr(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
+            if (!n) return '';
+            let str = '';
+            str += (n[1] != 0) ? (a[Number(n[1])] || b[n[1][0]] + ' ' + a[n[1][1]]) + 'crore ' : '';
+            str += (n[2] != 0) ? (a[Number(n[2])] || b[n[2][0]] + ' ' + a[n[2][1]]) + 'lakh ' : '';
+            str += (n[3] != 0) ? (a[Number(n[3])] || b[n[3][0]] + ' ' + a[n[3][1]]) + 'thousand ' : '';
+            str += (n[4] != 0) ? (a[Number(n[4])] || b[n[4][0]] + ' ' + a[n[4][1]]) + 'hundred ' : '';
+            str += (n[5] != 0) ? ((str != '' && n[4] == 0) ? 'and ' : '') + (a[Number(n[5])] || b[n[5][0]] + ' ' + a[n[5][1]]) : '';
+            return str.trim().charAt(0).toUpperCase() + str.trim().slice(1);
+        }
+
+        function calculateRemainingPayable() {
+            const previousPayable = parseFloat(document.getElementById('previous-payable').value.replace(/,/g, '')) || 0;
+            const amountPaid = parseFloat(document.getElementById('amount-paid').value.replace(/,/g, '')) || 0;
+            
+            const remainingPayable = previousPayable - amountPaid;
+            
+            document.getElementById('remaining-payable').textContent = `PKR: ${remainingPayable.toLocaleString('en-US', {minimumFractionDigits: 2})}/=`;
+        }
+
+        async function savePayment() {
+            const voucherNumber = document.getElementById('receipt-no').value;
+            const paymentDate = document.getElementById('receipt-date').value;
+            const paidTo = document.getElementById('paid-to').value;
+            const businessLedger = document.getElementById('business-ledger').value;
+            
+            const paidFromAccountElement = document.getElementById('paidFromAccount');
+            const paidFromAccountId = paidFromAccountElement.value; 
+            const paidFromAccountName = paidFromAccountElement.options[paidFromAccountElement.selectedIndex].textContent;
+
+            const previousPayable = parseFloat(document.getElementById('previous-payable').value.replace(/,/g, '')) || 0;
+            const amountPaid = parseFloat(document.getElementById('amount-paid').value.replace(/,/g, '')) || 0;
+
+            const chequeRef = document.getElementById('cheque-ref').value;
+            const chequeBank = document.getElementById('cheque-bank').value;
+            const accountTitle = document.getElementById('account-title').value;
+            const amountInWords = document.getElementById('amount-in-words').value;
+            const remainingPayable = parseFloat(document.getElementById('remaining-payable').textContent.replace(/PKR: |\/=|,/g, '')) || 0;
+
+            if (!paymentDate || !paidTo || !businessLedger) {
+                alert("Please fill in Date, Paid To, and Business (Ledger) fields.");
+                return;
+            }
+
+            if (amountPaid <= 0) {
+                alert("Please enter a valid amount paid.");
+                return;
+            }
+
+            const newPayment = {
+                number: voucherNumber,
+                date: paymentDate,
+                paidTo: paidTo,
+                businessLedger: businessLedger,
+                paidFromAccountID: paidFromAccountId, 
+                paidFromAccountName: paidFromAccountName,
+                previousPayable: previousPayable,
+                chequeRef: chequeRef,
+                chequeBank: chequeBank,
+                accountTitle: accountTitle,
+                amountPaid: amountPaid,
+                amountInWords: amountInWords,
+                remainingPayable: remainingPayable,
+                type: 'Vendor Payment',
+                timestamp: new Date().toISOString()
+            };
+
+            try {
+                await setDoc(doc(db, "vendorPayments", voucherNumber), newPayment);
+
+                if (isEditing) {
+                    const ledgerQuery = query(collection(db, "ledger"));
+                    const ledgerSnapshot = await getDocs(ledgerQuery);
+                    
+                    for (const docSnap of ledgerSnapshot.docs) {
+                        const ledgerEntry = docSnap.data();
+                        if (ledgerEntry.doc_number === originalDocNumber) {
+                            await deleteDoc(doc(db, "ledger", docSnap.id));
+                        }
+                    }
+                }
+
+                // PARTY LEDGER ENTRY: Always debit vendor's A/P (reduces liability)
+                const ledgerId_AP = `${voucherNumber}_AP_Debit_${Date.now()}_A`;
+                await setDoc(doc(db, "ledger", ledgerId_AP), {
+                    date: paymentDate,
+                    account: businessLedger,
+                    description: paidFromAccountId === "DirectPartyAccount" 
+                        ? `Direct Payment to ${businessLedger} (Voucher #${voucherNumber})`
+                        : `Payment to ${businessLedger} (Voucher #${voucherNumber})`,
+                    accountType: 'Accounts Payable',
+                    debit: amountPaid, 
+                    credit: 0,
+                    doc_number: voucherNumber,
+                    paidVia: paidFromAccountId === "DirectPartyAccount" ? "Direct Party Account" : paidFromAccountName,
+                    timestamp: new Date().toISOString()
+                });
+                
+                // ASSET LEDGER ENTRY: Skip for Direct Party Account
+                if (paidFromAccountId !== "DirectPartyAccount") {
+                    const sourceAccount = cashAndBankAccounts.find(acc => acc.id === paidFromAccountId);
+                    const ledgerAccountType = sourceAccount ? sourceAccount.type : 'Other Balances';
+
+                    const ledgerId_Asset = `${voucherNumber}_Asset_Credit_${Date.now()}_B`;
+                    await setDoc(doc(db, "ledger", ledgerId_Asset), {
+                        date: paymentDate,
+                        account: paidFromAccountId, 
+                        description: `Vendor Payment to ${businessLedger} from ${sourceAccount.name} (Voucher #${voucherNumber})`,
+                        accountType: ledgerAccountType, 
+                        debit: 0,
+                        credit: amountPaid,
+                        doc_number: voucherNumber,
+                        timestamp: new Date().toISOString()
+                    });
+                }
+
+                alert(isEditing ? 'Vendor Payment updated successfully!' : 'Vendor Payment saved and ledger updated!');
+                window.location.href = 'documents.html';
+            } catch (error) {
+                console.error("Error saving payment:", error);
+                alert("Error saving payment. Please try again.");
+            }
+        }
+
+        async function deletePayment() {
+            const voucherNumber = document.getElementById('receipt-no').value;
+            
+            if (!confirm(`Are you sure you want to delete Vendor Payment voucher ${voucherNumber}? This cannot be undone.`)) {
+                return;
+            }
+
+            try {
+                await deleteDoc(doc(db, "vendorPayments", voucherNumber));
+
+                const ledgerQuery = query(collection(db, "ledger"));
+                const ledgerSnapshot = await getDocs(ledgerQuery);
+                
+                for (const docSnap of ledgerSnapshot.docs) {
+                    const ledgerEntry = docSnap.data();
+                    if (ledgerEntry.doc_number === voucherNumber) {
+                        await deleteDoc(doc(db, "ledger", docSnap.id));
+                    }
+                }
+
+                alert('Vendor Payment and associated ledger entries deleted successfully.');
+                window.location.href = 'documents.html';
+            } catch (error) {
+                console.error("Error deleting payment:", error);
+                alert("Error deleting payment. Please try again.");
+            }
+        }
+        
+        function generatePDF() {
+            const voucherNumber = document.getElementById('receipt-no').value;
+            const paymentDate = document.getElementById('receipt-date').value;
+            const paidTo = document.getElementById('paid-to').value;
+            const businessLedger = document.getElementById('business-ledger').value;
+            const paidFromAccountName = document.getElementById('paidFromAccount').options[document.getElementById('paidFromAccount').selectedIndex].textContent;
+            const previousPayable = document.getElementById('previous-payable').value;
+            const amountPaid = document.getElementById('amount-paid').value;
+            const amountInWords = document.getElementById('amount-in-words').value;
+            const remainingPayable = document.getElementById('remaining-payable').textContent;
+            const chequeRef = document.getElementById('cheque-ref').value;
+            const chequeBank = document.getElementById('cheque-bank').value;
+            const accountTitle = document.getElementById('account-title').value;
+
+            const pdfContent = `
+                <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto;">
+                    <h2 style="text-align: center; color: #003366; border-bottom: 2px solid #003366; padding-bottom: 10px;">VENDOR PAYMENT VOUCHER</h2>
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <h3 style="color: #003366;">(BET) Bilal Ehtasham Traders</h3>
+                        <p>Deals in all kinds of Cotton and Polyester Yarn</p>
+                        <p>Email: bilalehtashamtraders@gmail.com | Cell: (+92)-324-2479096</p>
+                    </div>
+                    <table style="width: 100%; margin-bottom: 20px;">
+                        <tr><td style="font-weight: bold; padding: 8px 0;">Voucher No:</td><td>${voucherNumber}</td></tr>
+                        <tr><td style="font-weight: bold; padding: 8px 0;">Date:</td><td>${paymentDate}</td></tr>
+                        <tr><td style="font-weight: bold; padding: 8px 0;">Paid To:</td><td>${paidTo}</td></tr>
+                        <tr><td style="font-weight: bold; padding: 8px 0;">Business (Ledger):</td><td>${businessLedger}</td></tr>
+                        <tr><td style="font-weight: bold; padding: 8px 0;">Paid From Account:</td><td>${paidFromAccountName}</td></tr>
+                        <tr><td style="font-weight: bold; padding: 8px 0;">Previous Payable:</td><td>PKR: ${previousPayable}/=</td></tr>
+                        <tr><td style="font-weight: bold; padding: 8px 0;">Cheque/Online Ref:</td><td>${chequeRef}</td></tr>
+                        <tr><td style="font-weight: bold; padding: 8px 0;">Cheque/Bank name:</td><td>${chequeBank}</td></tr>
+                        <tr><td style="font-weight: bold; padding: 8px 0;">Account Title:</td><td>${accountTitle}</td></tr>
+                    </table>
+                    <div style="border-top: 1px solid #ccc; padding-top: 15px; margin
+                    <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vendor Payment Voucher - Bilal Ehtasham Traders</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            color: #333;
+        }
+        .receipt-container {
+            width: 100%;
+            max-width: 600px;
+            margin: 0 auto;
+            border: 1px solid #ccc;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #003366;
+            padding-bottom: 10px;
+        }
+        .header h1 {
+            font-size: 24px;
+            margin: 0;
+            color: #003366;
+        }
+        .business-info {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .business-info p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        .business-info h2 {
+            color: #003366;
+        }
+        .details-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        .details-table td {
+            padding: 8px 0;
+            font-size: 14px;
+        }
+        .details-table .label {
+            font-weight: bold;
+            width: 150px;
+        }
+        .editable-field {
+            border: none;
+            border-bottom: 1px solid #ccc;
+            font-size: 14px;
+            width: calc(100% - 160px);
+            padding: 2px 0;
+            background: transparent;
+        }
+        #amount-in-words-container {
+            width: calc(100% - 100px);
+        }
+        #amount-in-words {
+            width: 100%;
+            border: none;
+            border-bottom: 1px solid #ccc;
+            font-size: 14px;
+            background: transparent;
+        }
+        .amount-section {
+            border-top: 1px solid #ccc;
+            padding-top: 15px;
+        }
+        .amount-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .amount-row .label {
+            font-weight: bold;
+        }
+        .calculated-value {
+            font-weight: bold;
+        }
+        .action-buttons button {
+            padding: 10px;
+            margin: 10px 5px 10px 0; 
+            cursor: pointer;
+            background-color: #003366;
+            color: white;
+            border: none;
+        }
+        .action-buttons button:hover {
+            background-color: #002244;
+        }
+        .delete-button {
+            background-color: #cc0000 !important;
+        }
+        .delete-button:hover {
+            background-color: #aa0000 !important;
+        }
+        .payment-method {
+            margin-bottom: 15px;
+        }
+        .input-group {
+            display: flex;
+            align-items: center;
+            width: 100%;
+        }
+        .input-group input, .input-group select {
+            flex-grow: 1; 
+            text-align: right;
+            border: none;
+            border-bottom: 1px solid #ccc;
+            background: transparent;
+            padding: 2px 0;
+        }
+        .input-group .suffix {
+            margin-left: 5px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        .input-group span:first-child {
+            font-weight: bold;
+            margin-right: 5px;
+            white-space: nowrap;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #003366;
+        }
+        .balance-loading {
+            color: #003366;
+            font-size: 12px;
+            font-style: italic;
+        }
+        .balance-success {
+            color: #008800;
+            font-size: 12px;
+        }
+        .balance-error {
+            color: #cc0000;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading" id="loading">Loading...</div>
+    <div style="display: none;" id="mainContent">
+        <div class="action-buttons" style="max-width: 600px; margin: 0 auto; margin-bottom: 20px;">
+            <button onclick="savePayment()">Save/Update Payment</button>
+            <button onclick="deletePayment()" id="deleteButton" class="delete-button" style="display: none;">Delete Payment</button>
+            <button onclick="generatePDF()">Generate PDF</button>
+            <button onclick="window.location.href='documents.html'">View All Documents</button>
+        </div>
+
+        <div class="receipt-container">
+            <div class="header">
+                <h1>VENDOR PAYMENT VOUCHER</h1>
+            </div>
+            <div class="business-info">
+                <h2 style="color: #003366;">(BET) Bilal Ehtasham Traders</h2>
+                <p>Deals in all kinds of Cotton and Polyester Yarn</p>
+                <p>Email: bilalehtashamtraders@gmail.com</p>
+                <p>Cell: (+92)-324-2479096</p>
+            </div>
+        
+            <table class="details-table">
+                <tr>
+                    <td class="label">Voucher No:</td>
+                    <td><input type="text" class="editable-field" id="receipt-no" placeholder="e.g., 00100" readonly></td>
+                </tr>
+                <tr>
+                    <td class="label">Date:</td>
+                    <td><input type="text" class="editable-field" id="receipt-date" placeholder="e.g., 27-09-2025"></td>
+                </tr>
+                <tr>
+                    <td class="label">Paid To:</td>
+                    <td><input type="text" class="editable-field" id="paid-to" placeholder="e.g., XYZ Suppliers"></td>
+                </tr>
+                <tr>
+                    <td class="label">Business (Ledger):</td>
+                    <td>
+                        <input type="text" class="editable-field" id="business-ledger" placeholder="e.g., Vendor Name">
+                        <div id="balance-status" class="balance-loading" style="display: none; margin-top: 5px;"></div>
+                    </td>
+                </tr>
+            </table>
+        
+            <div class="payment-method">
+                <label for="paidFromAccount">Paid From Account:</label>
+                <select id="paidFromAccount" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"></select>
+            </div>
+        
+            <table class="details-table">
+                <tr>
+                    <td class="label">Previous Payable:</td>
+                    <td>
+                        <div class="input-group">
+                            <span>PKR:</span>
+                            <input type="text" id="previous-payable" style="width: 100%; text-align: right;" readonly>
+                            <span class="suffix">/=</span>
+                        </div>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="label">Cheque/Online Ref:</td>
+                    <td><input type="text" class="editable-field" id="cheque-ref" placeholder="e.g., 344151"></td>
+                </tr>
+                <tr>
+                    <td class="label">Cheque/Bank name:</td>
+                    <td><input type="text" class="editable-field" id="cheque-bank" placeholder="e.g., HBL"></td>
+                </tr>
+                <tr>
+                    <td class="label">Account Title:</td>
+                    <td><input type="text" class="editable-field" id="account-title" placeholder="e.g., Vendor Account Title"></td>
+                </tr>
+            </table>
+        
+            <div class="amount-section">
+                <div class="amount-row">
+                    <span class="label">Amount Paid:</span>
+                    <div class="input-group">
+                        <span>PKR:</span>
+                        <input type="text" id="amount-paid" style="width: 100%; text-align: right;">
+                        <span class="suffix">/=</span>
+                    </div>
+                </div>
+                <div class="amount-row">
+                    <span class="label">In Words:</span>
+                    <span id="amount-in-words-container">
+                        <input type="text" id="amount-in-words" placeholder="e.g., Fifty seven thousand only" readonly>
+                    </span>
+                </div>
+            </div>
+        
+            <div class="amount-section">
+                <div class="amount-row">
+                    <span class="label">Remaining Payable:</span>
+                    <span class="calculated-value" id="remaining-payable">PKR: 0/=</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4", 
+            authDomain: "bet-acc-software.firebaseapp.com",
+            projectId: "bet-acc-software",
+            storageBucket: "bet-acc-software.firebasestorage.app",
+            messagingSenderId: "879522152449",
+            appId: "1:879522152449:web:73b8ef899d5c1cbfd90000"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        let isEditing = false;
+        let originalDocNumber = null;
+        let debounceTimer = null;
+        const STARTING_PAYMENT_NUMBER = 99;
+
+        const cashAndBankAccounts = [
+            { id: "CashInHand", name: "Cash in Hand", type: "Asset - Cash" },
+            { id: "MeezanBank", name: "Meezan Bank", type: "Asset - Bank" },
+            { id: "UnitedBank", name: "United Bank Ltd", type: "Asset - Bank" },
+            { id: "BankAlHabib", name: "Bank Al Habib", type: "Asset - Bank" },
+            { id: "DirectPartyAccount", name: "Direct Party Account", type: "Special - Direct Settlement" },
+            { id: "BET_Dasti", name: "BET (Dasti) Account", type: "Other Balances" },
+            { id: "BET_Expense", name: "BET (Expense) Account", type: "Other Balances" },
+        ];
+
+        function populatePaymentAccounts() {
+            const select = document.getElementById('paidFromAccount');
+            select.innerHTML = ''; 
+
+            cashAndBankAccounts.forEach(account => {
+                const option = document.createElement('option');
+                option.value = account.id; 
+                option.textContent = `${account.name} (${account.type})`;
+                select.appendChild(option);
+            });
+        }
+
+        async function getNextVoucherNumber() {
+            try {
+                const q = query(collection(db, "vendorPayments"), orderBy("number", "desc"), limit(1));
+                const snapshot = await getDocs(q);
+                
+                if (!snapshot.empty) {
+                    const lastDoc = snapshot.docs[0].data();
+                    const lastNumber = parseInt(lastDoc.number) || STARTING_PAYMENT_NUMBER;
+                    const nextNumber = lastNumber + 1;
+                    return String(nextNumber).padStart(4, '0');
+                } else {
+                    return String(STARTING_PAYMENT_NUMBER + 1).padStart(4, '0');
+                }
+            } catch (error) {
+                console.error("Error getting next voucher number:", error);
+                return String(STARTING_PAYMENT_NUMBER + 1).padStart(4, '0');
+            }
+        }
+
+        async function fetchPreviousPayable(vendorName) {
+            const previousPayableInput = document.getElementById('previous-payable');
+            const statusDiv = document.getElementById('balance-status');
+
+            if (!vendorName || vendorName.trim() === '') {
+                previousPayableInput.value = '0';
+                statusDiv.style.display = 'none';
+                calculateRemainingPayable();
+                return;
+            }
+
+            statusDiv.style.display = 'block';
+            statusDiv.className = 'balance-loading';
+            statusDiv.textContent = 'Fetching payable...';
+
+            try {
+                const ledgerQuery = query(collection(db, "ledger"));
+                const ledgerSnapshot = await getDocs(ledgerQuery);
+
+                let vendorPayable = 0;
+                let foundEntries = 0;
+
+                ledgerSnapshot.forEach((doc) => {
+                    const entry = doc.data();
+                    
+                    if (entry.account && 
+                        entry.account.toLowerCase().includes(vendorName.toLowerCase())) {
+                        
+                        vendorPayable += parseFloat(entry.credit || 0);
+                        vendorPayable -= parseFloat(entry.debit || 0);
+                        foundEntries++;
+                    }
+                });
+
+                previousPayableInput.value = vendorPayable.toLocaleString('en-US', {maximumFractionDigits: 0});
+                
+                if (foundEntries > 0) {
+                    statusDiv.className = 'balance-success';
+                    statusDiv.textContent = `✓ Found ${foundEntries} transaction(s) | Payable: ${vendorPayable.toLocaleString()}`;
+                    setTimeout(() => {
+                        statusDiv.style.display = 'none';
+                    }, 3000);
+                } else {
+                    statusDiv.className = 'balance-error';
+                    statusDiv.textContent = '✗ No transactions found for this vendor';
+                    previousPayableInput.value = '0';
+                    setTimeout(() => {
+                        statusDiv.style.display = 'none';
+                    }, 3000);
+                }
+
+                calculateRemainingPayable();
+
+            } catch (error) {
+                console.error("Error fetching previous payable:", error);
+                statusDiv.className = 'balance-error';
+                statusDiv.textContent = '✗ Error fetching payable';
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 3000);
+            }
+        }
+
+        function onLedgerNameChange(event) {
+            const vendorName = event.target.value;
+            
+            if (debounceTimer) {
+                clearTimeout(debounceTimer);
+            }
+
+            debounceTimer = setTimeout(() => {
+                fetchPreviousPayable(vendorName);
+            }, 500);
+        }
+
+        function populateForm(doc) {
+            document.getElementById('receipt-no').value = doc.number;
+            document.getElementById('receipt-date').value = doc.date;
+            document.getElementById('paid-to').value = doc.paidTo;
+            document.getElementById('business-ledger').value = doc.businessLedger;
+            
+            document.getElementById('paidFromAccount').value = doc.paidFromAccountID || 'DirectPartyAccount'; 
+            
+            document.getElementById('previous-payable').value = (doc.previousPayable || 0).toLocaleString('en-US', {maximumFractionDigits: 0});
+            document.getElementById('cheque-ref').value = doc.chequeRef || '';
+            document.getElementById('cheque-bank').value = doc.chequeBank || '';
+            document.getElementById('account-title').value = doc.accountTitle || '';
+            document.getElementById('amount-paid').value = (doc.amountPaid || 0).toLocaleString('en-US', {maximumFractionDigits: 0});
+            
+            updateAmountInWords();
+            calculateRemainingPayable();
+            fetchPreviousPayable(doc.businessLedger);
+        }
+
+        function formatAndCalculate(event) {
+            const input = event.target;
+            let value = input.value.replace(/[^0-9.]/g, ''); 
+
+            if (value !== "") {
+                const parts = value.split('.');
+                if (parts.length > 2) {
+                    value = parts[0] + '.' + parts.slice(1).join('');
+                }
+                input.value = value;
+            }
+            
+            input.addEventListener('blur', function() {
+                let blurredValue = input.value.replace(/[^0-9.]/g, '');
+                if (blurredValue !== "") {
+                    input.value = parseFloat(blurredValue).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                }
+            }, { once: true });
+            
+            updateAmountInWords();
+            calculateRemainingPayable();
+        }
+
+        function updateAmountInWords() {
+            const amountPaidInput = document.getElementById('amount-paid');
+            const amountInWordsInput = document.getElementById('amount-in-words');
+            let amountValue = parseFloat(amountPaidInput.value.replace(/,/g, '')) || 0;
+            
+            const words = numberToWords(amountValue);
+            amountInWordsInput.value = words ? words + " only" : "";
+        }
+
+        function numberToWords(num) {
+            if (num === 0) return 'Zero';
+            const a = ['', 'one ', 'two ', 'three ', 'four ', 'five ', 'six ', 'seven ', 'eight ', 'nine ', 'ten ', 'eleven ', 'twelve ', 'thirteen ', 'fourteen ', 'fifteen ', 'sixteen ', 'seventeen ', 'eighteen ', 'nineteen '];
+            const b = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+            let n = ('000000000' + Math.floor(num)).substr(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
+            if (!n) return '';
+            let str = '';
+            str += (n[1] != 0) ? (a[Number(n[1])] || b[n[1][0]] + ' ' + a[n[1][1]]) + 'crore ' : '';
+            str += (n[2] != 0) ? (a[Number(n[2])] || b[n[2][0]] + ' ' + a[n[2][1]]) + 'lakh ' : '';
+            str += (n[3] != 0) ? (a[Number(n[3])] || b[n[3][0]] + ' ' + a[n[3][1]]) + 'thousand ' : '';
+            str += (n[4] != 0) ? (a[Number(n[4])] || b[n[4][0]] + ' ' + a[n[4][1]]) + 'hundred ' : '';
+            str += (n[5] != 0) ? ((str != '' && n[4] == 0) ? 'and ' : '') + (a[Number(n[5])] || b[n[5][0]] + ' ' + a[n[5][1]]) : '';
+            return str.trim().charAt(0).toUpperCase() + str.trim().slice(1);
+        }
+
+        function calculateRemainingPayable() {
+            const previousPayable = parseFloat(document.getElementById('previous-payable').value.replace(/,/g, '')) || 0;
+            const amountPaid = parseFloat(document.getElementById('amount-paid').value.replace(/,/g, '')) || 0;
+            
+            const remainingPayable = previousPayable - amountPaid;
+            
+            document.getElementById('remaining-payable').textContent = `PKR: ${remainingPayable.toLocaleString('en-US', {minimumFractionDigits: 2})}/=`;
+        }
+
+        async function savePayment() {
+            const voucherNumber = document.getElementById('receipt-no').value;
+            const paymentDate = document.getElementById('receipt-date').value;
+            const paidTo = document.getElementById('paid-to').value;
+            const businessLedger = document.getElementById('business-ledger').value;
+            
+            const paidFromAccountElement = document.getElementById('paidFromAccount');
+            const paidFromAccountId = paidFromAccountElement.value; 
+            const paidFromAccountName = paidFromAccountElement.options[paidFromAccountElement.selectedIndex].textContent;
+
+            const previousPayable = parseFloat(document.getElementById('previous-payable').value.replace(/,/g, '')) || 0;
+            const amountPaid = parseFloat(document.getElementById('amount-paid').value.replace(/,/g, '')) || 0;
+
+            const chequeRef = document.getElementById('cheque-ref').value;
+            const chequeBank = document.getElementById('cheque-bank').value;
+            const accountTitle = document.getElementById('account-title').value;
+            const amountInWords = document.getElementById('amount-in-words').value;
+            const remainingPayable = parseFloat(document.getElementById('remaining-payable').textContent.replace(/PKR: |\/=|,/g, '')) || 0;
+
+            if (!paymentDate || !paidTo || !businessLedger) {
+                alert("Please fill in Date, Paid To, and Business (Ledger) fields.");
+                return;
+            }
+
+            if (amountPaid <= 0) {
+                alert("Please enter a valid amount paid.");
+                return;
+            }
+
+            const newPayment = {
+                number: voucherNumber,
+                date: paymentDate,
+                paidTo: paidTo,
+                businessLedger: businessLedger,
+                paidFromAccountID: paidFromAccountId, 
+                paidFromAccountName: paidFromAccountName,
+                previousPayable: previousPayable,
+                chequeRef: chequeRef,
+                chequeBank: chequeBank,
+                accountTitle: accountTitle,
+                amountPaid: amountPaid,
+                amountInWords: amountInWords,
+                remainingPayable: remainingPayable,
+                type: 'Vendor Payment',
+                timestamp: new Date().toISOString()
+            };
+
+            try {
+                await setDoc(doc(db, "vendorPayments", voucherNumber), newPayment);
+
+                if (isEditing) {
+                    const ledgerQuery = query(collection(db, "ledger"));
+                    const ledgerSnapshot = await getDocs(ledgerQuery);
+                    
+                    for (const docSnap of ledgerSnapshot.docs) {
+                        const ledgerEntry = docSnap.data();
+                        if (ledgerEntry.doc_number === originalDocNumber) {
+                            await deleteDoc(doc(db, "ledger", docSnap.id));
+                        }
+                    }
+                }
+
+                // PARTY LEDGER ENTRY: Always debit vendor's A/P (reduces liability)
+                const ledgerId_AP = `${voucherNumber}_AP_Debit_${Date.now()}_A`;
+                await setDoc(doc(db, "ledger", ledgerId_AP), {
+                    date: paymentDate,
+                    account: businessLedger,
+                    description: paidFromAccountId === "DirectPartyAccount" 
+                        ? `Direct Payment to ${businessLedger} (Voucher #${voucherNumber})`
+                        : `Payment to ${businessLedger} (Voucher #${voucherNumber})`,
+                    accountType: 'Accounts Payable',
+                    debit: amountPaid, 
+                    credit: 0,
+                    doc_number: voucherNumber,
+                    paidVia: paidFromAccountId === "DirectPartyAccount" ? "Direct Party Account" : paidFromAccountName,
+                    timestamp: new Date().toISOString()
+                });
+                
+                // ASSET LEDGER ENTRY: Skip for Direct Party Account
+                if (paidFromAccountId !== "DirectPartyAccount") {
+                    const sourceAccount = cashAndBankAccounts.find(acc => acc.id === paidFromAccountId);
+                    const ledgerAccountType = sourceAccount ? sourceAccount.type : 'Other Balances';
+
+                    const ledgerId_Asset = `${voucherNumber}_Asset_Credit_${Date.now()}_B`;
+                    await setDoc(doc(db, "ledger", ledgerId_Asset), {
+                        date: paymentDate,
+                        account: paidFromAccountId, 
+                        description: `Vendor Payment to ${businessLedger} from ${sourceAccount.name} (Voucher #${voucherNumber})`,
+                        accountType: ledgerAccountType, 
+                        debit: 0,
+                        credit: amountPaid,
+                        doc_number: voucherNumber,
+                        timestamp: new Date().toISOString()
+                    });
+                }
+
+                alert(isEditing ? 'Vendor Payment updated successfully!' : 'Vendor Payment saved and ledger updated!');
+                window.location.href = 'documents.html';
+            } catch (error) {
+                console.error("Error saving payment:", error);
+                alert("Error saving payment. Please try again.");
+            }
+        }
+
+        async function deletePayment() {
+            const voucherNumber = document.getElementById('receipt-no').value;
+            
+            if (!confirm(`Are you sure you want to delete Vendor Payment voucher ${voucherNumber}? This cannot be undone.`)) {
+                return;
+            }
+
+            try {
+                await deleteDoc(doc(db, "vendorPayments", voucherNumber));
+
+                const ledgerQuery = query(collection(db, "ledger"));
+                const ledgerSnapshot = await getDocs(ledgerQuery);
+                
+                for (const docSnap of ledgerSnapshot.docs) {
+                    const ledgerEntry = docSnap.data();
+                    if (ledgerEntry.doc_number === voucherNumber) {
+                        await deleteDoc(doc(db, "ledger", docSnap.id));
+                    }
+                }
+
+                alert('Vendor Payment and associated ledger entries deleted successfully.');
+                window.location.href = 'documents.html';
+            } catch (error) {
+                console.error("Error deleting payment:", error);
+                alert("Error deleting payment. Please try again.");
+            }
+        }
+        
+        function generatePDF() {
+            const voucherNumber = document.getElementById('receipt-no').value;
+            const paymentDate = document.getElementById('receipt-date').value;
+            const paidTo = document.getElementById('paid-to').value;
+            const businessLedger = document.getElementById('business-ledger').value;
+            const paidFromAccountName = document.getElementById('paidFromAccount').options[document.getElementById('paidFromAccount').selectedIndex].textContent;
+            const previousPayable = document.getElementById('previous-payable').value;
+            const amountPaid = document.getElementById('amount-paid').value;
+            const amountInWords = document.getElementById('amount-in-words').value;
+            const remainingPayable = document.getElementById('remaining-payable').textContent;
+            const chequeRef = document.getElementById('cheque-ref').value;
+            const chequeBank = document.getElementById('cheque-bank').value;
+            const accountTitle = document.getElementById('account-title').value;
+
+            const pdfContent = `
+                <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto;">
+                    <h2 style="text-align: center; color: #003366; border-bottom: 2px solid #003366; padding-bottom: 10px;">VENDOR PAYMENT VOUCHER</h2>
+                    <div style="text-align: center; margin-bottom: 20px;">
+                        <h3 style="color: #003366;">(BET) Bilal Ehtasham Traders</h3>
+                        <p>Deals in all kinds of Cotton and Polyester Yarn</p>
+                        <p>Email: bilalehtashamtraders@gmail.com | Cell: (+92)-324-2479096</p>
+                    </div>
+                    <table style="width: 100%; margin-bottom: 20px;">
+                        <tr><td style="font-weight: bold; padding: 8px 0;">Voucher No:</td><td>${voucherNumber}</td></tr>
+                        <tr><td style="font-weight: bold; padding: 8px 0;">Date:</td><td>${paymentDate}</td></tr>
+                        <tr><td style="font-weight: bold; padding: 8px 0;">Paid To:</td><td>${paidTo}</td></tr>
+                        <tr><td style="font-weight: bold; padding: 8px 0;">Business (Ledger):</td><td>${businessLedger}</td></tr>
+                        <tr><td style="font-weight: bold; padding: 8px 0;">Paid From Account:</td><td>${paidFromAccountName}</td></tr>
+                        <tr><td style="font-weight: bold; padding: 8px 0;">Previous Payable:</td><td>PKR: ${previousPayable}/=</td></tr>
+                        <tr><td style="font-weight: bold; padding: 8px 0;">Cheque/Online Ref:</td><td>${chequeRef}</td></tr>
+                        <tr><td style="font-weight: bold; padding: 8px 0;">Cheque/Bank name:</td><td>${chequeBank}</td></tr>
+                        <tr><td style="font-weight: bold; padding: 8px 0;">Account Title:</td><td>${accountTitle}</td></tr>
+                    </table>
+                    <div style="border-top: 1px solid #ccc; padding-top: 15px; margin-bottom: 10px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                            <span style="font-weight: bold;">Amount Paid:</span>
+                            <span>PKR: ${amountPaid}/=</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                            <span style="font-weight: bold;">In Words:</span>
+                            <span>${amountInWords}</span>
+                        </div>
+                    </div>
+                    <div style="border-top: 1px solid #ccc; padding-top: 15px;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span class="label">Remaining Payable:</span>
+                            <span style="font-weight: bold;">${remainingPayable}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const opt = {
+                margin: 10,
+                filename: `Vendor-Payment-Voucher-${voucherNumber}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(pdfContent).save();
+        }
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                populatePaymentAccounts();
+                
+                const urlParams = new URLSearchParams(window.location.search);
+                const editId = urlParams.get('edit');
+
+                if (editId) {
+                    const docRef = doc(db, "vendorPayments", editId);
+                    const docSnap = await getDoc(docRef);
+                    
+                    if (docSnap.exists()) {
+                        populateForm(docSnap.data());
+                        isEditing = true;
+                        originalDocNumber = editId;
+                        document.getElementById('deleteButton').style.display = 'inline-block';
+                    }
+                } else {
+                    const nextVoucherNo = await getNextVoucherNumber();
+                    document.getElementById('receipt-no').value = nextVoucherNo;
+                    document.getElementById('receipt-date').value = new Date().toLocaleDateString('en-GB');
+                    document.getElementById('deleteButton').style.display = 'none';
+                    fetchPreviousPayable(document.getElementById('business-ledger').value);
+                }
+
+                document.getElementById('paid-to').addEventListener('input', (e) => document.getElementById('business-ledger').value = e.target.value);
+                document.getElementById('business-ledger').addEventListener('input', onLedgerNameChange);
+                document.getElementById('amount-paid').addEventListener('input', formatAndCalculate);
+                
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('mainContent').style.display = 'block';
+            } catch (error) {
+                console.error("Error initializing:", error);
+                document.getElementById('loading').innerHTML = 'Error loading. Please refresh the page.';
+            }
+        });
+
+        window.savePayment = savePayment;
+        window.deletePayment = deletePayment;
+        window.generatePDF = generatePDF;
+    </script>
+</body>
+</html>
