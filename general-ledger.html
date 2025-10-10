@@ -184,7 +184,7 @@
                 <button onclick="filterLedger()">Filter</button>
                 <button onclick="resetLedger()">Show All</button>
                 <button onclick="generatePDF()">Generate PDF</button>
-                <button onclick="window.location.href='documents.html'">Back to Documents</button>
+                <button onclick="loadLedgerData()">Refresh Ledger</button> <button onclick="window.location.href='documents.html'">Back to Documents</button>
             </div>
         </div>
 
@@ -221,6 +221,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, collection, getDocs, query } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
+        // *** YOUR ORIGINAL FIREBASE CONFIGURATION ***
         const firebaseConfig = {
             apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
             authDomain: "bet-acc-software.firebaseapp.com",
@@ -229,6 +230,7 @@
             messagingSenderId: "879522152449",
             appId: "1:879522152449:web:73b8ef899d5c1cbfd90000"
         };
+        // *******************************************
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
@@ -262,7 +264,12 @@
             return entry.account || entry.accountType || entry.doc_type || 'Unknown';
         }
 
+        // *** MODIFIED loadLedgerData to reset loading state ***
         async function loadLedgerData() {
+            // Show loading state and hide content temporarily for a clean refresh
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('mainContent').style.display = 'none';
+
             try {
                 const ledgerQuery = query(collection(db, "ledger"));
                 const snapshot = await getDocs(ledgerQuery);
@@ -298,6 +305,7 @@
                 
                 populateAccountFilter();
                 displayLedger(allLedgerEntries);
+                resetFilterState(); // Reset filters and title on full refresh
                 
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('mainContent').style.display = 'block';
@@ -306,6 +314,7 @@
                 document.getElementById('loading').innerHTML = 'Error loading ledger data. Please refresh the page.';
             }
         }
+        // ***************************************************************
 
         function populateAccountFilter() {
             const accountFilter = document.getElementById('account-filter');
@@ -407,10 +416,15 @@
             displayLedger(filteredEntries);
         }
 
-        function resetLedger() {
+        // *** NEW HELPER FUNCTION to reset filter and title ***
+        function resetFilterState() {
             document.getElementById('search-bar').value = '';
             document.getElementById('account-filter').value = '';
             document.getElementById('current-ledger-title').textContent = 'All Transactions';
+        }
+
+        function resetLedger() {
+            resetFilterState();
             displayLedger(allLedgerEntries);
         }
 
@@ -464,7 +478,8 @@
         window.filterLedger = filterLedger;
         window.resetLedger = resetLedger;
         window.generatePDF = generatePDF;
-        // Make the viewDocument function globally accessible for onclick event
+        // Make the main data loading function globally accessible for the refresh button
+        window.loadLedgerData = loadLedgerData; 
         window.viewDocument = viewDocument;
     </script>
 </body>
