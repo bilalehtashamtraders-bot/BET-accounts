@@ -260,7 +260,6 @@
             document.getElementById('loading').textContent = 'Loading ledger data...';
 
             try {
-                // This is the CRITICAL line: it reads from the 'ledger' collection.
                 const ledgerQuery = query(collection(db, "ledger"));
                 const snapshot = await getDocs(ledgerQuery);
                 
@@ -338,10 +337,38 @@
                     `<span class="doc-link" onclick="window.viewDocument('${docNumber}')">${docNumber}</span>` : 
                     'N/A';
 
+                // --- NEW LOGIC FOR DETAILED DESCRIPTION ---
+                let displayDescription = entry.description || '';
+                
+                // Check if the entry is from a Purchase Invoice (PI) and if it has the extra detail fields
+                if (docNumber.toUpperCase().startsWith('PI-') && entry.itemDescription) {
+                    // This assumes your ledger entry for PI includes fields like:
+                    // itemDescription (e.g., '150.144.sim AA grade (Holding)')
+                    // party (e.g., 'Polyester Doctor Faisal')
+                    // Note: If you want to customize the description further, you'd modify the line below.
+                    
+                    // Use the detailed item description regardless of the account (for consistency)
+                    if (displayAccount.toUpperCase() === 'INVENTORY' || entry.party === displayAccount) {
+                        // Example structure from your screenshot: "Purchase from Polyester Doctor Faisal : 150.144.sim AA grade (Holding)"
+                        const partyName = entry.party || 'Vendor'; 
+                        
+                        // Construct the detailed description
+                        if (displayAccount.toUpperCase() === 'INVENTORY') {
+                             displayDescription = `Purchase from ${partyName} : ${entry.itemDescription}`;
+                        } else if (entry.party === displayAccount) {
+                             displayDescription = `Amount payable to ${partyName} for PI #${docNumber}`;
+                             // If you specifically want to add itemDescription to the payable ledger, uncomment the line below:
+                             displayDescription += ` | Item: ${entry.itemDescription}`; 
+                        }
+                        
+                    }
+                }
+                // --- END NEW LOGIC ---
+
                 row.innerHTML = `
                     <td>${entry.date || 'N/A'}</td>
                     <td>${displayAccount}</td>
-                    <td>${entry.description || ''}</td>
+                    <td>${displayDescription}</td>
                     <td>${docCellContent}</td>
                     <td class="debit-amount">${debit.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                     <td class="credit-amount">${credit.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
@@ -368,9 +395,13 @@
                     const description = (entry.description || '').toLowerCase();
                     const docNumber = (entry.doc_number || '').toLowerCase();
                     
+                    // Add item description search for PI entries
+                    const itemDescription = (entry.itemDescription || '').toLowerCase();
+
                     return account.includes(searchTerm) || 
                            description.includes(searchTerm) || 
-                           docNumber.includes(searchTerm);
+                           docNumber.includes(searchTerm) ||
+                           itemDescription.includes(searchTerm);
                 });
             }
 
@@ -437,8 +468,6 @@
                 return;
             }
             
-            // Check if the document exists before navigating (Optional improvement, but requires fetching the doc)
-            // Since the user is already complaining it's missing, we rely on the deletion fix.
             window.location.href = targetURL;
         }
 
