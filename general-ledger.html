@@ -250,15 +250,10 @@
                 date = new Date(isoDate);
             }
             
-            // Generate a combined sort key: Date in milliseconds + (Time string converted to number)
-            // The timestamp (ISO string) is a better tie-breaker than just time, 
-            // but for simplicity and robustness in JS sorting:
-            // 1. Convert Date to milliseconds.
-            // 2. Append a unique, sortable value (like the raw timestamp string)
-            
+            // The combination of date milliseconds and the full ISO timestamp string 
+            // is the most robust way to sort
             const dateMillis = date.getTime();
             
-            // Use the raw timestamp string (which is already chronologically sortable) as the tie-breaker
             return { dateMillis, timestampStr };
         }
 
@@ -285,7 +280,7 @@
                     allLedgerEntries.push(data);
                 });
 
-                // *** SORTING LOGIC: Date in milliseconds first, then Timestamp string ***
+                // *** SORTING LOGIC: Date in milliseconds first, then Timestamp string (FIXED) ***
                 allLedgerEntries.sort((a, b) => {
                     const keyA = getEntrySortKey(a);
                     const keyB = getEntrySortKey(b);
@@ -425,6 +420,7 @@
             const upperDoc = docNumber.toUpperCase();
 
             // Customer Receipt Voucher (e.g., CR-00100 or simply 00100 for older)
+            // Note: The payment entry 0156 is a CR, so we assume a 4-digit number is a receipt
             if (upperDoc.includes('CR') || (upperDoc.length === 4 && upperDoc.startsWith('0'))) {
                 targetURL = `receipt.html?edit=${docNumber}`;
             // Vendor Payment Receipt/Voucher (e.g., VP-00100)
