@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>General Ledger - Bilal Ehtasham Traders</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0; 
+            padding: 20px; 
+            color: #333;
+        }
+        .report-container {
+            width: 100%;
+            max-width: 1200px; /* Set max width for better viewing */
+            margin: 0 auto;
+            border: 1px solid #ccc;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            box-sizing: border-box;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #003366;
+            padding-bottom: 10px;
+        }
+        .header h1 {
+            font-size: 24px;
+            margin: 0;
+            color: #003366;
+        }
+        .business-info {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .business-info p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        .business-info h2 {
+            color: #003366;
+        }
+        .controls {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .controls input[type="text"], .controls select {
+            padding: 8px;
+            width: 45%;
+            margin: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .controls button {
+            padding: 8px 12px;
+            background-color: #003366;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .controls button:hover {
+            background-color: #002244;
+        }
+        .filter-section {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .table-wrapper {
+            overflow-x: auto; 
+            margin-top: 20px;
+        }
+        
+        table {
+            width: 100%;
+            min-width: 750px; 
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 8px 4px; 
+            text-align: left;
+            font-size: 12px; 
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        
+        /* General column widths for desktop (approximate for flow) */
+        #ledger-table th:nth-child(1), #ledger-table td:nth-child(1) { width: 10%; } /* Date */
+        #ledger-table th:nth-child(2), #ledger-table td:nth-child(2) { width: 20%; } /* Account */
+        #ledger-table th:nth-child(3), #ledger-table td:nth-child(3) { 
+            width: 30%; /* Description */
+            word-wrap: break-word; 
+        } 
+        #ledger-table th:nth-child(4), #ledger-table td:nth-child(4) { width: 8%; } /* Doc # */
+        #ledger-table th:nth-child(5), #ledger-table td:nth-child(5) { width: 10%; } /* Debit */
+        #ledger-table th:nth-child(6), #ledger-table td:nth-child(6) { width: 10%; } /* Credit */
+        #ledger-table th:nth-child(7), #ledger-table td:nth-child(7) { width: 12%; } /* Balance */
+
+        tfoot td {
+            font-weight: bold;
+            background-color: #e6e6ff;
+        }
+        .debit-amount, .credit-amount, .balance-column {
+            text-align: right;
+            font-family: 'Courier New', monospace;
+        }
+        .balance-column {
+            font-weight: bold;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #003366;
+        }
+        .doc-link {
+            color: #003366;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+        .doc-link:hover {
+            color: #002244;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            .controls input[type="text"], .controls select {
+                width: 100%;
+            }
+            .filter-section {
+                flex-direction: column;
+            }
+            .controls button {
+                width: 45%;
+            }
+            table, th, td {
+                font-size: 11px;
+                padding: 3px;
+            }
+            
+            #ledger-table th:nth-child(1), #ledger-table td:nth-child(1) { width: auto; }
+            #ledger-table th:nth-child(2), #ledger-table td:nth-child(2) { width: auto; }
+            #ledger-table th:nth-child(3), #ledger-table td:nth-child(3) { width: auto; }
+            #ledger-table th:nth-child(4), #ledger-table td:nth-child(4) { width: auto; }
+            #ledger-table th:nth-child(5), #ledger-table td:nth-child(5) { width: auto; }
+            #ledger-table th:nth-child(6), #ledger-table td:nth-child(6) { width: auto; }
+            #ledger-table th:nth-child(7), #ledger-table td:nth-child(7) { width: auto; }
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+    <div class="loading" id="loading">Loading ledger data...</div>
+    <div class="report-container" style="display: none;" id="mainContent">
+        <div class="header">
+            <h1>General Ledger Report</h1>
+        </div>
+        <div class="business-info">
+            <h2 style="color: #003366;">(BET) Bilal Ehtasham Traders</h2>
+            <p>Deals in all kinds of Cotton and Polyester Yarn</p>
+            <p>Email: bilalehtashamtraders@gmail.com</p>
+            <p>Cell: (+92)-324-2479096</p>
+        </div>
+
+        <div class="controls">
+            <div class="filter-section">
+                <input type="text" id="search-bar" placeholder="Search by account name or description...">
+                <select id="account-filter">
+                    <option value="">All Accounts</option>
+                </select>
+            </div>
+            <div>
+                <button onclick="filterLedger()">Filter</button>
+                <button onclick="resetLedger()">Show All</button>
+                <button onclick="generatePDF()">Generate PDF</button>
+                <button onclick="window.location.href='documents.html'">Back to Documents</button>
+            </div>
+        </div>
+
+        <h3 id="current-ledger-title" style="text-align: center;">All Transactions</h3>
+        
+        <div class="table-wrapper">
+            <table id="ledger-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Account</th>
+                        <th>Description</th>
+                        <th>Doc #</th>
+                        <th>Debit (Rs.)</th>
+                        <th>Credit (Rs.)</th>
+                        <th class="balance-column">Balance (Rs.)</th>
+                    </tr>
+                </thead>
+                <tbody id="ledger-body">
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="4">Total</td>
+                        <td id="total-debit" class="debit-amount">0</td>
+                        <td id="total-credit" class="credit-amount">0</td>
+                        <td class="balance-column" id="final-balance">0</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, getDocs, query } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
+            authDomain: "bet-acc-software.firebaseapp.com",
+            projectId: "bet-acc-software",
+            storageBucket: "bet-acc-software.firebasestorage.app",
+            messagingSenderId: "879522152449",
+            appId: "1:879522152449:web:73b8ef899d5c1cbfd90000"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        let allLedgerEntries = [];
+        let uniqueAccounts = new Set();
+
+        // This function is CRITICAL for correct sorting.
+        function getEntrySortKey(entry) {
+            const dateStr = entry.date || '';
+            const timestampStr = entry.timestamp || '';
+
+            // Handle date parsing (DD-MM-YYYY to YYYY-MM-DD for reliable Date object creation)
+            let date = new Date(0); // Default to epoch
+            const parts = dateStr.split('-');
+            if (parts.length === 3) {
+                // YYYY-MM-DD format is necessary for reliable parsing across browsers
+                const isoDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                date = new Date(isoDate);
+            }
+            
+            const dateMillis = date.getTime();
+            
+            // The timestamp (ISO string) ensures transactions posted in quick succession
+            // (e.g., the debit and credit side of an invoice) are ordered correctly.
+            return { dateMillis, timestampStr };
+        }
+
+        function getAccountName(entry) {
+            // Note: entry.account is the preferred field from the new invoice/receipt code
+            return entry.account || entry.accountType || entry.doc_type || 'Unknown';
+        }
+
+        async function loadLedgerData() {
+            try {
+                const ledgerQuery = query(collection(db, "ledger"));
+                const snapshot = await getDocs(ledgerQuery);
+                
+                allLedgerEntries = [];
+                uniqueAccounts.clear();
+                
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    const accountKey = getAccountName(data);
+                    
+                    if (accountKey && accountKey !== 'Unknown') {
+                        uniqueAccounts.add(accountKey);
+                    }
+                    
+                    allLedgerEntries.push(data);
+                });
+
+                // *** SORTING LOGIC: Date in milliseconds first, then Timestamp string ***
+                allLedgerEntries.sort((a, b) => {
+                    const keyA = getEntrySortKey(a);
+                    const keyB = getEntrySortKey(b);
+                    
+                    // 1. Sort by Date (primary)
+                    if (keyA.dateMillis !== keyB.dateMillis) {
+                        return keyA.dateMillis - keyB.dateMillis;
+                    }
+                    
+                    // 2. Sort by Timestamp (secondary, for same-day transactions)
+                    return keyA.timestampStr.localeCompare(keyB.timestampStr);
+                });
+                // *******************************************************************
+                
+                populateAccountFilter();
+                displayLedger(allLedgerEntries);
+                
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('mainContent').style.display = 'block';
+            } catch (error) {
+                console.error("Error loading ledger:", error);
+                document.getElementById('loading').innerHTML = 'Error loading ledger data. Please refresh the page.';
+            }
+        }
+
+        function populateAccountFilter() {
+            const accountFilter = document.getElementById('account-filter');
+            accountFilter.innerHTML = '<option value="">All Accounts</option>';
+            
+            const sortedAccounts = Array.from(uniqueAccounts).sort();
+            sortedAccounts.forEach(account => {
+                const option = document.createElement('option');
+                option.value = account;
+                option.textContent = account;
+                accountFilter.appendChild(option);
+            });
+        }
+
+        function displayLedger(entries) {
+            const ledgerBody = document.getElementById('ledger-body');
+            let totalDebit = 0;
+            let totalCredit = 0;
+            let runningBalance = 0;
+            ledgerBody.innerHTML = '';
+
+            entries.forEach(entry => {
+                const row = ledgerBody.insertRow();
+                const debit = parseFloat(entry.debit || 0);
+                const credit = parseFloat(entry.credit || 0);
+                
+                // Balance calculation: Debit - Credit
+                runningBalance += (debit - credit);
+
+                const displayAccount = getAccountName(entry);
+                const docNumber = entry.doc_number || '';
+                const docCellContent = docNumber ? 
+                    `<span class="doc-link" onclick="window.viewDocument('${docNumber}')">${docNumber}</span>` : 
+                    'N/A';
+
+                row.innerHTML = `
+                    <td>${entry.date || 'N/A'}</td>
+                    <td>${displayAccount}</td>
+                    <td>${entry.description || ''}</td>
+                    <td>${docCellContent}</td>
+                    <td class="debit-amount">${debit.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td class="credit-amount">${credit.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td class="balance-column">${runningBalance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                `;
+                totalDebit += debit;
+                totalCredit += credit;
+            });
+            
+            document.getElementById('total-debit').textContent = totalDebit.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            document.getElementById('total-credit').textContent = totalCredit.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            document.getElementById('final-balance').textContent = runningBalance.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        }
+
+        function filterLedger() {
+            const searchTerm = document.getElementById('search-bar').value.toLowerCase().trim();
+            const accountName = document.getElementById('account-filter').value;
+
+            let filteredEntries = allLedgerEntries;
+
+            if (searchTerm) {
+                filteredEntries = filteredEntries.filter(entry => {
+                    const account = getAccountName(entry).toLowerCase();
+                    const description = (entry.description || '').toLowerCase();
+                    const docNumber = (entry.doc_number || '').toLowerCase();
+                    
+                    return account.includes(searchTerm) || 
+                           description.includes(searchTerm) || 
+                           docNumber.includes(searchTerm);
+                });
+            }
+
+            if (accountName) {
+                filteredEntries = filteredEntries.filter(entry => {
+                    return getAccountName(entry) === accountName;
+                });
+            }
+            
+            // The filtered list must also be sorted to ensure correct running balance calculation.
+            filteredEntries.sort((a, b) => {
+                const keyA = getEntrySortKey(a);
+                const keyB = getEntrySortKey(b);
+                
+                if (keyA.dateMillis !== keyB.dateMillis) {
+                    return keyA.dateMillis - keyB.dateMillis;
+                }
+                return keyA.timestampStr.localeCompare(keyB.timestampStr);
+            });
+
+            let titleText = 'All Transactions';
+            if (searchTerm && accountName) {
+                titleText = `Account: ${accountName} | Search: "${searchTerm}"`;
+            } else if (searchTerm) {
+                titleText = `Search Results: "${searchTerm}"`;
+            } else if (accountName) {
+                titleText = `Account: ${accountName}`;
+            }
+
+            document.getElementById('current-ledger-title').textContent = titleText;
+            displayLedger(filteredEntries);
+        }
+
+        function resetLedger() {
+            document.getElementById('search-bar').value = '';
+            document.getElementById('account-filter').value = '';
+            document.getElementById('current-ledger-title').textContent = 'All Transactions';
+            displayLedger(allLedgerEntries);
+        }
+
+        function viewDocument(docNumber) {
+            if (!docNumber) return;
+            
+            let targetURL = '';
+            const upperDoc = docNumber.toUpperCase();
+
+            // All document prefixes should be handled here to provide the link to edit/view
+            if (upperDoc.startsWith('CR-')) {
+                targetURL = `receipt.html?edit=${docNumber}`;
+            } else if (upperDoc.startsWith('VP-')) {
+                targetURL = `vendor-payment-receipt.html?edit=${docNumber}`;
+            } else if (upperDoc.startsWith('SI-')) {
+                targetURL = `invoice.html?edit=${docNumber}`; 
+            } else if (upperDoc.startsWith('PI-')) {
+                targetURL = `purchase-invoice.html?edit=${docNumber}`;
+            } else if (upperDoc.startsWith('JE-')) {
+                targetURL = `journal-entry.html?edit=${docNumber}`;
+            // Handle older, numeric-only sales invoices (00135)
+            } else if (!isNaN(parseInt(upperDoc)) && upperDoc.length === 5) {
+                targetURL = `invoice.html?edit=${upperDoc}`;
+            } else {
+                alert(`Unrecognized document type for: ${docNumber}. Cannot open the document. Please ensure documents have a valid prefix (e.g., SI-, PI-, CR-, VP-, JE-).`);
+                return;
+            }
+            
+            if (targetURL) {
+                window.location.href = targetURL;
+            }
+        }
+
+        function generatePDF() {
+            const element = document.getElementById('mainContent');
+            const title = document.getElementById('current-ledger-title').textContent.replace(/ /g, '_');
+            
+            const opt = {
+                margin: 10,
+                filename: `General_Ledger_Report_${title}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+            };
+
+            html2pdf().set(opt).from(element).save();
+        }
+
+        document.addEventListener('DOMContentLoaded', loadLedgerData);
+
+        window.filterLedger = filterLedger;
+        window.resetLedger = resetLedger;
+        window.generatePDF = generatePDF;
+        // Make the viewDocument function globally accessible for onclick event
+        window.viewDocument = viewDocument;
+    </script>
+</body>
+</html>
