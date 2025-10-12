@@ -1,16 +1,3 @@
-Looking at your screenshots and code, I can see the issue. The problem is in the `general-ledger.html` file's `viewDocument()` function. It's trying to add prefixes (CR-, VP-, etc.) to receipt numbers, but your receipts are stored WITHOUT these prefixes in Firestore.
-
-Here's what's happening:
-- **Purchase Invoices**: Stored as `PI-00120` ✅ Works fine
-- **Sales Invoices**: Stored as `SI-00135` ✅ Works fine  
-- **Customer Receipts**: Stored as `0156` (no prefix) ❌ Ledger tries to open `CR-0156` which doesn't exist
-- **Vendor Payments**: Stored as `0100` (no prefix) ❌ Ledger tries to open `VP-0100` which doesn't exist
-
-**Solution: We need to add the CR- prefix to Customer Receipts when saving them.**
-
-Here's the corrected `receipt.html`:
-
-```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -743,3 +730,4 @@ Here's the corrected `receipt.html`:
     </script>
 </body>
 </html>
+
