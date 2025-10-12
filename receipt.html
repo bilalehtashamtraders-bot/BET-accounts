@@ -1,3 +1,16 @@
+Looking at your screenshots and code, I can see the issue. The problem is in the `general-ledger.html` file's `viewDocument()` function. It's trying to add prefixes (CR-, VP-, etc.) to receipt numbers, but your receipts are stored WITHOUT these prefixes in Firestore.
+
+Here's what's happening:
+- **Purchase Invoices**: Stored as `PI-00120` ✅ Works fine
+- **Sales Invoices**: Stored as `SI-00135` ✅ Works fine  
+- **Customer Receipts**: Stored as `0156` (no prefix) ❌ Ledger tries to open `CR-0156` which doesn't exist
+- **Vendor Payments**: Stored as `0100` (no prefix) ❌ Ledger tries to open `VP-0100` which doesn't exist
+
+**Solution: We need to add the CR- prefix to Customer Receipts when saving them.**
+
+Here's the corrected `receipt.html`:
+
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -174,7 +187,7 @@
             <table class="details-table">
                 <tr>
                     <td class="label">Receipt No:</td>
-                    <td><input type="text" class="editable-field" id="receipt-no" placeholder="e.g., 00156" readonly></td>
+                    <td><input type="text" class="editable-field" id="receipt-no" placeholder="e.g., CR-0156" readonly></td>
                 </tr>
                 <tr>
                     <td class="label">Date:</td>
@@ -252,9 +265,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // IMPORTANT: Replace this with your actual Firebase Configuration
         const firebaseConfig = {
             apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4", 
             authDomain: "bet-acc-software.firebaseapp.com",
@@ -270,21 +282,18 @@
         let isEditing = false;
         let originalDocNumber = null;
         let debounceTimer = null;
-        const STARTING_RECEIPT_NUMBER = 155; // Use the starting number from your original file
+        const STARTING_RECEIPT_NUMBER = 155;
 
-        // --- Core Accounts Configuration (Updated for Receipt) ---
         const cashAndBankAccounts = [
             { id: "CashInHand", name: "Cash in Hand", type: "Asset - Cash" },
             { id: "MeezanBank", name: "Meezan Bank", type: "Asset - Bank" },
             { id: "UnitedBank", name: "United Bank Ltd", type: "Asset - Bank" },
             { id: "BankAlHabib", name: "Bank Al Habib", type: "Asset - Bank" },
-            // CORRECTION APPLIED HERE: Removed redundant "(Special Settlement)"
             { id: "DirectCustomerAccount", name: "Direct Customer", type: "Special - Direct Settlement" },
             { id: "BET_Dasti", name: "BET (Dasti) Account", type: "Other Balances" },
             { id: "BET_Expense", name: "BET (Expense) Account", type: "Other Balances" },
         ];
 
-        // --- Function to populate the dropdown ---
         function populatePaymentAccounts() {
             const select = document.getElementById('receivedIntoAccount');
             select.innerHTML = ''; 
@@ -299,24 +308,22 @@
 
         async function getNextReceiptNumber() {
             try {
-                const q = query(collection(db, "customerReceipts"), orderBy("number", "desc"), limit(1));
+                const q = query(collection(db, "customerReceipts"), orderBy("numericNumber", "desc"), limit(1));
                 const snapshot = await getDocs(q);
                 
+                let lastNumber = STARTING_RECEIPT_NUMBER;
                 if (!snapshot.empty) {
                     const lastDoc = snapshot.docs[0].data();
-                    const lastNumber = parseInt(lastDoc.number) || STARTING_RECEIPT_NUMBER;
-                    const nextNumber = lastNumber + 1;
-                    return String(nextNumber).padStart(4, '0');
-                } else {
-                    return String(STARTING_RECEIPT_NUMBER + 1).padStart(4, '0');
+                    lastNumber = parseInt(lastDoc.numericNumber, 10);
                 }
+                const nextNumber = lastNumber + 1;
+                return 'CR-' + String(nextNumber).padStart(4, '0');
             } catch (error) {
                 console.error("Error getting next receipt number:", error);
-                return String(STARTING_RECEIPT_NUMBER + 1).padStart(4, '0');
+                return 'CR-' + String(STARTING_RECEIPT_NUMBER + 1).padStart(4, '0');
             }
         }
 
-        // --- Core Logic: Fetch Customer Balance (AR = Debit - Credit) ---
         async function fetchPreviousBalance(customerName) {
             const previousBalanceInput = document.getElementById('previous-balance');
             const statusDiv = document.getElementById('balance-status');
@@ -345,14 +352,12 @@
                     if (entry.account && 
                         entry.account.toLowerCase().includes(customerName.toLowerCase())) {
                         
-                        // For Accounts Receivable, Debit (Sales) increases the balance. Credit (Payments) decreases it.
                         customerBalance += parseFloat(entry.debit || 0);
                         customerBalance -= parseFloat(entry.credit || 0);
                         foundEntries++;
                     }
                 });
 
-                // Display the balance
                 previousBalanceInput.value = customerBalance.toLocaleString('en-US', {maximumFractionDigits: 0});
                 
                 if (foundEntries > 0) {
@@ -428,7 +433,6 @@
             input.addEventListener('blur', function() {
                 let blurredValue = input.value.replace(/[^0-9.]/g, '');
                 if (blurredValue !== "") {
-                    // Reformat to standard currency style on blur
                     input.value = parseFloat(blurredValue).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
                 }
             }, { once: true });
@@ -448,7 +452,6 @@
 
         function numberToWords(num) {
             if (num === 0) return 'Zero';
-            // Logic for converting numbers to words (same as your original)
             const a = ['', 'one ', 'two ', 'three ', 'four ', 'five ', 'six ', 'seven ', 'eight ', 'nine ', 'ten ', 'eleven ', 'twelve ', 'thirteen ', 'fourteen ', 'fifteen ', 'sixteen ', 'seventeen ', 'eighteen ', 'nineteen '];
             const b = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
             let n = ('000000000' + Math.floor(num)).substr(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
@@ -466,13 +469,11 @@
             const previousBalance = parseFloat(document.getElementById('previous-balance').value.replace(/,/g, '')) || 0;
             const amountReceived = parseFloat(document.getElementById('amount-received').value.replace(/,/g, '')) || 0;
             
-            // Remaining Receivable = Previous Balance - Amount Received
             const remainingReceivable = previousBalance - amountReceived;
             
             document.getElementById('remaining-receivable').textContent = `PKR: ${remainingReceivable.toLocaleString('en-US', {minimumFractionDigits: 2})}/=`;
         }
 
-        // --- Core Logic: Save Receipt (AR = Credit) ---
         async function saveReceipt() {
             const receiptNumber = document.getElementById('receipt-no').value;
             const receiptDate = document.getElementById('receipt-date').value;
@@ -506,8 +507,11 @@
                 return;
             }
 
+            const numericNumber = parseInt(receiptNumber.replace('CR-', ''), 10);
+
             const newReceipt = {
                 number: receiptNumber,
+                numericNumber: numericNumber,
                 date: receiptDate,
                 receivedFrom: receivedFrom,
                 businessLedger: businessLedger,
@@ -520,71 +524,82 @@
                 amountReceived: amountReceived,
                 amountInWords: amountInWords,
                 remainingReceivable: remainingReceivable,
-                type: 'Customer Receipt', // Updated type
+                type: 'Customer Payment',
                 timestamp: new Date().toISOString()
             };
 
             try {
-                // 1. Save/Update Receipt Document
                 await setDoc(doc(db, "customerReceipts", receiptNumber), newReceipt);
+                console.log("✓ Receipt saved to customerReceipts collection");
 
-                // 2. Clean up old ledger entries if editing
-                if (isEditing) {
-                    const ledgerQuery = query(collection(db, "ledger"));
-                    const ledgerSnapshot = await getDocs(ledgerQuery);
+                if (isEditing && originalDocNumber && originalDocNumber !== receiptNumber) {
+                    await deleteDoc(doc(db, "customerReceipts", originalDocNumber));
+                    console.log("✓ Old receipt document deleted");
                     
-                    for (const docSnap of ledgerSnapshot.docs) {
-                        const ledgerEntry = docSnap.data();
-                        if (ledgerEntry.doc_number === originalDocNumber) {
-                            await deleteDoc(doc(db, "ledger", docSnap.id));
-                        }
+                    const oldLedgerQuery = query(collection(db, "ledger"), where("doc_number", "==", originalDocNumber));
+                    const oldLedgerSnapshot = await getDocs(oldLedgerQuery);
+                    console.log(`Found ${oldLedgerSnapshot.size} old ledger entries to delete`);
+                    
+                    for (const docSnap of oldLedgerSnapshot.docs) {
+                        await deleteDoc(doc(db, "ledger", docSnap.id));
                     }
+                    console.log("✓ Old ledger entries deleted");
                 }
 
-                // --- NEW LEDGER ENTRIES (Double Entry Accounting) ---
+                const existingLedgerQuery = query(collection(db, "ledger"), where("doc_number", "==", receiptNumber));
+                const existingLedgerSnapshot = await getDocs(existingLedgerQuery);
+                console.log(`Found ${existingLedgerSnapshot.size} existing ledger entries for this doc_number`);
                 
-                // Look up the account type for the ledger entry
+                for (const docSnap of existingLedgerSnapshot.docs) {
+                    await deleteDoc(doc(db, "ledger", docSnap.id));
+                }
+                console.log("✓ Existing ledger entries cleared");
+                
                 const sourceAccount = cashAndBankAccounts.find(acc => acc.id === receivedIntoAccountID);
                 const ledgerAccountType = sourceAccount ? sourceAccount.type : 'Asset';
 
-                // Entry 1: DEBIT Receiving Account (Cash/Bank/Special) - Asset/Balance increases
-                const ledgerId_Asset = `${receiptNumber}_Asset_Debit_${Date.now()}_A`;
-                await setDoc(doc(db, "ledger", ledgerId_Asset), {
-                    date: receiptDate,
-                    account: receivedIntoAccountID,
-                    description: receivedIntoAccountID === "DirectCustomerAccount"
-                        ? `Direct Settlement from ${businessLedger} (Doc #${receiptNumber})`
-                        : `Customer Payment from ${businessLedger} into ${sourceAccount.name} (Doc #${receiptNumber})`,
-                    accountType: ledgerAccountType, 
-                    debit: amountReceived, // DEBIT
-                    credit: 0,
-                    doc_number: receiptNumber,
-                    timestamp: new Date().toISOString()
-                });
+                const ledgerEntries = [
+                    {
+                        date: receiptDate,
+                        account: receivedIntoAccountID,
+                        description: receivedIntoAccountID === "DirectCustomerAccount"
+                            ? `Direct Settlement from ${businessLedger}`
+                            : `Customer Payment from ${businessLedger} into ${sourceAccount.name}`,
+                        accountType: ledgerAccountType, 
+                        debit: amountReceived,
+                        credit: 0,
+                        doc_number: receiptNumber,
+                        timestamp: new Date().toISOString()
+                    },
+                    {
+                        date: receiptDate,
+                        account: businessLedger,
+                        description: `Payment Receipt to settle balance`,
+                        accountType: 'Accounts Receivable', 
+                        debit: 0,
+                        credit: amountReceived,
+                        doc_number: receiptNumber,
+                        timestamp: new Date(Date.now() + 1).toISOString()
+                    }
+                ];
 
-                // Entry 2: CREDIT Customer (Accounts Receivable) - Asset decreases
-                const ledgerId_AR = `${receiptNumber}_AR_Credit_${Date.now()}_B`;
-                await setDoc(doc(db, "ledger", ledgerId_AR), {
-                    date: receiptDate,
-                    account: businessLedger,
-                    description: `Payment Receipt to settle balance (Doc #${receiptNumber})`,
-                    accountType: 'Accounts Receivable', 
-                    debit: 0,
-                    credit: amountReceived, // CREDIT
-                    doc_number: receiptNumber,
-                    timestamp: new Date().toISOString()
-                });
-
+                console.log(`Saving ${ledgerEntries.length} ledger entries...`);
+                for (let i = 0; i < ledgerEntries.length; i++) {
+                    const entry = ledgerEntries[i];
+                    const ledgerDocRef = doc(collection(db, "ledger"));
+                    await setDoc(ledgerDocRef, entry);
+                    console.log(`✓ Ledger entry ${i + 1} saved:`, entry.account, entry.description);
+                }
+                console.log("✓ All ledger entries saved successfully");
 
                 alert(isEditing ? 'Customer Receipt updated successfully!' : 'Customer Receipt saved and ledger updated!');
                 window.location.href = 'documents.html';
             } catch (error) {
-                console.error("Error saving receipt:", error);
-                alert("Error saving receipt. Please try again.");
+                console.error("❌ Error saving receipt:", error);
+                alert("Error saving receipt: " + error.message);
             }
         }
 
-        // --- Core Logic: Delete Receipt ---
         async function deleteReceipt() {
             const receiptNumber = document.getElementById('receipt-no').value;
             
@@ -593,29 +608,31 @@
             }
 
             try {
-                // Delete the main receipt document
-                await deleteDoc(doc(db, "customerReceipts", receiptNumber));
-
-                // Delete all associated ledger entries
-                const ledgerQuery = query(collection(db, "ledger"));
+                console.log(`Starting deletion of receipt: ${receiptNumber}`);
+                console.log(`Looking for ledger entries with doc_number: ${receiptNumber}`);
+                
+                const ledgerQuery = query(collection(db, "ledger"), where("doc_number", "==", receiptNumber));
                 const ledgerSnapshot = await getDocs(ledgerQuery);
                 
+                console.log(`Found ${ledgerSnapshot.size} ledger entries to delete`);
+                
                 for (const docSnap of ledgerSnapshot.docs) {
-                    const ledgerEntry = docSnap.data();
-                    if (ledgerEntry.doc_number === receiptNumber) {
-                        await deleteDoc(doc(db, "ledger", docSnap.id));
-                    }
+                    console.log(`Deleting ledger entry: ${docSnap.id}`, docSnap.data());
+                    await deleteDoc(doc(db, "ledger", docSnap.id));
                 }
+                console.log(`✓ All ${ledgerSnapshot.size} ledger entries deleted`);
 
-                alert('Customer Receipt and associated ledger entries deleted successfully.');
+                await deleteDoc(doc(db, "customerReceipts", receiptNumber));
+                console.log(`✓ Receipt document deleted`);
+
+                alert(`Customer Receipt ${receiptNumber} and all related ledger entries deleted successfully.`);
                 window.location.href = 'documents.html';
             } catch (error) {
-                console.error("Error deleting receipt:", error);
-                alert("Error deleting receipt. Please try again.");
+                console.error("❌ Error deleting receipt:", error);
+                alert("Error deleting receipt: " + error.message);
             }
         }
         
-        // --- Core Logic: Generate PDF ---
         function generatePDF() {
             const receiptNumber = document.getElementById('receipt-no').value;
             const receiptDate = document.getElementById('receipt-date').value;
@@ -641,7 +658,8 @@
                     <table style="width: 100%; margin-bottom: 20px;">
                         <tr><td style="font-weight: bold; padding: 8px 0;">Receipt No:</td><td>${receiptNumber}</td></tr>
                         <tr><td style="font-weight: bold; padding: 8px 0;">Date:</td><td>${receiptDate}</td></tr>
-                        <tr><td style="font-weight: bold; padding: 8px 0;">Received from:</td><td>${receivedFrom}</td></tr>
+                        <tr><td style="font-weight: bold; padding:
+                        8px 0;">Received from:</td><td>${receivedFrom}</td></tr>
                         <tr><td style="font-weight: bold; padding: 8px 0;">Business (Ledger):</td><td>${businessLedger}</td></tr>
                         <tr><td style="font-weight: bold; padding: 8px 0;">Received Into Account:</td><td>${receivedIntoAccountName}</td></tr>
                         <tr><td style="font-weight: bold; padding: 8px 0;">Previous Balance:</td><td>PKR: ${previousBalance}/=</td></tr>
@@ -670,7 +688,7 @@
 
             const opt = {
                 margin: 10,
-                filename: `Customer-Receipt-Voucher-${receiptNumber}.pdf`,
+                filename: `Customer-Receipt-${receiptNumber}.pdf`,
                 image: { type: 'jpeg', quality: 0.98 },
                 html2canvas: { scale: 2 },
                 jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
@@ -681,7 +699,6 @@
 
         document.addEventListener('DOMContentLoaded', async function() {
             try {
-                // 1. Populate the account selection FIRST
                 populatePaymentAccounts();
                 
                 const urlParams = new URLSearchParams(window.location.search);
@@ -696,17 +713,18 @@
                         isEditing = true;
                         originalDocNumber = editId;
                         document.getElementById('deleteButton').style.display = 'inline-block';
+                    } else {
+                        alert("Customer Receipt not found.");
+                        window.location.href = 'documents.html';
                     }
                 } else {
                     const nextReceiptNo = await getNextReceiptNumber();
                     document.getElementById('receipt-no').value = nextReceiptNo;
-                    // Note: 'en-GB' format is typically dd/mm/yyyy
                     document.getElementById('receipt-date').value = new Date().toLocaleDateString('en-GB'); 
                     document.getElementById('deleteButton').style.display = 'none';
                     fetchPreviousBalance(document.getElementById('business-ledger').value);
                 }
 
-                // Event Listeners
                 document.getElementById('received-from').addEventListener('input', (e) => document.getElementById('business-ledger').value = e.target.value);
                 document.getElementById('business-ledger').addEventListener('input', onLedgerNameChange);
                 document.getElementById('amount-received').addEventListener('input', formatAndCalculate);
