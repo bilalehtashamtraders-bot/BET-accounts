@@ -71,7 +71,6 @@
         .nav-buttons button:hover {
             background-color: #005599;
         }
-        /* REVERTED: Changed back to a standard refresh button style (green from your original image) */
         .nav-buttons button.refresh {
             background-color: #28a745; 
         }
@@ -294,10 +293,6 @@
         console.log("✓ Firebase initialized successfully");
 
         let allDocuments = [];
-        
-        // --- REMOVED: The bulk clearing functions (clearAllLedgerEntries and clearAllDataAndRefresh) are removed. ---
-        // The Refresh button now calls location.reload() directly as defined in the HTML.
-
 
         async function loadAllDocuments() {
             try {
@@ -305,11 +300,11 @@
                 allDocuments = [];
 
                 const collections = [
-                    { name: 'purchaseInvoices', type: 'Purchase Invoice', editUrl: 'purchase-invoice.html' },
-                    { name: 'salesInvoices', type: 'Sales Invoice', editUrl: 'invoice.html' }, 
-                    { name: 'journalEntries', type: 'Journal Entry', editUrl: 'journal-entry.html' },
-                    { name: 'customerReceipts', type: 'Customer Payment', editUrl: 'receipt.html' },
-                    { name: 'vendorPayments', type: 'Vendor Payment', editUrl: 'vendor-payment-receipt.html' }
+                    { name: 'purchaseInvoices', type: 'Purchase Invoice', editUrl: 'purchase-invoice.html', prefix: 'PI-' },
+                    { name: 'salesInvoices', type: 'Sales Invoice', editUrl: 'invoice.html', prefix: 'SI-' }, 
+                    { name: 'journalEntries', type: 'Journal Entry', editUrl: 'journal-entry.html', prefix: 'JE-' },
+                    { name: 'customerReceipts', type: 'Customer Payment', editUrl: 'receipt.html', prefix: 'CR-' },
+                    { name: 'vendorPayments', type: 'Vendor Payment', editUrl: 'vendor-payment-receipt.html', prefix: 'VP-' }
                 ];
 
                 for (const col of collections) {
@@ -327,8 +322,8 @@
                                 type: col.type,
                                 collection: col.name,
                                 docId: docId,
-                                // Use the unique number or the unique ID for deletion
-                                docIdentifier: data.number || docId, 
+                                docIdentifier: data.number || docId,
+                                docNumberWithPrefix: col.prefix + (data.number || docId),
                                 editUrl: col.editUrl
                             });
                         });
@@ -337,11 +332,9 @@
                     }
                 }
 
-                // Sort by date (newest first)
                 allDocuments.sort((a, b) => {
                     const dateA = parseDate(a.date);
                     const dateB = parseDate(b.date);
-                    // Sort descending
                     return dateB - dateA;
                 });
 
@@ -360,11 +353,8 @@
 
         function parseDate(dateStr) {
             if (!dateStr) return new Date(0);
-            // Handle DD-MM-YYYY format
             const parts = dateStr.split('-');
             if (parts.length === 3) {
-                // new Date(year, monthIndex, day)
-                // Using UTC 0 to prevent timezone offsets from affecting sort order
                 return new Date(Date.UTC(parts[2], parts[1] - 1, parts[0]));
             }
             return new Date(dateStr);
@@ -386,6 +376,7 @@
             document.getElementById('totalReceipts').textContent = receiptsAndPayments;
 
             console.log('\n=== Stats Updated ===');
+            console.log(`Total: ${totalDocs}, PI: ${purchaseInvoices}, SI: ${salesInvoices}, JE: ${journals}, R&P: ${receiptsAndPayments}`);
         }
 
         function displayDocuments(docs) {
@@ -402,13 +393,8 @@
             }
 
             container.innerHTML = docs.map(doc => {
-                // Consolidated party name keys for display and search consistency
                 const partyName = doc.party || doc.customerName || doc.businessLedger || doc.receivedFrom || doc.paidTo || 'N/A';
-                
-                // Consolidated amount keys
                 const amount = doc.netTotal || doc.grandTotal || doc.amountReceived || doc.amountPaid || doc.totalDebit || 0;
-                
-                // Use doc.number if available, otherwise fall back to docId (which is the Firestore ID)
                 const displayNumber = doc.number || doc.docId;
 
                 return `
@@ -422,7 +408,7 @@
                         <div class="document-actions">
                             <button class="view-btn" onclick="viewDocument('${doc.docId}', '${doc.editUrl}')">View</button>
                             <button class="edit-btn" onclick="editDocument('${doc.docId}', '${doc.editUrl}')">Edit</button>
-                            <button class="delete-btn" onclick="deleteDocument('${doc.docId}', '${doc.collection}', '${doc.docIdentifier}')">Delete</button>
+                            <button class="delete-btn" onclick="deleteDocument('${doc.docId}', '${doc.collection}', '${doc.docIdentifier}', '${doc.docNumberWithPrefix}')">Delete</button>
                         </div>
                     </div>
                 `;
@@ -439,7 +425,7 @@
                 filtered = filtered.filter(doc => {
                     const party = (doc.party || doc.customerName || doc.businessLedger || doc.receivedFrom || doc.paidTo || '').toLowerCase();
                     const number = (doc.number || '').toLowerCase();
-                    const docId = doc.docId.toLowerCase(); // Search by docId too
+                    const docId = doc.docId.toLowerCase();
                     
                     return number.includes(searchTerm) || party.includes(searchTerm) || docId.includes(searchTerm);
                 });
@@ -459,7 +445,6 @@
         }
 
         window.viewDocument = function(docId, editUrl) {
-            // Use 'view' parameter for documents that support separate view-only mode
             window.location.href = `${editUrl}?edit=${docId}&mode=view`; 
         };
 
@@ -467,40 +452,40 @@
             window.location.href = `${editUrl}?edit=${docId}`;
         };
 
-        // This function handles SINGLE document deletion and its corresponding ledger entries.
-        // THIS IS THE CORRECT LOGIC YOU WANTED: It deletes only the ledger entries for the specific document identifier.
-        window.deleteDocument = async function(docId, collectionName, docIdentifier) {
-            if (!confirm(`Are you sure you want to delete document #${docIdentifier} from ${collectionName}?\n\nThis will:\n• Delete the main document.\n• Remove ALL related entries from the 'ledger' collection.\n• This action CANNOT be undone!`)) {
+        window.deleteDocument = async function(docId, collectionName, docIdentifier, docNumberWithPrefix) {
+            if (!confirm(`Are you sure you want to delete document #${docIdentifier}?\n\nThis will delete:\n• The main document\n• ALL related ledger entries (${docNumberWithPrefix})\n\nThis action CANNOT be undone!`)) {
                 return;
             }
 
             try {
                 console.log(`\n=== Deleting Document ===`);
-                console.log(`Doc ID: ${docId}, Collection: ${collectionName}, Identifier: ${docIdentifier}`);
+                console.log(`Doc ID: ${docId}`);
+                console.log(`Collection: ${collectionName}`);
+                console.log(`Identifier: ${docIdentifier}`);
+                console.log(`Full Doc Number: ${docNumberWithPrefix}`);
 
-                // 1. Delete the main document
                 await deleteDoc(doc(db, collectionName, docId));
                 console.log('✓ Main document deleted');
 
-                // 2. Delete related ledger entries (Optimized using batch)
-                // This is the query that correctly targets ONLY the ledger entries for the deleted document number.
-                const ledgerQuery = query(collection(db, "ledger"), where("doc_number", "==", docIdentifier));
+                const ledgerQuery = query(collection(db, "ledger"), where("doc_number", "==", docNumberWithPrefix));
                 const ledgerSnapshot = await getDocs(ledgerQuery);
+                
+                console.log(`Found ${ledgerSnapshot.size} ledger entries with doc_number: ${docNumberWithPrefix}`);
                 
                 const batch = writeBatch(db);
                 let deletedLedgerCount = 0;
 
                 ledgerSnapshot.forEach(ledgerDoc => {
+                    console.log(`  Deleting ledger entry: ${ledgerDoc.id}`, ledgerDoc.data());
                     batch.delete(doc(db, "ledger", ledgerDoc.id));
                     deletedLedgerCount++;
                 });
                 
                 await batch.commit();
 
-                console.log(`✓ Deleted ${deletedLedgerCount} related ledger entries using identifier: ${docIdentifier}`);
+                console.log(`✓ Deleted ${deletedLedgerCount} related ledger entries`);
 
-                // 3. Update UI/Reload
-                alert(`Document #${docIdentifier} and ${deletedLedgerCount} related ledger entries deleted successfully! Reloading data...`);
+                alert(`Document #${docIdentifier} and ${deletedLedgerCount} related ledger entries deleted successfully!`);
                 await loadAllDocuments(); 
                 
             } catch (error) {
