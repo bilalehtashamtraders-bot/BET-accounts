@@ -112,7 +112,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
@@ -293,7 +293,6 @@
             return lineItems;
         }
         
-        // --- START OF CRITICAL FIXES FOR LEDGER ENTRY ---
         window.saveInvoice = async function() {
             const invoiceNumber = document.getElementById('invoiceNumber').value;
             const invoiceDate = document.getElementById('invoiceDate').value;
@@ -315,11 +314,9 @@
                 const docNumber = `SI-${invoiceNumber}`;
                 const initialTimestamp = new Date();
 
-                // 1. Generate Summarized Description
                 let itemDescriptions = lineItems.map(item => item.description).filter(d => d.trim() !== '');
                 let goodsSummary = "Goods Sold";
                 if (itemDescriptions.length > 0) {
-                    // Summarize to a nice one-liner
                     if (itemDescriptions.length === 1) {
                         goodsSummary = itemDescriptions[0];
                     } else if (itemDescriptions.length === 2) {
@@ -346,73 +343,55 @@
 
                 await setDoc(doc(db, "salesInvoices", invoiceNumber), invoiceData);
 
-                // Handle deletion of old document if invoice number changed
                 if (isEditing && originalDocNumber && originalDocNumber !== invoiceNumber) {
                     await deleteDoc(doc(db, "salesInvoices", originalDocNumber));
                     const oldDocNumber = `SI-${originalDocNumber}`;
-                    const ledgerQuery = query(collection(db, "ledger"));
-                    const ledgerSnapshot = await getDocs(ledgerQuery);
-                    for (const docSnap of ledgerSnapshot.docs) {
-                        const ledgerEntry = docSnap.data();
-                        if (ledgerEntry.doc_number === oldDocNumber) {
-                            await deleteDoc(doc(db, "ledger", docSnap.id));
-                        }
-                    }
+                    const oldLedgerQuery = query(collection(db, "ledger"), where("doc_number", "==", oldDocNumber));
+                    const oldLedgerSnapshot = await getDocs(oldLedgerQuery);
+                    const deleteOldPromises = oldLedgerSnapshot.docs.map(docSnap => deleteDoc(doc(db, "ledger", docSnap.id)));
+                    await Promise.all(deleteOldPromises);
                 }
 
-                // Clear existing ledger entries for this document (for update)
-                const existingLedgerQuery = query(collection(db, "ledger"));
-                const ledgerSnapshot = await getDocs(existingLedgerQuery);
-                for (const docSnap of ledgerSnapshot.docs) {
-                    const entry = docSnap.data();
-                    if (entry.doc_number === docNumber) {
-                        await deleteDoc(doc(db, "ledger", docSnap.id));
-                    }
-                }
+                const existingLedgerQuery = query(collection(db, "ledger"), where("doc_number", "==", docNumber));
+                const existingLedgerSnapshot = await getDocs(existingLedgerQuery);
+                const deletePromises = existingLedgerSnapshot.docs.map(docSnap => deleteDoc(doc(db, "ledger", docSnap.id)));
+                await Promise.all(deletePromises);
                 
                 let timeOffset = 0;
 
                 const ledgerEntries = [
-                    // 1. Customer Entry (DEBIT)
                     {
                         date: invoiceDate,
                         doc_number: docNumber,
                         account: customerName,
                         debit: netTotal,
                         credit: 0,
-                        // FIX 2: Use summarized description
                         description: saleDescription,
-                        // FIX 1: Use initial unique timestamp
                         timestamp: initialTimestamp.toISOString()
                     },
-                    // 2. Sales Revenue Entry (CREDIT)
                     {
                         date: invoiceDate,
                         doc_number: docNumber,
                         account: "Sales Revenue",
                         debit: 0,
                         credit: grossTotal,
-                        // FIX 1: Use unique timestamp (incremented by 1 millisecond)
                         description: `Revenue for SI #${invoiceNumber}`,
                         timestamp: new Date(initialTimestamp.getTime() + (++timeOffset)).toISOString()
                     }
                 ];
 
                 if (cartage > 0) {
-                    // 3. Cartage Entry (CREDIT)
                     ledgerEntries.push({
                         date: invoiceDate,
                         doc_number: docNumber,
                         account: "Cartage Income",
                         debit: 0,
                         credit: cartage,
-                        // FIX 1: Use unique timestamp (incremented by 2 milliseconds)
                         description: `Cartage charges for SI #${invoiceNumber}`,
                         timestamp: new Date(initialTimestamp.getTime() + (++timeOffset)).toISOString()
                     });
                 }
 
-                // Save all new ledger entries
                 for (const entry of ledgerEntries) {
                     const ledgerDocRef = doc(collection(db, "ledger"));
                     await setDoc(ledgerDocRef, entry);
@@ -433,23 +412,36 @@
             }
 
             try {
-                await deleteDoc(doc(db, "salesInvoices", invoiceNumber));
-
                 const docNumber = `SI-${invoiceNumber}`;
-                const ledgerQuery = query(collection(db, "ledger"));
+                
+                console.log(`Deleting invoice: ${invoiceNumber}`);
+                console.log(`Looking for ledger entries with doc_number: ${docNumber}`);
+                
+                // CRITICAL FIX: Use where clause to efficiently query ledger entries
+                const ledgerQuery = query(collection(db, "ledger"), where("doc_number", "==", docNumber));
                 const ledgerSnapshot = await getDocs(ledgerQuery);
-                for (const docSnap of ledgerSnapshot.docs) {
-                    const ledgerEntry = docSnap.data();
-                    if (ledgerEntry.doc_number === docNumber) {
-                        await deleteDoc(doc(db, "ledger", docSnap.id));
-                    }
-                }
+                
+                console.log(`Found ${ledgerSnapshot.size} ledger entries to delete`);
+                
+                // Delete all matching ledger entries using Promise.all for efficiency
+                const deletePromises = [];
+                ledgerSnapshot.forEach((docSnap) => {
+                    console.log(`Deleting ledger entry: ${docSnap.id}`, docSnap.data());
+                    deletePromises.push(deleteDoc(doc(db, "ledger", docSnap.id)));
+                });
+                
+                await Promise.all(deletePromises);
+                console.log(`All ledger entries deleted`);
+                
+                // Delete the invoice document
+                await deleteDoc(doc(db, "salesInvoices", invoiceNumber));
+                console.log(`Invoice document deleted`);
 
-                alert(`Invoice ${invoiceNumber} deleted successfully.`);
+                alert(`Invoice ${invoiceNumber} and all related ledger entries deleted successfully.`);
                 window.location.href = 'documents.html';
             } catch (error) {
                 console.error("Error deleting invoice:", error);
-                alert("Error deleting invoice. Please try again.");
+                alert("Error deleting invoice: " + error.message);
             }
         };
 
