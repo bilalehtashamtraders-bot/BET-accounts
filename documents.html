@@ -300,11 +300,11 @@
                 allDocuments = [];
 
                 const collections = [
-                    { name: 'purchaseInvoices', type: 'Purchase Invoice', editUrl: 'purchase-invoice.html', prefix: 'PI-' },
+                    { name: 'purchaseInvoices', type: 'Purchase Invoice', editUrl: 'purchase-invoice.html', prefix: '' },
                     { name: 'salesInvoices', type: 'Sales Invoice', editUrl: 'invoice.html', prefix: 'SI-' }, 
-                    { name: 'journalEntries', type: 'Journal Entry', editUrl: 'journal-entry.html', prefix: 'JE-' },
-                    { name: 'customerReceipts', type: 'Customer Payment', editUrl: 'receipt.html', prefix: 'CR-' },
-                    { name: 'vendorPayments', type: 'Vendor Payment', editUrl: 'vendor-payment-receipt.html', prefix: 'VP-' }
+                    { name: 'journalEntries', type: 'Journal Entry', editUrl: 'journal-entry.html', prefix: '' },
+                    { name: 'customerReceipts', type: 'Customer Payment', editUrl: 'receipt.html', prefix: '' },
+                    { name: 'vendorPayments', type: 'Vendor Payment', editUrl: 'vendor-payment-receipt.html', prefix: '' }
                 ];
 
                 for (const col of collections) {
@@ -317,13 +317,21 @@
                             const data = docSnap.data();
                             const docId = docSnap.id;
                             
+                            // Get the document number that's actually stored in ledger
+                            let ledgerDocNumber = data.number || docId;
+                            
+                            // For sales invoices, add SI- prefix if not already there
+                            if (col.name === 'salesInvoices' && !ledgerDocNumber.startsWith('SI-')) {
+                                ledgerDocNumber = 'SI-' + ledgerDocNumber;
+                            }
+                            
                             allDocuments.push({
                                 ...data,
                                 type: col.type,
                                 collection: col.name,
                                 docId: docId,
                                 docIdentifier: data.number || docId,
-                                docNumberWithPrefix: col.prefix + (data.number || docId),
+                                ledgerDocNumber: ledgerDocNumber, // This is what's actually in the ledger
                                 editUrl: col.editUrl
                             });
                         });
@@ -408,7 +416,7 @@
                         <div class="document-actions">
                             <button class="view-btn" onclick="viewDocument('${doc.docId}', '${doc.editUrl}')">View</button>
                             <button class="edit-btn" onclick="editDocument('${doc.docId}', '${doc.editUrl}')">Edit</button>
-                            <button class="delete-btn" onclick="deleteDocument('${doc.docId}', '${doc.collection}', '${doc.docIdentifier}', '${doc.docNumberWithPrefix}')">Delete</button>
+                            <button class="delete-btn" onclick="deleteDocument('${doc.docId}', '${doc.collection}', '${doc.docIdentifier}', '${doc.ledgerDocNumber}')">Delete</button>
                         </div>
                     </div>
                 `;
@@ -452,8 +460,8 @@
             window.location.href = `${editUrl}?edit=${docId}`;
         };
 
-        window.deleteDocument = async function(docId, collectionName, docIdentifier, docNumberWithPrefix) {
-            if (!confirm(`Are you sure you want to delete document #${docIdentifier}?\n\nThis will delete:\n• The main document\n• ALL related ledger entries (${docNumberWithPrefix})\n\nThis action CANNOT be undone!`)) {
+        window.deleteDocument = async function(docId, collectionName, docIdentifier, ledgerDocNumber) {
+            if (!confirm(`Are you sure you want to delete document #${docIdentifier}?\n\nThis will delete:\n• The main document\n• ALL related ledger entries (${ledgerDocNumber})\n\nThis action CANNOT be undone!`)) {
                 return;
             }
 
@@ -462,30 +470,56 @@
                 console.log(`Doc ID: ${docId}`);
                 console.log(`Collection: ${collectionName}`);
                 console.log(`Identifier: ${docIdentifier}`);
-                console.log(`Full Doc Number: ${docNumberWithPrefix}`);
+                console.log(`Ledger Doc Number to search: ${ledgerDocNumber}`);
 
+                // Delete the main document
                 await deleteDoc(doc(db, collectionName, docId));
-                console.log('✓ Main document deleted');
+                console.log('✓ Main document deleted from collection:', collectionName);
 
-                const ledgerQuery = query(collection(db, "ledger"), where("doc_number", "==", docNumberWithPrefix));
+                // Query ledger entries using the exact doc_number format stored in ledger
+                const ledgerQuery = query(collection(db, "ledger"), where("doc_number", "==", ledgerDocNumber));
                 const ledgerSnapshot = await getDocs(ledgerQuery);
                 
-                console.log(`Found ${ledgerSnapshot.size} ledger entries with doc_number: ${docNumberWithPrefix}`);
+                console.log(`Found ${ledgerSnapshot.size} ledger entries with doc_number: "${ledgerDocNumber}"`);
                 
+                if (ledgerSnapshot.size === 0) {
+                    console.warn(`⚠ WARNING: No ledger entries found for doc_number: "${ledgerDocNumber}"`);
+                    console.log('Attempting alternate search patterns...');
+                    
+                    // Try searching without prefix for Purchase Invoices
+                    if (ledgerDocNumber.startsWith('PI-')) {
+                        const altNumber = ledgerDocNumber.replace('PI-', '');
+                        const altQuery = query(collection(db, "ledger"), where("doc_number", "==", altNumber));
+                        const altSnapshot = await getDocs(altQuery);
+                        console.log(`  Alternate search for "${altNumber}": found ${altSnapshot.size} entries`);
+                    }
+                    
+                    // Try searching with prefix for Sales Invoices
+                    if (!ledgerDocNumber.startsWith('SI-') && collectionName === 'salesInvoices') {
+                        const altNumber = 'SI-' + ledgerDocNumber;
+                        const altQuery = query(collection(db, "ledger"), where("doc_number", "==", altNumber));
+                        const altSnapshot = await getDocs(altQuery);
+                        console.log(`  Alternate search for "${altNumber}": found ${altSnapshot.size} entries`);
+                    }
+                }
+
                 const batch = writeBatch(db);
                 let deletedLedgerCount = 0;
 
                 ledgerSnapshot.forEach(ledgerDoc => {
-                    console.log(`  Deleting ledger entry: ${ledgerDoc.id}`, ledgerDoc.data());
+                    console.log(`  ✓ Queuing ledger entry for deletion: ${ledgerDoc.id}`, ledgerDoc.data());
                     batch.delete(doc(db, "ledger", ledgerDoc.id));
                     deletedLedgerCount++;
                 });
                 
-                await batch.commit();
+                if (deletedLedgerCount > 0) {
+                    await batch.commit();
+                    console.log(`✓ Successfully deleted ${deletedLedgerCount} related ledger entries`);
+                } else {
+                    console.warn('⚠ No ledger entries were deleted');
+                }
 
-                console.log(`✓ Deleted ${deletedLedgerCount} related ledger entries`);
-
-                alert(`Document #${docIdentifier} and ${deletedLedgerCount} related ledger entries deleted successfully!`);
+                alert(`Document #${docIdentifier} deleted successfully!\n${deletedLedgerCount} related ledger ${deletedLedgerCount === 1 ? 'entry' : 'entries'} removed.`);
                 await loadAllDocuments(); 
                 
             } catch (error) {
