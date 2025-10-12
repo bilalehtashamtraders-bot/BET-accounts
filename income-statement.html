@@ -208,7 +208,8 @@
                 'Sales Income', 'Trading Revenue'
             ],
             'Other Revenue': [
-                'Commission Earned', 'Cartage Income', 'Other Income', 
+                'Commission Earned', 'Commission Income', 'Commission Expense',
+                'Cartage Income', 'Other Income', 
                 'Interest Income', 'Miscellaneous Income'
             ],
             'COGS': [
@@ -303,11 +304,16 @@
                         }
                     }
                     else if (matchesGroup(accountName, incomeStatementGroups['Other Revenue'])) {
-                        if (netBalance < 0) {
+                        if (netBalance > 0) {
+                            let amount = netBalance;
+                            calculatedAmounts.otherRevenue[accountName] = amount;
+                            totalOtherRevenue += amount;
+                            debugInfo.push(`✓ Other Revenue (DEBIT balance treated as income): ${accountName} = ${formatAmount(amount)}`);
+                        } else if (netBalance < 0) {
                             let amount = Math.abs(netBalance);
                             calculatedAmounts.otherRevenue[accountName] = amount;
                             totalOtherRevenue += amount;
-                            debugInfo.push(`✓ Other Revenue: ${accountName} = ${formatAmount(amount)}`);
+                            debugInfo.push(`✓ Other Revenue (CREDIT balance): ${accountName} = ${formatAmount(amount)}`);
                         }
                     }
                     else if (matchesGroup(accountName, incomeStatementGroups.COGS)) {
@@ -363,7 +369,7 @@
 
                 debugInfo.push(`<br><strong>Summary:</strong>`);
                 debugInfo.push(`Total Sales Revenue: ${formatAmount(totalSalesRevenue)}`);
-                debugInfo.push(`Total Other Revenue: ${formatAmount(totalOtherRevenue)}`);
+                debugInfo.push(`Total Other Revenue (including Commission): ${formatAmount(totalOtherRevenue)}`);
                 debugInfo.push(`Total COGS: ${formatAmount(totalCOGS)}`);
                 debugInfo.push(`Total Expenses: ${formatAmount(totalExpenses)}`);
 
