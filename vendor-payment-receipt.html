@@ -174,7 +174,7 @@
             <table class="details-table">
                 <tr>
                     <td class="label">Voucher No:</td>
-                    <td><input type="text" class="editable-field" id="receipt-no" placeholder="e.g., 00100" readonly></td>
+                    <td><input type="text" class="editable-field" id="receipt-no" placeholder="e.g., VP-0100" readonly></td>
                 </tr>
                 <tr>
                     <td class="label">Date:</td>
@@ -252,7 +252,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4", 
@@ -295,20 +295,19 @@
 
         async function getNextVoucherNumber() {
             try {
-                const q = query(collection(db, "vendorPayments"), orderBy("number", "desc"), limit(1));
+                const q = query(collection(db, "vendorPayments"), orderBy("numericNumber", "desc"), limit(1));
                 const snapshot = await getDocs(q);
                 
+                let lastNumber = STARTING_PAYMENT_NUMBER;
                 if (!snapshot.empty) {
                     const lastDoc = snapshot.docs[0].data();
-                    const lastNumber = parseInt(lastDoc.number) || STARTING_PAYMENT_NUMBER;
-                    const nextNumber = lastNumber + 1;
-                    return String(nextNumber).padStart(4, '0');
-                } else {
-                    return String(STARTING_PAYMENT_NUMBER + 1).padStart(4, '0');
+                    lastNumber = parseInt(lastDoc.numericNumber, 10);
                 }
+                const nextNumber = lastNumber + 1;
+                return 'VP-' + String(nextNumber).padStart(4, '0');
             } catch (error) {
                 console.error("Error getting next voucher number:", error);
-                return String(STARTING_PAYMENT_NUMBER + 1).padStart(4, '0');
+                return 'VP-' + String(STARTING_PAYMENT_NUMBER + 1).padStart(4, '0');
             }
         }
 
@@ -485,14 +484,22 @@
                 alert("Please fill in Date, Paid To, and Business (Ledger) fields.");
                 return;
             }
+            
+            if (!paidFromAccountId) {
+                alert("Please select the Account the payment was made from.");
+                return;
+            }
 
             if (amountPaid <= 0) {
                 alert("Please enter a valid amount paid.");
                 return;
             }
 
+            const numericNumber = parseInt(voucherNumber.replace('VP-', ''), 10);
+
             const newPayment = {
                 number: voucherNumber,
+                numericNumber: numericNumber,
                 date: paymentDate,
                 paidTo: paidTo,
                 businessLedger: businessLedger,
@@ -511,86 +518,110 @@
 
             try {
                 await setDoc(doc(db, "vendorPayments", voucherNumber), newPayment);
+                console.log("✓ Vendor Payment saved to vendorPayments collection");
 
-                if (isEditing) {
-                    const ledgerQuery = query(collection(db, "ledger"));
-                    const ledgerSnapshot = await getDocs(ledgerQuery);
+                if (isEditing && originalDocNumber && originalDocNumber !== voucherNumber) {
+                    await deleteDoc(doc(db, "vendorPayments", originalDocNumber));
+                    console.log("✓ Old vendor payment document deleted");
                     
-                    for (const docSnap of ledgerSnapshot.docs) {
-                        const ledgerEntry = docSnap.data();
-                        if (ledgerEntry.doc_number === originalDocNumber) {
-                            await deleteDoc(doc(db, "ledger", docSnap.id));
-                        }
+                    const oldLedgerQuery = query(collection(db, "ledger"), where("doc_number", "==", originalDocNumber));
+                    const oldLedgerSnapshot = await getDocs(oldLedgerQuery);
+                    console.log(`Found ${oldLedgerSnapshot.size} old ledger entries to delete`);
+                    
+                    for (const docSnap of oldLedgerSnapshot.docs) {
+                        await deleteDoc(doc(db, "ledger", docSnap.id));
                     }
+                    console.log("✓ Old ledger entries deleted");
                 }
 
-                // PARTY LEDGER ENTRY: Always debit vendor's A/P (reduces liability)
-                const ledgerId_AP = `${voucherNumber}_AP_Debit_${Date.now()}_A`;
-                await setDoc(doc(db, "ledger", ledgerId_AP), {
-                    date: paymentDate,
-                    account: businessLedger,
-                    description: paidFromAccountId === "DirectPartyAccount" 
-                        ? `Direct Payment to ${businessLedger} (Voucher #${voucherNumber})`
-                        : `Payment to ${businessLedger} (Voucher #${voucherNumber})`,
-                    accountType: 'Accounts Payable',
-                    debit: amountPaid, 
-                    credit: 0,
-                    doc_number: voucherNumber,
-                    paidVia: paidFromAccountId === "DirectPartyAccount" ? "Direct Party Account" : paidFromAccountName,
-                    timestamp: new Date().toISOString()
-                });
+                const existingLedgerQuery = query(collection(db, "ledger"), where("doc_number", "==", voucherNumber));
+                const existingLedgerSnapshot = await getDocs(existingLedgerQuery);
+                console.log(`Found ${existingLedgerSnapshot.size} existing ledger entries for this doc_number`);
                 
-                // ASSET LEDGER ENTRY: Skip for Direct Party Account
+                for (const docSnap of existingLedgerSnapshot.docs) {
+                    await deleteDoc(doc(db, "ledger", docSnap.id));
+                }
+                console.log("✓ Existing ledger entries cleared");
+
+                const ledgerEntries = [
+                    {
+                        date: paymentDate,
+                        account: businessLedger,
+                        description: paidFromAccountId === "DirectPartyAccount" 
+                            ? `Direct Payment to ${businessLedger}`
+                            : `Payment to ${businessLedger}`,
+                        accountType: 'Accounts Payable',
+                        debit: amountPaid, 
+                        credit: 0,
+                        doc_number: voucherNumber,
+                        paidVia: paidFromAccountId === "DirectPartyAccount" ? "Direct Party Account" : paidFromAccountName,
+                        timestamp: new Date().toISOString()
+                    }
+                ];
+                
                 if (paidFromAccountId !== "DirectPartyAccount") {
                     const sourceAccount = cashAndBankAccounts.find(acc => acc.id === paidFromAccountId);
                     const ledgerAccountType = sourceAccount ? sourceAccount.type : 'Other Balances';
 
-                    const ledgerId_Asset = `${voucherNumber}_Asset_Credit_${Date.now()}_B`;
-                    await setDoc(doc(db, "ledger", ledgerId_Asset), {
+                    ledgerEntries.push({
                         date: paymentDate,
                         account: paidFromAccountId, 
-                        description: `Vendor Payment to ${businessLedger} from ${sourceAccount.name} (Voucher #${voucherNumber})`,
+                        description: `Vendor Payment to ${businessLedger} from ${sourceAccount.name}`,
                         accountType: ledgerAccountType, 
                         debit: 0,
                         credit: amountPaid,
                         doc_number: voucherNumber,
-                        timestamp: new Date().toISOString()
+                        timestamp: new Date(Date.now() + 1).toISOString()
                     });
                 }
+
+                console.log(`Saving ${ledgerEntries.length} ledger entries...`);
+                for (let i = 0; i < ledgerEntries.length; i++) {
+                    const entry = ledgerEntries[i];
+                    const ledgerDocRef = doc(collection(db, "ledger"));
+                    await setDoc(ledgerDocRef, entry);
+                    console.log(`✓ Ledger entry ${i + 1} saved:`, entry.account, entry.description);
+                }
+                console.log("✓ All ledger entries saved successfully");
 
                 alert(isEditing ? 'Vendor Payment updated successfully!' : 'Vendor Payment saved and ledger updated!');
                 window.location.href = 'documents.html';
             } catch (error) {
-                console.error("Error saving payment:", error);
-                alert("Error saving payment. Please try again.");
+                console.error("❌ Error saving payment:", error);
+                alert("Error saving payment: " + error.message);
             }
         }
 
         async function deletePayment() {
             const voucherNumber = document.getElementById('receipt-no').value;
             
-            if (!confirm(`Are you sure you want to delete Vendor Payment voucher ${voucherNumber}? This cannot be undone.`)) {
+            if (!confirm(`Are you sure you want to delete Vendor Payment ${voucherNumber}? This cannot be undone.`)) {
                 return;
             }
 
             try {
-                await deleteDoc(doc(db, "vendorPayments", voucherNumber));
-
-                const ledgerQuery = query(collection(db, "ledger"));
+                console.log(`Starting deletion of vendor payment: ${voucherNumber}`);
+                console.log(`Looking for ledger entries with doc_number: ${voucherNumber}`);
+                
+                const ledgerQuery = query(collection(db, "ledger"), where("doc_number", "==", voucherNumber));
                 const ledgerSnapshot = await getDocs(ledgerQuery);
                 
+                console.log(`Found ${ledgerSnapshot.size} ledger entries to delete`);
+                
                 for (const docSnap of ledgerSnapshot.docs) {
-                    const ledgerEntry = docSnap.data();
-                    if (ledgerEntry.doc_number === voucherNumber) {
-                        await deleteDoc(doc(db, "ledger", docSnap.id));
-                    }
+                    console.log(`Deleting ledger entry: ${docSnap.id}`, docSnap.data());
+                    await deleteDoc(doc(db, "ledger", docSnap.id));
                 }
+                console.log(`✓ All ${ledgerSnapshot.size} ledger entries deleted`);
 
-                alert('Vendor Payment and associated ledger entries deleted successfully.');
+                await deleteDoc(doc(db, "vendorPayments", voucherNumber));
+                console.log(`✓ Vendor Payment document deleted`);
+
+                alert(`Vendor Payment ${voucherNumber} and all related ledger entries deleted successfully.`);
                 window.location.href = 'documents.html';
             } catch (error) {
-                console.error("Error deleting payment:", error);
-                alert("Error deleting payment. Please try again.");
+                console.error("❌ Error deleting payment:", error);
+                alert("Error deleting payment: " + error.message);
             }
         }
         
@@ -618,17 +649,8 @@
                     </div>
                     <table style="width: 100%; margin-bottom: 20px;">
                         <tr><td style="font-weight: bold; padding: 8px 0;">Voucher No:</td><td>${voucherNumber}</td></tr>
-                        <tr><td style="font-weight: bold; padding: 8px 0;">Date:</td><td>${paymentDate}</td></tr>
-                        <tr><td style="font-weight: bold; padding: 8px 0;">Paid To:</td><td>${paidTo}</td></tr>
-                        <tr><td style="font-weight: bold; padding: 8px 0;">Business (Ledger):</td><td>${businessLedger}</td></tr>
-                        <tr><td style="font-weight: bold; padding: 8px 0;">Paid From Account:</td><td>${paidFromAccountName}</td></tr>
-                        <tr><td style="font-weight: bold; padding: 8px 0;">Previous Payable:</td><td>PKR: ${previousPayable}/=</td></tr>
-                        <tr><td style="font-weight: bold; padding: 8px 0;">Cheque/Online Ref:</td><td>${chequeRef}</td></tr>
-                        <tr><td style="font-weight: bold; padding: 8px 0;">Cheque/Bank name:</td><td>${chequeBank}</td></tr>
-                        <tr><td style="font-weight: bold; padding: 8px 0;">Account Title:</td><td>${accountTitle}</td></tr>
-                    </table>
-                    <div style="border-top: 1px solid #ccc; padding-top: 15px; margin
-                    <!DOCTYPE html>
+                        <tr><td style="font-weight
+                        <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -804,7 +826,7 @@
             <table class="details-table">
                 <tr>
                     <td class="label">Voucher No:</td>
-                    <td><input type="text" class="editable-field" id="receipt-no" placeholder="e.g., 00100" readonly></td>
+                    <td><input type="text" class="editable-field" id="receipt-no" placeholder="e.g., VP-0100" readonly></td>
                 </tr>
                 <tr>
                     <td class="label">Date:</td>
@@ -882,7 +904,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4", 
@@ -925,20 +947,19 @@
 
         async function getNextVoucherNumber() {
             try {
-                const q = query(collection(db, "vendorPayments"), orderBy("number", "desc"), limit(1));
+                const q = query(collection(db, "vendorPayments"), orderBy("numericNumber", "desc"), limit(1));
                 const snapshot = await getDocs(q);
                 
+                let lastNumber = STARTING_PAYMENT_NUMBER;
                 if (!snapshot.empty) {
                     const lastDoc = snapshot.docs[0].data();
-                    const lastNumber = parseInt(lastDoc.number) || STARTING_PAYMENT_NUMBER;
-                    const nextNumber = lastNumber + 1;
-                    return String(nextNumber).padStart(4, '0');
-                } else {
-                    return String(STARTING_PAYMENT_NUMBER + 1).padStart(4, '0');
+                    lastNumber = parseInt(lastDoc.numericNumber, 10);
                 }
+                const nextNumber = lastNumber + 1;
+                return 'VP-' + String(nextNumber).padStart(4, '0');
             } catch (error) {
                 console.error("Error getting next voucher number:", error);
-                return String(STARTING_PAYMENT_NUMBER + 1).padStart(4, '0');
+                return 'VP-' + String(STARTING_PAYMENT_NUMBER + 1).padStart(4, '0');
             }
         }
 
@@ -1115,14 +1136,22 @@
                 alert("Please fill in Date, Paid To, and Business (Ledger) fields.");
                 return;
             }
+            
+            if (!paidFromAccountId) {
+                alert("Please select the Account the payment was made from.");
+                return;
+            }
 
             if (amountPaid <= 0) {
                 alert("Please enter a valid amount paid.");
                 return;
             }
 
+            const numericNumber = parseInt(voucherNumber.replace('VP-', ''), 10);
+
             const newPayment = {
                 number: voucherNumber,
+                numericNumber: numericNumber,
                 date: paymentDate,
                 paidTo: paidTo,
                 businessLedger: businessLedger,
@@ -1141,86 +1170,110 @@
 
             try {
                 await setDoc(doc(db, "vendorPayments", voucherNumber), newPayment);
+                console.log("✓ Vendor Payment saved to vendorPayments collection");
 
-                if (isEditing) {
-                    const ledgerQuery = query(collection(db, "ledger"));
-                    const ledgerSnapshot = await getDocs(ledgerQuery);
+                if (isEditing && originalDocNumber && originalDocNumber !== voucherNumber) {
+                    await deleteDoc(doc(db, "vendorPayments", originalDocNumber));
+                    console.log("✓ Old vendor payment document deleted");
                     
-                    for (const docSnap of ledgerSnapshot.docs) {
-                        const ledgerEntry = docSnap.data();
-                        if (ledgerEntry.doc_number === originalDocNumber) {
-                            await deleteDoc(doc(db, "ledger", docSnap.id));
-                        }
+                    const oldLedgerQuery = query(collection(db, "ledger"), where("doc_number", "==", originalDocNumber));
+                    const oldLedgerSnapshot = await getDocs(oldLedgerQuery);
+                    console.log(`Found ${oldLedgerSnapshot.size} old ledger entries to delete`);
+                    
+                    for (const docSnap of oldLedgerSnapshot.docs) {
+                        await deleteDoc(doc(db, "ledger", docSnap.id));
                     }
+                    console.log("✓ Old ledger entries deleted");
                 }
 
-                // PARTY LEDGER ENTRY: Always debit vendor's A/P (reduces liability)
-                const ledgerId_AP = `${voucherNumber}_AP_Debit_${Date.now()}_A`;
-                await setDoc(doc(db, "ledger", ledgerId_AP), {
-                    date: paymentDate,
-                    account: businessLedger,
-                    description: paidFromAccountId === "DirectPartyAccount" 
-                        ? `Direct Payment to ${businessLedger} (Voucher #${voucherNumber})`
-                        : `Payment to ${businessLedger} (Voucher #${voucherNumber})`,
-                    accountType: 'Accounts Payable',
-                    debit: amountPaid, 
-                    credit: 0,
-                    doc_number: voucherNumber,
-                    paidVia: paidFromAccountId === "DirectPartyAccount" ? "Direct Party Account" : paidFromAccountName,
-                    timestamp: new Date().toISOString()
-                });
+                const existingLedgerQuery = query(collection(db, "ledger"), where("doc_number", "==", voucherNumber));
+                const existingLedgerSnapshot = await getDocs(existingLedgerQuery);
+                console.log(`Found ${existingLedgerSnapshot.size} existing ledger entries for this doc_number`);
                 
-                // ASSET LEDGER ENTRY: Skip for Direct Party Account
+                for (const docSnap of existingLedgerSnapshot.docs) {
+                    await deleteDoc(doc(db, "ledger", docSnap.id));
+                }
+                console.log("✓ Existing ledger entries cleared");
+
+                const ledgerEntries = [
+                    {
+                        date: paymentDate,
+                        account: businessLedger,
+                        description: paidFromAccountId === "DirectPartyAccount" 
+                            ? `Direct Payment to ${businessLedger}`
+                            : `Payment to ${businessLedger}`,
+                        accountType: 'Accounts Payable',
+                        debit: amountPaid, 
+                        credit: 0,
+                        doc_number: voucherNumber,
+                        paidVia: paidFromAccountId === "DirectPartyAccount" ? "Direct Party Account" : paidFromAccountName,
+                        timestamp: new Date().toISOString()
+                    }
+                ];
+                
                 if (paidFromAccountId !== "DirectPartyAccount") {
                     const sourceAccount = cashAndBankAccounts.find(acc => acc.id === paidFromAccountId);
                     const ledgerAccountType = sourceAccount ? sourceAccount.type : 'Other Balances';
 
-                    const ledgerId_Asset = `${voucherNumber}_Asset_Credit_${Date.now()}_B`;
-                    await setDoc(doc(db, "ledger", ledgerId_Asset), {
+                    ledgerEntries.push({
                         date: paymentDate,
                         account: paidFromAccountId, 
-                        description: `Vendor Payment to ${businessLedger} from ${sourceAccount.name} (Voucher #${voucherNumber})`,
+                        description: `Vendor Payment to ${businessLedger} from ${sourceAccount.name}`,
                         accountType: ledgerAccountType, 
                         debit: 0,
                         credit: amountPaid,
                         doc_number: voucherNumber,
-                        timestamp: new Date().toISOString()
+                        timestamp: new Date(Date.now() + 1).toISOString()
                     });
                 }
+
+                console.log(`Saving ${ledgerEntries.length} ledger entries...`);
+                for (let i = 0; i < ledgerEntries.length; i++) {
+                    const entry = ledgerEntries[i];
+                    const ledgerDocRef = doc(collection(db, "ledger"));
+                    await setDoc(ledgerDocRef, entry);
+                    console.log(`✓ Ledger entry ${i + 1} saved:`, entry.account, entry.description);
+                }
+                console.log("✓ All ledger entries saved successfully");
 
                 alert(isEditing ? 'Vendor Payment updated successfully!' : 'Vendor Payment saved and ledger updated!');
                 window.location.href = 'documents.html';
             } catch (error) {
-                console.error("Error saving payment:", error);
-                alert("Error saving payment. Please try again.");
+                console.error("❌ Error saving payment:", error);
+                alert("Error saving payment: " + error.message);
             }
         }
 
         async function deletePayment() {
             const voucherNumber = document.getElementById('receipt-no').value;
             
-            if (!confirm(`Are you sure you want to delete Vendor Payment voucher ${voucherNumber}? This cannot be undone.`)) {
+            if (!confirm(`Are you sure you want to delete Vendor Payment ${voucherNumber}? This cannot be undone.`)) {
                 return;
             }
 
             try {
-                await deleteDoc(doc(db, "vendorPayments", voucherNumber));
-
-                const ledgerQuery = query(collection(db, "ledger"));
+                console.log(`Starting deletion of vendor payment: ${voucherNumber}`);
+                console.log(`Looking for ledger entries with doc_number: ${voucherNumber}`);
+                
+                const ledgerQuery = query(collection(db, "ledger"), where("doc_number", "==", voucherNumber));
                 const ledgerSnapshot = await getDocs(ledgerQuery);
                 
+                console.log(`Found ${ledgerSnapshot.size} ledger entries to delete`);
+                
                 for (const docSnap of ledgerSnapshot.docs) {
-                    const ledgerEntry = docSnap.data();
-                    if (ledgerEntry.doc_number === voucherNumber) {
-                        await deleteDoc(doc(db, "ledger", docSnap.id));
-                    }
+                    console.log(`Deleting ledger entry: ${docSnap.id}`, docSnap.data());
+                    await deleteDoc(doc(db, "ledger", docSnap.id));
                 }
+                console.log(`✓ All ${ledgerSnapshot.size} ledger entries deleted`);
 
-                alert('Vendor Payment and associated ledger entries deleted successfully.');
+                await deleteDoc(doc(db, "vendorPayments", voucherNumber));
+                console.log(`✓ Vendor Payment document deleted`);
+
+                alert(`Vendor Payment ${voucherNumber} and all related ledger entries deleted successfully.`);
                 window.location.href = 'documents.html';
             } catch (error) {
-                console.error("Error deleting payment:", error);
-                alert("Error deleting payment. Please try again.");
+                console.error("❌ Error deleting payment:", error);
+                alert("Error deleting payment: " + error.message);
             }
         }
         
@@ -1247,7 +1300,6 @@
                         <p>Email: bilalehtashamtraders@gmail.com | Cell: (+92)-324-2479096</p>
                     </div>
                     <table style="width: 100%; margin-bottom: 20px;">
-                        <tr><td style="font-weight: bold; padding: 8px 0;">Voucher No:</td><td>${voucherNumber}</td></tr>
                         <tr><td style="font-weight: bold; padding: 8px 0;">Date:</td><td>${paymentDate}</td></tr>
                         <tr><td style="font-weight: bold; padding: 8px 0;">Paid To:</td><td>${paidTo}</td></tr>
                         <tr><td style="font-weight: bold; padding: 8px 0;">Business (Ledger):</td><td>${businessLedger}</td></tr>
@@ -1269,7 +1321,7 @@
                     </div>
                     <div style="border-top: 1px solid #ccc; padding-top: 15px;">
                         <div style="display: flex; justify-content: space-between;">
-                            <span class="label">Remaining Payable:</span>
+                            <span style="font-weight: bold;">Remaining Payable:</span>
                             <span style="font-weight: bold;">${remainingPayable}</span>
                         </div>
                     </div>
@@ -1303,6 +1355,9 @@
                         isEditing = true;
                         originalDocNumber = editId;
                         document.getElementById('deleteButton').style.display = 'inline-block';
+                    } else {
+                        alert("Vendor Payment not found.");
+                        window.location.href = 'documents.html';
                     }
                 } else {
                     const nextVoucherNo = await getNextVoucherNumber();
