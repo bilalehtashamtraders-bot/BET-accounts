@@ -95,7 +95,7 @@
                 <td><input type="text" id="commissionPercent" class="total-amount-input editable-percent" value="0.00" placeholder="e.g., 0.225, 0.45, 0.90"></td>
             </tr>
             <tr>
-                <td class="label">Commission Amount:</td>
+                <td class="label">Commission Earned:</td>
                 <td><input type="text" id="commissionAmount" class="total-amount-input" readonly></td>
             </tr>
             <tr>
@@ -117,7 +117,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
@@ -147,14 +147,12 @@
 
         async function getNextInvoiceNumber() {
             try {
-                // FIX: Order by the numeric part of the PI number
                 const q = query(collection(db, "purchaseInvoices"), orderBy("numericNumber", "desc"), limit(1));
                 const snapshot = await getDocs(q);
                 
                 let lastNumber = DEFAULT_STARTING_NUMBER;
                 if (!snapshot.empty) {
                     const lastDoc = snapshot.docs[0].data();
-                    // Assumes numericNumber field is saved (see saveInvoice)
                     lastNumber = parseInt(lastDoc.numericNumber, 10);
                 }
                 return 'PI-' + String(lastNumber + 1).padStart(5, '0');
@@ -187,7 +185,6 @@
             });
 
             const commissionPercent = parseFloat(document.getElementById('commissionPercent').value) || 0;
-            // Commission is an EXPENSE in purchase (debit), so it reduces the amount owed to the vendor (credit)
             const commissionAmount = grossTotal * (commissionPercent / 100); 
             const netTotal = grossTotal - commissionAmount;
 
@@ -244,7 +241,7 @@
             if (isNaN(parsedValue)) { 
                 input.value = '0.00'; 
             } else {
-                input.value = parsedValue.toFixed(4).replace(/\.?0*$/, ''); // Keep up to 4 decimal places but strip trailing zeros
+                input.value = parsedValue.toFixed(4).replace(/\.?0*$/, '');
             }
             calculateTotals();
         }
@@ -290,7 +287,6 @@
                 attachEventListeners(newRow);
             });
             
-            // Revert commissionPercent back to a plain number for the input field
             const comm = parseFloat(doc.commissionPercent) || 0;
             document.getElementById('commissionPercent').value = comm.toFixed(4).replace(/\.?0*$/, ''); 
             calculateTotals();
@@ -312,7 +308,6 @@
             return lineItems;
         }
 
-        // --- START OF CORRECTED CRITICAL LEDGER ENTRY LOGIC ---
         window.saveInvoice = async function() {
             const invoiceNumber = document.getElementById('invoiceNumber').value;
             const invoiceDate = document.getElementById('invoiceDate').value;
@@ -332,11 +327,9 @@
             }
 
             try {
-                // Determine the numeric part of the document number for sorting in the DB
                 const numericNumber = parseInt(invoiceNumber.replace('PI-', ''), 10);
-                const initialTimestamp = new Date();
+                const baseTimestamp = Date.now();
                 
-                // 1. Generate Summarized Description
                 let itemDescriptions = lineItems.map(item => item.description).filter(d => d.trim() !== '');
                 let goodsSummary = "Goods Purchased";
                 if (itemDescriptions.length > 0) {
@@ -349,7 +342,6 @@
                     }
                 }
                 const purchaseDescription = `Purchase from ${partyName} : ${goodsSummary}`;
-
 
                 const invoiceData = {
                     type: 'Purchase Invoice',
@@ -364,99 +356,88 @@
                     grossTotal: grossTotal,
                     commissionAmount: commissionAmount,
                     netTotal: netTotal,
-                    timestamp: initialTimestamp.toISOString()
+                    timestamp: new Date(baseTimestamp).toISOString()
                 };
 
                 await setDoc(doc(db, "purchaseInvoices", invoiceNumber), invoiceData);
+                console.log("✓ Purchase Invoice saved to purchaseInvoices collection");
 
-                // Handle deletion of old document if invoice number changed
-                if (isEditing && originalDocNumber !== invoiceNumber) {
+                if (isEditing && originalDocNumber && originalDocNumber !== invoiceNumber) {
                     await deleteDoc(doc(db, "purchaseInvoices", originalDocNumber));
-                    const oldDocNumber = originalDocNumber; 
-                    const ledgerQuery = query(collection(db, "ledger"));
-                    const ledgerSnapshot = await getDocs(ledgerQuery);
-                    for (const docSnap of ledgerSnapshot.docs) {
-                        const ledgerEntry = docSnap.data();
-                        if (ledgerEntry.doc_number === oldDocNumber) {
-                            await deleteDoc(doc(db, "ledger", docSnap.id));
-                        }
-                    }
-                }
-
-                // Clear existing ledger entries for this document (for update)
-                const existingLedgerQuery = query(collection(db, "ledger"));
-                const ledgerSnapshot = await getDocs(existingLedgerQuery);
-                for (const docSnap of ledgerSnapshot.docs) {
-                    const entry = docSnap.data();
-                    if (entry.doc_number === invoiceNumber) {
+                    console.log("✓ Old purchase invoice document deleted");
+                    
+                    const oldLedgerQuery = query(collection(db, "ledger"), where("doc_number", "==", originalDocNumber));
+                    const oldLedgerSnapshot = await getDocs(oldLedgerQuery);
+                    console.log(`Found ${oldLedgerSnapshot.size} old ledger entries to delete`);
+                    
+                    for (const docSnap of oldLedgerSnapshot.docs) {
                         await deleteDoc(doc(db, "ledger", docSnap.id));
                     }
+                    console.log("✓ Old ledger entries deleted");
                 }
-                
-                let timeOffset = 0;
 
+                const existingLedgerQuery = query(collection(db, "ledger"), where("doc_number", "==", invoiceNumber));
+                const existingLedgerSnapshot = await getDocs(existingLedgerQuery);
+                console.log(`Found ${existingLedgerSnapshot.size} existing ledger entries for this doc_number`);
+                
+                for (const docSnap of existingLedgerSnapshot.docs) {
+                    await deleteDoc(doc(db, "ledger", docSnap.id));
+                }
+                console.log("✓ Existing ledger entries cleared");
+                
                 const ledgerEntries = [
-                    // 1. Inventory/Purchases Entry (DEBIT - Gross Total)
                     {
                         date: invoiceDate,
                         doc_number: invoiceNumber,
-                        doc_type: 'Purchase Invoice',
-                        account: "Inventory", 
+                        account: "Inventory",
                         party: partyName,
                         debit: grossTotal,
                         credit: 0,
-                        // Description: detailed summary
-                        description: purchaseDescription, 
-                        // **FIX**: Save the goods summary in a dedicated field for easy lookup
-                        goods_summary: goodsSummary, 
-                        timestamp: initialTimestamp.toISOString()
+                        description: purchaseDescription,
+                        goods_summary: goodsSummary,
+                        timestamp: new Date(baseTimestamp).toISOString()
                     },
-                    // 2. Vendor/Party Name Entry (CREDIT - Net Total owed)
                     {
                         date: invoiceDate,
                         doc_number: invoiceNumber,
-                        doc_type: 'Purchase Invoice', 
                         account: partyName,
-                        party: partyName, 
+                        party: partyName,
                         debit: 0,
                         credit: netTotal,
-                        // **FIX**: Use the detailed description for the Payable Account as well
                         description: purchaseDescription,
-                        // **FIX**: Save the goods summary in a dedicated field
                         goods_summary: goodsSummary,
-                        timestamp: new Date(initialTimestamp.getTime() + (++timeOffset)).toISOString()
+                        timestamp: new Date(baseTimestamp + 1).toISOString()
                     }
                 ];
 
                 if (commissionAmount > 0) {
-                    // 3. Commission Expense Entry (DEBIT - Commission Amount)
                     ledgerEntries.push({
                         date: invoiceDate,
                         doc_number: invoiceNumber,
-                        doc_type: 'Purchase Invoice', 
-                        account: "Commission Expense", 
-                        party: partyName, 
+                        account: "Commission Earned",
+                        party: partyName,
                         debit: commissionAmount,
                         credit: 0,
-                        // Description tailored for Commission
-                        description: `Commission paid on PI #${numericNumber} (for ${goodsSummary})`,
-                        // **FIX**: Save the goods summary in a dedicated field
+                        description: `Commission earned on PI #${numericNumber} (for ${goodsSummary})`,
                         goods_summary: goodsSummary,
-                        timestamp: new Date(initialTimestamp.getTime() + (++timeOffset)).toISOString()
+                        timestamp: new Date(baseTimestamp + 2).toISOString()
                     });
                 }
 
-                // Save all new ledger entries
-                for (const entry of ledgerEntries) {
+                console.log(`Saving ${ledgerEntries.length} ledger entries...`);
+                for (let i = 0; i < ledgerEntries.length; i++) {
+                    const entry = ledgerEntries[i];
                     const ledgerDocRef = doc(collection(db, "ledger"));
                     await setDoc(ledgerDocRef, entry);
+                    console.log(`✓ Ledger entry ${i + 1} saved:`, entry.account, entry.description);
                 }
+                console.log("✓ All ledger entries saved successfully");
 
                 alert(isEditing ? `Purchase Invoice ${invoiceNumber} updated successfully!` : `New Purchase Invoice ${invoiceNumber} saved successfully!`);
-                setTimeout(() => window.location.href = 'documents.html', 500); 
+                window.location.href = 'documents.html';
             } catch (error) {
-                console.error("Error saving invoice:", error);
-                alert("Error saving invoice. Please check console for details.");
+                console.error("❌ Error saving invoice:", error);
+                alert("Error saving invoice: " + error.message);
             }
         };
 
@@ -467,22 +448,28 @@
             }
 
             try {
-                await deleteDoc(doc(db, "purchaseInvoices", invoiceNumber));
-
-                const ledgerQuery = query(collection(db, "ledger"));
+                console.log(`Starting deletion of purchase invoice: ${invoiceNumber}`);
+                console.log(`Looking for ledger entries with doc_number: ${invoiceNumber}`);
+                
+                const ledgerQuery = query(collection(db, "ledger"), where("doc_number", "==", invoiceNumber));
                 const ledgerSnapshot = await getDocs(ledgerQuery);
+                
+                console.log(`Found ${ledgerSnapshot.size} ledger entries to delete`);
+                
                 for (const docSnap of ledgerSnapshot.docs) {
-                    const ledgerEntry = docSnap.data();
-                    if (ledgerEntry.doc_number === invoiceNumber) {
-                        await deleteDoc(doc(db, "ledger", docSnap.id));
-                    }
+                    console.log(`Deleting ledger entry: ${docSnap.id}`, docSnap.data());
+                    await deleteDoc(doc(db, "ledger", docSnap.id));
                 }
+                console.log(`✓ All ${ledgerSnapshot.size} ledger entries deleted`);
 
-                alert(`Purchase Invoice ${invoiceNumber} deleted successfully.`);
+                await deleteDoc(doc(db, "purchaseInvoices", invoiceNumber));
+                console.log(`✓ Purchase Invoice document deleted`);
+
+                alert(`Purchase Invoice ${invoiceNumber} and all related ledger entries deleted successfully.`);
                 window.location.href = 'documents.html';
             } catch (error) {
-                console.error("Error deleting invoice:", error);
-                alert("Error deleting invoice. Please try again.");
+                console.error("❌ Error deleting invoice:", error);
+                alert("Error deleting invoice: " + error.message);
             }
         };
 
