@@ -248,6 +248,14 @@
             });
         }
 
+        // Function to rename "Commission Expense" to "Commission Earned"
+        function renameCommissionAccount(accountName) {
+            if (accountName && accountName.toLowerCase().includes('commission expense')) {
+                return accountName.replace(/Commission Expense/gi, 'Commission Earned');
+            }
+            return accountName;
+        }
+
         async function loadFinancialData() {
             try {
                 debugInfo = [];
@@ -262,9 +270,13 @@
 
                 ledgerSnapshot.forEach(docSnap => {
                     const entry = docSnap.data();
-                    const accountName = entry.account || entry.accountType || entry.accountName || entry.doc_type || entry.description;
+                    let accountName = entry.account || entry.accountType || entry.accountName || entry.doc_type || entry.description;
 
                     if (!accountName) return;
+                    
+                    // Rename Commission Expense to Commission Earned
+                    accountName = renameCommissionAccount(accountName);
+                    
                     allAccounts.add(accountName);
 
                     const debit = parseFloat(entry.debit || 0);
@@ -308,12 +320,12 @@
                             let amount = netBalance;
                             calculatedAmounts.otherRevenue[accountName] = amount;
                             totalOtherRevenue += amount;
-                            debugInfo.push(`✓ Other Revenue (DEBIT balance treated as income): ${accountName} = ${formatAmount(amount)}`);
+                            debugInfo.push(`✓ Commission/Other Revenue (DEBIT balance treated as income): ${accountName} = ${formatAmount(amount)}`);
                         } else if (netBalance < 0) {
                             let amount = Math.abs(netBalance);
                             calculatedAmounts.otherRevenue[accountName] = amount;
                             totalOtherRevenue += amount;
-                            debugInfo.push(`✓ Other Revenue (CREDIT balance): ${accountName} = ${formatAmount(amount)}`);
+                            debugInfo.push(`✓ Commission/Other Revenue (CREDIT balance): ${accountName} = ${formatAmount(amount)}`);
                         }
                     }
                     else if (matchesGroup(accountName, incomeStatementGroups.COGS)) {
@@ -369,7 +381,7 @@
 
                 debugInfo.push(`<br><strong>Summary:</strong>`);
                 debugInfo.push(`Total Sales Revenue: ${formatAmount(totalSalesRevenue)}`);
-                debugInfo.push(`Total Other Revenue (including Commission): ${formatAmount(totalOtherRevenue)}`);
+                debugInfo.push(`Total Other Revenue (including Commission Earned): ${formatAmount(totalOtherRevenue)}`);
                 debugInfo.push(`Total COGS: ${formatAmount(totalCOGS)}`);
                 debugInfo.push(`Total Expenses: ${formatAmount(totalExpenses)}`);
 
