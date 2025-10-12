@@ -312,7 +312,7 @@
 
             try {
                 const docNumber = `SI-${invoiceNumber}`;
-                const initialTimestamp = new Date();
+                const baseTimestamp = Date.now();
 
                 let itemDescriptions = lineItems.map(item => item.description).filter(d => d.trim() !== '');
                 let goodsSummary = "Goods Sold";
@@ -338,27 +338,36 @@
                     cartage: cartage,
                     grossTotal: grossTotal,
                     grandTotal: netTotal,
-                    timestamp: initialTimestamp.toISOString()
+                    timestamp: new Date(baseTimestamp).toISOString()
                 };
 
                 await setDoc(doc(db, "salesInvoices", invoiceNumber), invoiceData);
+                console.log("✓ Invoice saved to salesInvoices collection");
 
                 if (isEditing && originalDocNumber && originalDocNumber !== invoiceNumber) {
                     await deleteDoc(doc(db, "salesInvoices", originalDocNumber));
+                    console.log("✓ Old invoice document deleted");
+                    
                     const oldDocNumber = `SI-${originalDocNumber}`;
                     const oldLedgerQuery = query(collection(db, "ledger"), where("doc_number", "==", oldDocNumber));
                     const oldLedgerSnapshot = await getDocs(oldLedgerQuery);
-                    const deleteOldPromises = oldLedgerSnapshot.docs.map(docSnap => deleteDoc(doc(db, "ledger", docSnap.id)));
-                    await Promise.all(deleteOldPromises);
+                    console.log(`Found ${oldLedgerSnapshot.size} old ledger entries to delete`);
+                    
+                    for (const docSnap of oldLedgerSnapshot.docs) {
+                        await deleteDoc(doc(db, "ledger", docSnap.id));
+                    }
+                    console.log("✓ Old ledger entries deleted");
                 }
 
                 const existingLedgerQuery = query(collection(db, "ledger"), where("doc_number", "==", docNumber));
                 const existingLedgerSnapshot = await getDocs(existingLedgerQuery);
-                const deletePromises = existingLedgerSnapshot.docs.map(docSnap => deleteDoc(doc(db, "ledger", docSnap.id)));
-                await Promise.all(deletePromises);
+                console.log(`Found ${existingLedgerSnapshot.size} existing ledger entries for this doc_number`);
                 
-                let timeOffset = 0;
-
+                for (const docSnap of existingLedgerSnapshot.docs) {
+                    await deleteDoc(doc(db, "ledger", docSnap.id));
+                }
+                console.log("✓ Existing ledger entries cleared");
+                
                 const ledgerEntries = [
                     {
                         date: invoiceDate,
@@ -367,7 +376,7 @@
                         debit: netTotal,
                         credit: 0,
                         description: saleDescription,
-                        timestamp: initialTimestamp.toISOString()
+                        timestamp: new Date(baseTimestamp).toISOString()
                     },
                     {
                         date: invoiceDate,
@@ -376,7 +385,7 @@
                         debit: 0,
                         credit: grossTotal,
                         description: `Revenue for SI #${invoiceNumber}`,
-                        timestamp: new Date(initialTimestamp.getTime() + (++timeOffset)).toISOString()
+                        timestamp: new Date(baseTimestamp + 1).toISOString()
                     }
                 ];
 
@@ -388,20 +397,24 @@
                         debit: 0,
                         credit: cartage,
                         description: `Cartage charges for SI #${invoiceNumber}`,
-                        timestamp: new Date(initialTimestamp.getTime() + (++timeOffset)).toISOString()
+                        timestamp: new Date(baseTimestamp + 2).toISOString()
                     });
                 }
 
-                for (const entry of ledgerEntries) {
+                console.log(`Saving ${ledgerEntries.length} ledger entries...`);
+                for (let i = 0; i < ledgerEntries.length; i++) {
+                    const entry = ledgerEntries[i];
                     const ledgerDocRef = doc(collection(db, "ledger"));
                     await setDoc(ledgerDocRef, entry);
+                    console.log(`✓ Ledger entry ${i + 1} saved:`, entry.account, entry.description);
                 }
+                console.log("✓ All ledger entries saved successfully");
 
                 alert(isEditing ? `Invoice ${invoiceNumber} updated successfully!` : `New Invoice ${invoiceNumber} saved successfully!`);
                 window.location.href = 'documents.html';
             } catch (error) {
-                console.error("Error saving invoice:", error);
-                alert("Error saving invoice. Please check console for details.");
+                console.error("❌ Error saving invoice:", error);
+                alert("Error saving invoice: " + error.message);
             }
         };
 
@@ -414,33 +427,27 @@
             try {
                 const docNumber = `SI-${invoiceNumber}`;
                 
-                console.log(`Deleting invoice: ${invoiceNumber}`);
+                console.log(`Starting deletion of invoice: ${invoiceNumber}`);
                 console.log(`Looking for ledger entries with doc_number: ${docNumber}`);
                 
-                // CRITICAL FIX: Use where clause to efficiently query ledger entries
                 const ledgerQuery = query(collection(db, "ledger"), where("doc_number", "==", docNumber));
                 const ledgerSnapshot = await getDocs(ledgerQuery);
                 
                 console.log(`Found ${ledgerSnapshot.size} ledger entries to delete`);
                 
-                // Delete all matching ledger entries using Promise.all for efficiency
-                const deletePromises = [];
-                ledgerSnapshot.forEach((docSnap) => {
+                for (const docSnap of ledgerSnapshot.docs) {
                     console.log(`Deleting ledger entry: ${docSnap.id}`, docSnap.data());
-                    deletePromises.push(deleteDoc(doc(db, "ledger", docSnap.id)));
-                });
+                    await deleteDoc(doc(db, "ledger", docSnap.id));
+                }
+                console.log(`✓ All ${ledgerSnapshot.size} ledger entries deleted`);
                 
-                await Promise.all(deletePromises);
-                console.log(`All ledger entries deleted`);
-                
-                // Delete the invoice document
                 await deleteDoc(doc(db, "salesInvoices", invoiceNumber));
-                console.log(`Invoice document deleted`);
+                console.log(`✓ Invoice document deleted`);
 
                 alert(`Invoice ${invoiceNumber} and all related ledger entries deleted successfully.`);
                 window.location.href = 'documents.html';
             } catch (error) {
-                console.error("Error deleting invoice:", error);
+                console.error("❌ Error deleting invoice:", error);
                 alert("Error deleting invoice: " + error.message);
             }
         };
