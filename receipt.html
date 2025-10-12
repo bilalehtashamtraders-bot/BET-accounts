@@ -645,11 +645,11 @@
                     <table style="width: 100%; margin-bottom: 20px;">
                         <tr><td style="font-weight: bold; padding: 8px 0;">Receipt No:</td><td>${receiptNumber}</td></tr>
                         <tr><td style="font-weight: bold; padding: 8px 0;">Date:</td><td>${receiptDate}</td></tr>
-                        <tr><td style="font-weight: bold; padding:
-                        8px 0;">Received from:</td><td>${receivedFrom}</td></tr>
+                        <tr><td style="font-weight: bold; padding: 8px 0;">Received from:</td><td>${receivedFrom}</td></tr>
                         <tr><td style="font-weight: bold; padding: 8px 0;">Business (Ledger):</td><td>${businessLedger}</td></tr>
                         <tr><td style="font-weight: bold; padding: 8px 0;">Received Into Account:</td><td>${receivedIntoAccountName}</td></tr>
-                        <tr><td style="font-weight: bold; padding: 8px 0;">Previous Balance:</td><td>PKR: ${previousBalance}/=</td></tr>
+                        <tr><td style="font-weight: bold; padding: 8px 0;">Previous Balance:</td><td>PKR: ${previousBalance}/=</td></tr
+                        >
                         <tr><td style="font-weight: bold; padding: 8px 0;">Cheque/Online Ref:</td><td>${chequeRef}</td></tr>
                         <tr><td style="font-weight: bold; padding: 8px 0;">Cheque/Bank name:</td><td>${chequeBank}</td></tr>
                         <tr><td style="font-weight: bold; padding: 8px 0;">Account Title:</td><td>${accountTitle}</td></tr>
@@ -712,7 +712,8 @@
                     fetchPreviousBalance(document.getElementById('business-ledger').value);
                 }
 
-                document.getElementById('received-from').addEventListener('input', (e) => document.getElementById('business-ledger').value = e.target.value);
+                // REMOVED: Auto-sync between received-from and business-ledger
+                // Now both fields are independent and can be edited manually
                 document.getElementById('business-ledger').addEventListener('input', onLedgerNameChange);
                 document.getElementById('amount-received').addEventListener('input', formatAndCalculate);
                 
@@ -730,4 +731,3 @@
     </script>
 </body>
 </html>
-
