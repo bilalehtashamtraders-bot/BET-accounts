@@ -157,166 +157,6 @@
             #ledger-table th:nth-child(7), #ledger-table td:nth-child(7) { width: auto; }
         }
     </style>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1
-        <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>General Ledger - Bilal Ehtasham Traders</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0; 
-            padding: 20px; 
-            color: #333;
-        }
-        .report-container {
-            width: 100%;
-            max-width: 1200px;
-            margin: 0 auto;
-            border: 1px solid #ccc;
-            padding: 20px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-            box-sizing: border-box;
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #003366;
-            padding-bottom: 10px;
-        }
-        .header h1 {
-            font-size: 24px;
-            margin: 0;
-            color: #003366;
-        }
-        .business-info {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .business-info p {
-            margin: 5px 0;
-            font-size: 14px;
-        }
-        .business-info h2 {
-            color: #003366;
-        }
-        .controls {
-            margin-bottom: 20px;
-            text-align: center;
-        }
-        .controls input[type="text"], .controls select {
-            padding: 8px;
-            width: 45%;
-            margin: 5px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-        .controls button {
-            padding: 8px 12px;
-            background-color: #003366;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            margin: 5px;
-        }
-        .controls button:hover {
-            background-color: #002244;
-        }
-        .filter-section {
-            display: flex;
-            justify-content: center;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-        
-        .table-wrapper {
-            overflow-x: auto; 
-            margin-top: 20px;
-        }
-        
-        table {
-            width: 100%;
-            min-width: 750px; 
-            border-collapse: collapse;
-        }
-        th, td {
-            border: 1px solid #ccc;
-            padding: 8px 4px; 
-            text-align: left;
-            font-size: 12px; 
-        }
-        th {
-            background-color: #f2f2f2;
-        }
-        
-        #ledger-table th:nth-child(1), #ledger-table td:nth-child(1) { width: 10%; }
-        #ledger-table th:nth-child(2), #ledger-table td:nth-child(2) { width: 20%; }
-        #ledger-table th:nth-child(3), #ledger-table td:nth-child(3) { 
-            width: 30%;
-            word-wrap: break-word; 
-        } 
-        #ledger-table th:nth-child(4), #ledger-table td:nth-child(4) { width: 8%; }
-        #ledger-table th:nth-child(5), #ledger-table td:nth-child(5) { width: 10%; }
-        #ledger-table th:nth-child(6), #ledger-table td:nth-child(6) { width: 10%; }
-        #ledger-table th:nth-child(7), #ledger-table td:nth-child(7) { width: 12%; }
-
-        tfoot td {
-            font-weight: bold;
-            background-color: #e6e6ff;
-        }
-        .debit-amount, .credit-amount, .balance-column {
-            text-align: right;
-            font-family: 'Courier New', monospace;
-        }
-        .balance-column {
-            font-weight: bold;
-        }
-        .loading {
-            text-align: center;
-            padding: 20px;
-            color: #003366;
-        }
-        .doc-link {
-            color: #003366;
-            text-decoration: underline;
-            cursor: pointer;
-        }
-        .doc-link:hover {
-            color: #002244;
-        }
-
-        @media (max-width: 768px) {
-            body {
-                padding: 10px;
-            }
-            .controls input[type="text"], .controls select {
-                width: 100%;
-            }
-            .filter-section {
-                flex-direction: column;
-            }
-            .controls button {
-                width: 45%;
-            }
-            table, th, td {
-                font-size: 11px;
-                padding: 3px;
-            }
-            
-            #ledger-table th:nth-child(1), #ledger-table td:nth-child(1) { width: auto; }
-            #ledger-table th:nth-child(2), #ledger-table td:nth-child(2) { width: auto; }
-            #ledger-table th:nth-child(3), #ledger-table td:nth-child(3) { width: auto; }
-            #ledger-table th:nth-child(4), #ledger-table td:nth-child(4) { width: auto; }
-            #ledger-table th:nth-child(5), #ledger-table td:nth-child(5) { width: auto; }
-            #ledger-table th:nth-child(6), #ledger-table td:nth-child(6) { width: auto; }
-            #ledger-table th:nth-child(7), #ledger-table td:nth-child(7) { width: auto; }
-        }
-    </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
@@ -409,8 +249,17 @@
             return { dateMillis, timestampStr };
         }
 
+        // Function to rename "Commission Expense" to "Commission Earned"
+        function renameCommissionAccount(accountName) {
+            if (accountName && accountName.toLowerCase().includes('commission expense')) {
+                return accountName.replace(/Commission Expense/gi, 'Commission Earned');
+            }
+            return accountName;
+        }
+
         function getAccountName(entry) {
-            return entry.account || entry.accountType || entry.doc_type || 'Unknown';
+            const rawAccount = entry.account || entry.accountType || entry.doc_type || 'Unknown';
+            return renameCommissionAccount(rawAccount);
         }
 
         async function loadLedgerData() {
@@ -519,7 +368,7 @@
                     if (displayAccount.toUpperCase() === 'INVENTORY' || entry.party === displayAccount) {
                          displayDescription = `Purchase from ${partyName} : ${goodsSummary}`;
                     } 
-                    else if (displayAccount.toUpperCase() === 'COMMISSION EXPENSE') {
+                    else if (displayAccount.toUpperCase() === 'COMMISSION EARNED') {
                          displayDescription = entry.description;
                     }
                 }
