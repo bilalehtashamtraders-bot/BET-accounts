@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>View Documents - Bilal Ehtasham Traders</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            width: 95%;
+            max-width: 1200px;
+            margin: 20px auto;
+            background-color: #fff;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+        .sync-badge {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 11px;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .header {
+            text-align: center;
+            border-bottom: 2px solid #003366;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            font-size: 24px;
+            margin: 0;
+            color: #003366;
+        }
+        .business-info {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .business-info p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        .nav-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .nav-buttons button {
+            padding: 10px 15px;
+            background-color: #003366;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .nav-buttons button:hover {
+            background-color: #005599;
+        }
+        .nav-buttons button.refresh {
+            background-color: #28a745; 
+        }
+        .nav-buttons button.refresh:hover {
+            background-color: #218838;
+        }
+        .nav-buttons button.general {
+            background-color: #ff6600;
+        }
+        .nav-buttons button.general:hover {
+            background-color: #ff8533;
+        }
+        .search-filter-container {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .search-filter-container input, .search-filter-container select {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .search-filter-container input {
+            width: 300px;
+        }
+        .search-filter-container button {
+            padding: 8px 12px;
+            background-color: #003366;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .search-filter-container button:hover {
+            background-color: #005599;
+        }
+        .documents-list {
+            margin-top: 20px;
+        }
+        .document-card {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #fafafa;
+        }
+        .document-card:hover {
+            background-color: #f0f0f0;
+        }
+        .document-info {
+            flex: 1;
+        }
+        .document-info h3 {
+            margin: 0 0 5px 0;
+            color: #003366;
+        }
+        .document-info p {
+            margin: 3px 0;
+            font-size: 14px;
+        }
+        .document-actions {
+            display: flex;
+            gap: 5px;
+        }
+        .document-actions button {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background-color 0.2s;
+        }
+        .view-btn {
+            background-color: #007bff;
+            color: white;
+        }
+        .edit-btn {
+            background-color: #28a745;
+            color: white;
+        }
+        .delete-btn {
+            background-color: #dc3545;
+            color: white;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #003366;
+        }
+        .no-documents {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        .stats-row {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .stat-box {
+            background: linear-gradient(135deg, #003366 0%, #005599 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            min-width: 140px;
+            margin: 5px;
+        }
+        .stat-box p {
+            margin: 5px 0 0 0;
+            font-size: 11px;
+        }
+        .stat-box h3 {
+            margin: 0;
+            font-size: 24px;
+        }
+        
+        @media (max-width: 768px) {
+            .document-card {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .document-actions {
+                margin-top: 10px;
+            }
+            .search-filter-container input, .search-filter-container select, .search-filter-container button {
+                width: 100%;
+                margin-top: 5px;
+            }
+            .stats-row {
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading" id="loading">Loading documents from cloud...</div>
+    
+    <div class="container" style="display: none;" id="mainContent">
+        <div class="sync-badge">SYNCED</div>
+        <div class="header">
+            <h1>All Documents</h1>
+        </div>
+
+        <div class="business-info">
+            <h2>(BET) Bilal Ehtasham Traders</h2>
+            <p>Deals in all kinds of Cotton and Polyester Yarn</p>
+            <p>Email: bilalehtashamtraders@gmail.com | Cell: (+92)-324-2479096</p>
+        </div>
+
+        <div class="stats-row" id="statsRow">
+            <div class="stat-box">
+                <h3 id="totalDocs">0</h3>
+                <p>Total Documents</p>
+            </div>
+            <div class="stat-box">
+                <h3 id="totalPurchaseInvoices">0</h3>
+                <p>Purchase Invoices</p>
+            </div>
+            <div class="stat-box">
+                <h3 id="totalSalesInvoices">0</h3>
+                <p>Sales Invoices</p>
+            </div>
+            <div class="stat-box">
+                <h3 id="totalGeneralSales">0</h3>
+                <p>General Sales</p>
+            </div>
+            <div class="stat-box">
+                <h3 id="totalGeneralPurchases">0</h3>
+                <p>General Purchases</p>
+            </div>
+            <div class="stat-box">
+                <h3 id="totalJournals">0</h3>
+                <p>Journal Entries</p>
+            </div>
+            <div class="stat-box">
+                <h3 id="totalReceipts">0</h3>
+                <p>Receipts & Payments</p>
+            </div>
+        </div>
+
+        <div class="nav-buttons">
+            <button onclick="window.location.href='index.html'">Dashboard</button>
+            <button onclick="window.location.href='purchase-invoice.html'">New Purchase Invoice</button>
+            <button onclick="window.location.href='invoice.html'">New Sales Invoice</button>
+            <button onclick="window.location.href='general-sale-invoice.html'" class="general">General Sale Invoice</button>
+            <button onclick="window.location.href='general-purchase-invoice.html'" class="general">General Purchase Invoice</button>
+            <button onclick="window.location.href='journal-entry.html'">New Journal Entry</button>
+            <button onclick="window.location.href='receipt.html'">New Customer Receipt</button>
+            <button onclick="window.location.href='vendor-payment-receipt.html'">New Vendor Payment</button>
+            <button onclick="window.location.href='general-ledger.html'">View General Ledger</button>
+            <button onclick="window.location.href='trial-balance.html'">Trial Balance</button>
+            <button onclick="location.reload()" class="refresh">Refresh</button> 
+        </div>
+
+        <div class="search-filter-container">
+            <input type="text" id="searchInput" placeholder="Search by number, party name..." onkeyup="filterDocuments()">
+            <select id="typeFilter" onchange="filterDocuments()">
+                <option value="">All Types</option>
+                <option value="Purchase Invoice">Purchase Invoice</option>
+                <option value="Sales Invoice">Sales Invoice</option>
+                <option value="General Sale Invoice">General Sale Invoice</option>
+                <option value="General Purchase Invoice">General Purchase Invoice</option>
+                <option value="Journal Entry">Journal Entry</option>
+                <option value="Customer Payment">Customer Receipt</option>
+                <option value="Vendor Payment">Vendor Payment</option>
+            </select>
+            <button onclick="resetFilters()">Reset</button>
+        </div>
+
+        <div class="documents-list" id="documentsList">
+            <div class="no-documents">No documents found</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, getDocs, deleteDoc, doc, query, where, writeBatch } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
+            authDomain: "bet-acc-software.firebaseapp.com",
+            projectId: "bet-acc-software",
+            storageBucket: "bet-acc-software.firebasestorage.app",
+            messagingSenderId: "879522152449",
+            appId: "1:879522152449:web:73b8ef899d5c1cbfd90000"
+        };
+
+        console.log("=== Initializing Firebase ===");
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        console.log("✓ Firebase initialized successfully");
+
+        let allDocuments = [];
+
+        async function loadAllDocuments() {
+            try {
+                console.log('\n=== Loading All Documents ===');
+                allDocuments = [];
+
+                const collections = [
+                    { name: 'purchaseInvoices', type: 'Purchase Invoice', editUrl: 'purchase-invoice.html', usesPrefix: false },
+                    { name: 'salesInvoices', type: 'Sales Invoice', editUrl: 'invoice.html', usesPrefix: true, prefix: 'SI-' },
+                    { name: 'generalSaleInvoices', type: 'General Sale Invoice', editUrl: 'general-sale-invoice.html', usesPrefix: true, prefix: 'GSI-' },
+                    { name: 'generalPurchaseInvoices', type: 'General Purchase Invoice', editUrl: 'general-purchase-invoice.html', usesPrefix: true, prefix: 'GPI-' },
+                    { name: 'journalEntries', type: 'Journal Entry', editUrl: 'journal-entry.html', usesPrefix: false },
+                    { name: 'customerReceipts', type: 'Customer Payment', editUrl: 'receipt.html', usesPrefix: false },
+                    { name: 'vendorPayments', type: 'Vendor Payment', editUrl: 'vendor-payment-receipt.html', usesPrefix: false }
+                ];
+
+                for (const col of collections) {
+                    try {
+                        console.log(`\n--- Loading: ${col.name} ---`);
+                        const snapshot = await getDocs(collection(db, col.name));
+                        console.log(`  Found ${snapshot.size} documents`);
+                        
+                        snapshot.forEach(docSnap => {
+                            const data = docSnap.data();
+                            const docId = docSnap.id;
+                            const docNumber = data.number || docId;
+                            
+                            // Determine the ledger document number based on collection type
+                            let ledgerDocNumber = docNumber;
+                            
+                            // For collections that use prefixes in ledger (SI, GSI, GPI)
+                            if (col.usesPrefix && !String(docNumber).startsWith(col.prefix)) {
+                                ledgerDocNumber = `${col.prefix}${docNumber}`;
+                            }
+                            // For purchase invoices - they store as PI-XXXXX in the document number field
+                            else if (col.name === 'purchaseInvoices' && !String(docNumber).startsWith('PI-')) {
+                                ledgerDocNumber = docNumber; // Purchase invoices use the number as-is (PI-XXXXX)
+                            }
+
+                            allDocuments.push({
+                                ...data,
+                                type: col.type,
+                                collection: col.name,
+                                docId: docId,
+                                docIdentifier: docNumber, // The number shown to user and used for editing
+                                ledgerDocNumber: ledgerDocNumber, // The exact doc_number stored in ledger
+                                editUrl: col.editUrl
+                            });
+                            
+                            console.log(`    Doc: ${docNumber} → Ledger: ${ledgerDocNumber}`);
+                        });
+                    } catch (colError) {
+                        console.error(`✗ Error loading ${col.name}:`, colError);
+                    }
+                }
+
+                allDocuments.sort((a, b) => {
+                    const dateA = parseDate(a.date);
+                    const dateB = parseDate(b.date);
+                    return dateB - dateA;
+                });
+
+                console.log(`\n✓ Total documents loaded: ${allDocuments.length}`);
+
+                updateStats();
+                displayDocuments(allDocuments);
+
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('mainContent').style.display = 'block';
+            } catch (error) {
+                console.error("✗ Error loading documents:", error);
+                document.getElementById('loading').innerHTML = '<span style="color: #dc3545;">Error loading documents: ' + error.message + '</span>';
+            }
+        }
+
+        function parseDate(dateStr) {
+            if (!dateStr) return new Date(0);
+            const parts = String(dateStr).split(/[-\/]/);
+            if (parts.length === 3) {
+                // Assumes DD-MM-YYYY or DD/MM/YYYY format
+                return new Date(Date.UTC(parts[2], parts[1] - 1, parts[0]));
+            }
+            return new Date(dateStr);
+        }
+
+        function updateStats() {
+            const totalDocs = allDocuments.length;
+            const purchaseInvoices = allDocuments.filter(d => d.type === 'Purchase Invoice').length;
+            const salesInvoices = allDocuments.filter(d => d.type === 'Sales Invoice').length;
+            const generalSales = allDocuments.filter(d => d.type === 'General Sale Invoice').length;
+            const generalPurchases = allDocuments.filter(d => d.type === 'General Purchase Invoice').length;
+            const journals = allDocuments.filter(d => d.type === 'Journal Entry').length;
+            const receiptsAndPayments = allDocuments.filter(d => 
+                d.type === 'Customer Payment' || d.type === 'Vendor Payment'
+            ).length;
+
+            document.getElementById('totalDocs').textContent = totalDocs;
+            document.getElementById('totalPurchaseInvoices').textContent = purchaseInvoices;
+            document.getElementById('totalSalesInvoices').textContent = salesInvoices;
+            document.getElementById('totalGeneralSales').textContent = generalSales;
+            document.getElementById('totalGeneralPurchases').textContent = generalPurchases;
+            document.getElementById('totalJournals').textContent = journals;
+            document.getElementById('totalReceipts').textContent = receiptsAndPayments;
+
+            console.log('\n=== Stats Updated ===');
+            console.log(`Total: ${totalDocs}, PI: ${purchaseInvoices}, SI: ${salesInvoices}, GSI: ${generalSales}, GPI: ${generalPurchases}, JE: ${journals}, R&P: ${receiptsAndPayments}`);
+        }
+
+        function displayDocuments(docs) {
+            const container = document.getElementById('documentsList');
+            
+            if (docs.length === 0) {
+                container.innerHTML = `
+                    <div class="no-documents">
+                        <h3>No Documents Found</h3>
+                        <p>Create a new document using the buttons above.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = docs.map(doc => {
+                const partyName = doc.party || doc.customerName || doc.vendorName || doc.businessLedger || doc.receivedFrom || doc.paidTo || 'N/A';
+                const amount = doc.netTotal || doc.grandTotal || doc.amountReceived || doc.amountPaid || doc.totalDebit || 0;
+                const displayNumber = doc.docIdentifier;
+
+                return `
+                    <div class="document-card" data-doc-id="${doc.docId}">
+                        <div class="document-info">
+                            <h3>${doc.type} #${displayNumber}</h3>
+                            <p><strong>Date:</strong> ${doc.date || 'N/A'}</p>
+                            <p><strong>Party:</strong> ${partyName}</p>
+                            <p><strong>Amount:</strong> PKR ${Number(amount).toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
+                        </div>
+                        <div class="document-actions">
+                            <button class="view-btn" onclick="viewDocument('${doc.docId}', '${doc.editUrl}', '${escapeForAttribute(doc.docIdentifier)}')">View</button>
+                            <button class="edit-btn" onclick="editDocument('${escapeForAttribute(doc.docIdentifier)}', '${doc.editUrl}')">Edit</button>
+                            <button class="delete-btn" onclick="deleteDocument('${doc.docId}', '${doc.collection}', '${escapeForAttribute(doc.docIdentifier)}', '${escapeForAttribute(doc.ledgerDocNumber)}')">Delete</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function escapeForAttribute(str) {
+            return String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        }
+
+        function filterDocuments() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const typeFilter = document.getElementById('typeFilter').value;
+
+            let filtered = allDocuments;
+
+            if (searchTerm) {
+                filtered = filtered.filter(doc => {
+                    const party = (doc.party || doc.customerName || doc.vendorName || doc.businessLedger || doc.receivedFrom || doc.paidTo || '').toLowerCase();
+                    const identifier = String(doc.docIdentifier).toLowerCase();
+                    const ledgerDocNumber = String(doc.ledgerDocNumber).toLowerCase();
+                    
+                    return identifier.includes(searchTerm) || party.includes(searchTerm) || ledgerDocNumber.includes(searchTerm);
+                });
+            }
+
+            if (typeFilter) {
+                filtered = filtered.filter(doc => doc.type === typeFilter);
+            }
+
+            displayDocuments(filtered);
+        }
+
+        function resetFilters() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('typeFilter').value = '';
+            displayDocuments(allDocuments);
+        }
+
+        window.viewDocument = function(docId, editUrl, docIdentifier) {
+            window.location.href = `${editUrl}?edit=${docIdentifier}&mode=view`; 
+        };
+
+        window.editDocument = function(docIdentifier, editUrl) {
+            window.location.href = `${editUrl}?edit=${docIdentifier}`;
+        };
+
+        window.deleteDocument = async function(docId, collectionName, docIdentifier, ledgerDocNumber) {
+            if (!confirm(`Are you sure you want to delete document #${docIdentifier}?\n\nThis will delete:\n• The main document\n• ALL related ledger entries (${ledgerDocNumber})\n\nThis action CANNOT be undone!`)) {
+                return;
+            }
+
+            try {
+                console.log(`\n=== Deleting Document ===`);
+                console.log(`Doc ID: ${docId}`);
+                console.log(`Collection: ${collectionName}`);
+                console.log(`Identifier: ${docIdentifier}`);
+                console.log(`Ledger Doc Number: ${ledgerDocNumber}`);
+
+                await deleteDoc(doc(db, collectionName, docId));
+                console.log('✓ Main document deleted');
+
+                const ledgerQuery = query(collection(db, "ledger"), where("doc_number", "==", ledgerDocNumber));
+                const ledgerSnapshot = await getDocs(ledgerQuery);
+                
+                console.log(`Found ${ledgerSnapshot.size} ledger entries`);
+
+                const batch = writeBatch(db);
+                let deletedCount = 0;
+
+                ledgerSnapshot.forEach(ledgerDoc => {
+                    batch.delete(doc(db, "ledger", ledgerDoc.id));
+                    deletedCount++;
+                });
+                
+                if (deletedCount > 0) {
+                    await batch.commit();
+                    console.log(`✓ Deleted ${deletedCount} ledger entries`);
+                }
+
+                alert(`Document #${docIdentifier} deleted successfully!\n${deletedCount} ledger ${deletedCount === 1 ? 'entry' : 'entries'} removed.`);
+                await loadAllDocuments(); 
+                
+            } catch (error) {
+                console.error("✗ Error deleting:", error);
+                alert("Error deleting document: " + error.message);
+            }
+        };
+
+        window.filterDocuments = filterDocuments;
+        window.resetFilters = resetFilters;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log("=== Page Loaded ===");
+            loadAllDocuments();
+        });
+    </script>
+</body>
+</html>
