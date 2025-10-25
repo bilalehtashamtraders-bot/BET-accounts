@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Customer Payment Receipt - BET</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; color: #000; }
+        .header { display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+        .company-info { text-align: right; }
+        .company-info h2 { margin: 0; color: #003366; }
+        .receipt-heading { font-size: 28px; font-weight: bold; color: #2e6da4; line-height: 1.5; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        table, th, td { border: 2px solid #000; }
+        th, td { padding: 10px; text-align: center; }
+        .label { text-align: left !important; font-weight: bold; }
+        .action-buttons button { padding: 10px; margin: 10px 5px 10px 0; cursor: pointer; background-color: #2e6da4; color: white; border: none; border-radius: 4px; }
+        .action-buttons button:hover { background-color: #245a8e; }
+        .delete-button { background-color: #cc0000 !important; }
+        .delete-button:hover { background-color: #aa0000 !important; }
+        input { border: none; width: 100%; text-align: center; background: transparent; }
+        input:focus { outline: none; background: #e6f0fa; }
+        .amount-input { text-align: right !important; }
+        .payment-method { margin-bottom: 15px; }
+        .payment-method label { font-weight: bold; margin-right: 10px; }
+        .payment-method select { padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: auto; min-width: 300px; }
+        .signature { display: flex; justify-content: flex-end; margin-top: 50px; padding: 0 10px; }
+        .signature-right { padding-top: 5px; font-weight: bold; text-transform: uppercase; text-align: center; }
+        .auto-signature {
+            font-family: 'Dancing Script', cursive;
+            font-size: 28px;
+            color: #000;
+            margin: 0;
+            line-height: 1;
+        }
+        @keyframes signatureFade {
+            0% { opacity: 0; }
+            100% { opacity: 1; }
+        }
+        .auto-signature {
+            animation: signatureFade 0.5s ease-in-out;
+        }
+        .watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 32px;
+            color: rgba(200, 0, 0, 0.12);
+            font-weight: 600;
+            white-space: nowrap;
+            pointer-events: none;
+            z-index: 1000;
+            user-select: none;
+            letter-spacing: 2px;
+        }
+        .balance-status {
+            font-size: 12px;
+            margin-top: 5px;
+            color: #2e6da4;
+            font-style: italic;
+        }
+        @media print {
+            .action-buttons { display: none; }
+            .payment-method { display: none; }
+            body { padding: 0; margin: 0; }
+            .watermark {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%) rotate(-45deg);
+                font-size: 32px;
+                color: rgba(200, 0, 0, 0.12);
+                font-weight: 600;
+                white-space: nowrap;
+                z-index: 1000;
+                letter-spacing: 2px;
+            }
+            .header {
+                border-bottom: 2px solid #000;
+                page-break-after: avoid;
+            }
+            table {
+                page-break-inside: auto;
+            }
+            tr {
+                page-break-inside: avoid;
+                page-break-after: auto;
+            }
+        }
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+            .header { flex-direction: column; }
+            .company-info { text-align: center; margin-top: 10px; }
+            .receipt-heading { font-size: 20px; }
+            .payment-method select { width: 100%; min-width: auto; }
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="watermark">NOT VALID FOR COURT OR LEGAL PURPOSE</div>
+    
+    <div class="action-buttons" style="max-width: 800px; margin: 0 auto 20px;">
+        <button onclick="saveReceipt()">Save/Update Receipt</button>
+        <button onclick="deleteReceipt()" id="deleteButton" class="delete-button" style="display: none;">Delete Payment</button>
+        <button onclick="generatePDF()">Generate PDF</button>
+        <button onclick="window.print()">Print</button>
+        <button onclick="window.location.href='documents.html'">View All Documents</button>
+    </div>
+    <div style="max-width: 800px; margin: 0 auto;" id="receipt-content">
+        <div class="header">
+            <div class="receipt-heading">
+                CUSTOMER PAYMENT RECEIPT <br>
+                Receipt No: <input type="text" id="receipt-no" placeholder="e.g., CR-0156" style="width: 150px;" readonly><br>
+                Date: <input type="text" id="receipt-date" placeholder="e.g., 24-10-2025" style="width: 150px;" value="24-10-2025"><br>
+                Received from: <input type="text" id="received-from" placeholder="e.g., XYZ Textiles">
+            </div>
+            <div class="company-info">
+                <h2>(BET) Bilal Ehtasham Traders</h2>
+                <p><i>Deals in all kinds of Cotton and Polyester Yarn</i></p>
+                <p>Cell: (+92)-324-2479096</p>
+                <p>Email: bilalehtashamtraders@gmail.com</p>
+            </div>
+        </div>
+
+        <div class="payment-method">
+            <label for="paidToAccount">Paid To Account:</label>
+            <select id="paidToAccount">
+                <option value="CashInHand">Cash in Hand</option>
+                <option value="MeezanBank">Meezan Bank</option>
+                <option value="UnitedBank">United Bank Ltd</option>
+                <option value="BankAlHabib">Bank Al Habib</option>
+                <option value="DirectPartyAccount">Direct Party Account</option>
+                <option value="BET_Dasti">BET (Dasti) Account</option>
+                <option value="BET_Expense">BET (Expense) Account</option>
+            </select>
+        </div>
+
+        <table>
+            <tr>
+                <td class="label" style="width: 50%;">Business (Ledger):</td>
+                <td>
+                    <input type="text" id="business-ledger" placeholder="e.g., Customer Name" list="customer-accounts-list">
+                    <datalist id="customer-accounts-list"></datalist>
+                    <div id="balance-status" class="balance-status" style="display: none;"></div>
+                </td>
+            </tr>
+            <tr>
+                <td class="label">Previous Balance:</td>
+                <td><input type="text" id="previous-balance" class="amount-input" readonly></td>
+            </tr>
+            <tr>
+                <td class="label">Cheque/Online Ref:</td>
+                <td><input type="text" id="cheque-ref" placeholder="e.g., 344151"></td>
+            </tr>
+            <tr>
+                <td class="label">Cheque/Bank name:</td>
+                <td><input type="text" id="cheque-bank" placeholder="e.g., HBL"></td>
+            </tr>
+            <tr>
+                <td class="label">Account Title:</td>
+                <td><input type="text" id="account-title" placeholder="e.g., Customer Account Title"></td>
+            </tr>
+        </table>
+
+        <table class="amount-table">
+            <tr>
+                <th class="label" style="width: 50%;">Amount Received:</th>
+                <td><input type="text" id="amount-received" class="amount-input" oninput="formatCurrencyInput(this)"></td>
+            </tr>
+            <tr>
+                <th class="label">In Words:</th>
+                <td><input type="text" id="amount-in-words" readonly></td>
+            </tr>
+        </table>
+
+        <table class="totals">
+            <tr>
+                <td class="label" style="width: 80%;"><b>Remaining Receivable:</b></td>
+                <td><input type="text" id="remaining-receivable" class="amount-input" style="font-weight:bold;" readonly></td>
+            </tr>
+        </table>
+
+        <div class="signature">
+            <div class="signature-right">
+                <p class="auto-signature">Ehtasham</p>
+                <p>(EHTASHAM BILAL)</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
+            authDomain: "bet-acc-software.firebaseapp.com",
+            projectId: "bet-acc-software",
+            storageBucket: "bet-acc-software.firebasestorage.app",
+            messagingSenderId: "879522152449",
+            appId: "1:879522152449:web:73b8ef899d5c1cbfd90000"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        let isEditing = false;
+        let originalDocNumber = null;
+        const DEFAULT_STARTING_NUMBER = 155;
+
+        function formatCurrency(value) {
+            const num = parseFloat(value) || 0;
+            return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '/=';
+        }
+
+        function parseCurrency(value) {
+            return parseFloat(String(value).replace(/,/g, '').replace('/=', '')) || 0;
+        }
+
+        function formatCurrencyInput(input) {
+            let value = input.value.replace(/[^0-9.]/g, '');
+            if (value) {
+                input.value = parseFloat(value).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+            } else {
+                input.value = '';
+            }
+            calculateRemainingReceivable();
+            updateAmountInWords();
+        }
+
+        async function getNextReceiptNumber() {
+            try {
+                const q = query(collection(db, "customerReceipts"), orderBy("numericNumber", "desc"), limit(1));
+                const snapshot = await getDocs(q);
+                
+                if (!snapshot.empty) {
+                    const lastDoc = snapshot.docs[0].data();
+                    const lastNumber = parseInt(lastDoc.numericNumber, 10);
+                    return 'CR-' + String(lastNumber + 1).padStart(4, '0');
+                }
+                return 'CR-' + String(DEFAULT_STARTING_NUMBER).padStart(4, '0');
+            } catch (error) {
+                console.error("Error getting next receipt number:", error);
+                return 'CR-' + String(DEFAULT_STARTING_NUMBER).padStart(4, '0');
+            }
+        }
+
+        async function fetchCustomerAccounts() {
+            const datalist = document.getElementById('customer-accounts-list');
+            datalist.innerHTML = '';
+            
+            try {
+                const ledgerSnapshot = await getDocs(collection(db, "ledger"));
+                const accounts = new Set();
+                
+                ledgerSnapshot.forEach(docSnap => {
+                    const entry = docSnap.data();
+                    if (entry.account && entry.account.trim() !== '') {
+                        accounts.add(entry.account);
+                    }
+                });
+
+                accounts.forEach(accountName => {
+                    const option = document.createElement('option');
+                    option.value = accountName;
+                    datalist.appendChild(option);
+                });
+                console.log(`Datalist populated with ${accounts.size} unique ledger accounts.`);
+            } catch (error) {
+                console.error("Error fetching accounts for datalist:", error);
+            }
+        }
+
+        async function fetchPreviousBalance(customerName) {
+            const previousBalanceInput = document.getElementById('previous-balance');
+            const statusDiv = document.getElementById('balance-status');
+
+            if (!customerName || customerName.trim() === '') {
+                previousBalanceInput.value = formatCurrency(0);
+                statusDiv.style.display = 'none';
+                calculateRemainingReceivable();
+                return;
+            }
+
+            statusDiv.style.display = 'block';
+            statusDiv.textContent = 'Fetching balance...';
+
+            try {
+                const ledgerQuery = query(collection(db, "ledger"));
+                const ledgerSnapshot = await getDocs(ledgerQuery);
+
+                let customerBalance = 0;
+                let foundEntries = 0;
+                const searchLower = customerName.toLowerCase().trim();
+
+                ledgerSnapshot.forEach((doc) => {
+                    const entry = doc.data();
+                    if (entry.account && entry.account.toLowerCase().trim() === searchLower) {
+                        customerBalance += parseFloat(entry.debit || 0);
+                        customerBalance -= parseFloat(entry.credit || 0);
+                        foundEntries++;
+                    }
+                });
+
+                previousBalanceInput.value = formatCurrency(customerBalance);
+
+                if (foundEntries > 0) {
+                    statusDiv.textContent = `✓ Found ${foundEntries} transaction(s) | Balance: ${formatCurrency(customerBalance)}`;
+                    setTimeout(() => { statusDiv.style.display = 'none'; }, 3000);
+                } else {
+                    statusDiv.textContent = '✗ No transactions found for this customer';
+                    previousBalanceInput.value = formatCurrency(0);
+                    setTimeout(() => { statusDiv.style.display = 'none'; }, 3000);
+                }
+
+                calculateRemainingReceivable();
+
+            } catch (error) {
+                console.error("Error fetching previous balance:", error);
+                statusDiv.textContent = '✗ Error fetching balance';
+                setTimeout(() => { statusDiv.style.display = 'none'; }, 3000);
+            }
+        }
+
+        function attachListeners() {
+            document.getElementById('business-ledger').addEventListener('input', function(e) {
+                fetchPreviousBalance(e.target.value);
+            });
+            document.getElementById('amount-received').addEventListener('input', function(e) {
+                formatCurrencyInput(e.target);
+            });
+        }
+
+        function calculateRemainingReceivable() {
+            const previousBalance = parseCurrency(document.getElementById('previous-balance').value);
+            const amountReceived = parseCurrency(document.getElementById('amount-received').value);
+            const remaining = previousBalance - amountReceived;
+            document.getElementById('remaining-receivable').value = formatCurrency(remaining);
+        }
+
+        function updateAmountInWords() {
+            const amountReceivedInput = document.getElementById('amount-received');
+            const amountInWordsInput = document.getElementById('amount-in-words');
+            let amountValue = parseCurrency(amountReceivedInput.value) || 0;
+            
+            const words = numberToWords(amountValue);
+            amountInWordsInput.value = words ? words + " only" : "";
+        }
+
+        function numberToWords(num) {
+            if (num === 0) return 'Zero';
+            const a = ['', 'one ', 'two ', 'three ', 'four ', 'five ', 'six ', 'seven ', 'eight ', 'nine ', 'ten ', 'eleven ', 'twelve ', 'thirteen ', 'fourteen ', 'fifteen ', 'sixteen ', 'seventeen ', 'eighteen ', 'nineteen '];
+            const b = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+            let n = ('000000000' + Math.floor(num)).substr(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
+            if (!n) return '';
+            let str = '';
+            str += (n[1] != 0) ? (a[Number(n[1])] || b[n[1][0]] + ' ' + a[n[1][1]]) + 'crore ' : '';
+            str += (n[2] != 0) ? (a[Number(n[2])] || b[n[2][0]] + ' ' + a[n[2][1]]) + 'lakh ' : '';
+            str += (n[3] != 0) ? (a[Number(n[3])] || b[n[3][0]] + ' ' + a[n[3][1]]) + 'thousand ' : '';
+            str += (n[4] != 0) ? (a[Number(n[4])] || b[n[4][0]] + ' ' + a[n[4][1]]) + 'hundred ' : '';
+            str += (n[5] != 0) ? ((str != '' && n[4] == 0) ? 'and ' : '') + (a[Number(n[5])] || b[n[5][0]] + ' ' + a[n[5][1]]) : '';
+            return str.trim().charAt(0).toUpperCase() + str.trim().slice(1);
+        }
+
+        function populateForm(doc) {
+            document.getElementById('receipt-no').value = doc.number;
+            document.getElementById('receipt-date').value = doc.date;
+            document.getElementById('received-from').value = doc.receivedFrom;
+            document.getElementById('business-ledger').value = doc.businessLedger;
+            document.getElementById('paidToAccount').value = doc.paidToAccountID || 'CashInHand';
+            document.getElementById('previous-balance').value = formatCurrency(doc.previousBalance || 0);
+            document.getElementById('cheque-ref').value = doc.chequeRef || '';
+            document.getElementById('cheque-bank').value = doc.chequeBank || '';
+            document.getElementById('account-title').value = doc.accountTitle || '';
+            document.getElementById('amount-received').value = formatCurrency(doc.amountReceived || 0);
+            calculateRemainingReceivable();
+            fetchPreviousBalance(doc.businessLedger);
+        }
+
+        window.saveReceipt = async function() {
+            const receiptNumber = document.getElementById('receipt-no').value;
+            const receiptDate = document.getElementById('receipt-date').value;
+            const receivedFrom = document.getElementById('received-from').value;
+            const businessLedger = document.getElementById('business-ledger').value;
+            const paidToAccount = document.getElementById('paidToAccount').value;
+            const previousBalance = parseCurrency(document.getElementById('previous-balance').value);
+            const amountReceived = parseCurrency(document.getElementById('amount-received').value);
+            const chequeRef = document.getElementById('cheque-ref').value;
+            const chequeBank = document.getElementById('cheque-bank').value;
+            const accountTitle = document.getElementById('account-title').value;
+            const amountInWords = document.getElementById('amount-in-words').value;
+            const remainingReceivable = parseCurrency(document.getElementById('remaining-receivable').value);
+
+            if (!receiptDate || !receivedFrom || !businessLedger) {
+                alert("Please fill in Date, Received From, and Business (Ledger) fields.");
+                return;
+            }
+            if (!paidToAccount) {
+                alert("Please select the Account the payment was received to.");
+                return;
+            }
+            if (amountReceived <= 0) {
+                alert("Please enter a valid amount received.");
+                return;
+            }
+
+            const numericNumber = parseInt(receiptNumber.replace('CR-', ''), 10);
+            const newReceipt = {
+                number: receiptNumber,
+                numericNumber: numericNumber,
+                date: receiptDate,
+                receivedFrom: receivedFrom,
+                businessLedger: businessLedger,
+                paidToAccountID: paidToAccount,
+                previousBalance: previousBalance,
+                chequeRef: chequeRef,
+                chequeBank: chequeBank,
+                accountTitle: accountTitle,
+                amountReceived: amountReceived,
+                amountInWords: amountInWords,
+                remainingReceivable: remainingReceivable,
+                type: 'Customer Payment',
+                timestamp: new Date().toISOString()
+            };
+
+            try {
+                await setDoc(doc(db, "customerReceipts", receiptNumber), newReceipt);
+                console.log("✓ Receipt saved to customerReceipts collection");
+
+                if (isEditing && originalDocNumber && originalDocNumber !== receiptNumber) {
+                    await deleteDoc(doc(db, "customerReceipts", originalDocNumber));
+                    const oldLedgerQuery = query(collection(db, "ledger"), where("doc_number", "==", originalDocNumber));
+                    const oldLedgerSnapshot = await getDocs(oldLedgerQuery);
+                    for (const docSnap of oldLedgerSnapshot.docs) {
+                        await deleteDoc(doc(db, "ledger", docSnap.id));
+                    }
+                    console.log("✓ Old receipt and related ledger entries deleted");
+                }
+
+                const existingLedgerQuery = query(collection(db, "ledger"), where("doc_number", "==", receiptNumber));
+                const existingLedgerSnapshot = await getDocs(existingLedgerQuery);
+                for (const docSnap of existingLedgerSnapshot.docs) {
+                    await deleteDoc(doc(db, "ledger", docSnap.id));
+                }
+                console.log("✓ Existing ledger entries cleared");
+
+                const ledgerEntries = [
+                    {
+                        date: receiptDate,
+                        account: paidToAccount,
+                        description: `Payment from ${businessLedger}`,
+                        debit: amountReceived,
+                        credit: 0,
+                        doc_number: receiptNumber,
+                        timestamp: new Date().toISOString()
+                    },
+                    {
+                        date: receiptDate,
+                        account: businessLedger,
+                        description: `Payment Receipt to settle balance`,
+                        debit: 0,
+                        credit: amountReceived,
+                        doc_number: receiptNumber,
+                        timestamp: new Date(Date.now() + 1).toISOString()
+                    }
+                ];
+
+                for (let i = 0; i < ledgerEntries.length; i++) {
+                    const entry = ledgerEntries[i];
+                    const ledgerDocRef = doc(collection(db, "ledger"));
+                    await setDoc(ledgerDocRef, entry);
+                }
+                console.log("✓ All ledger entries saved successfully");
+
+                alert(isEditing ? 'Customer Receipt updated successfully!' : 'Customer Receipt saved and ledger updated!');
+                window.location.href = 'documents.html';
+            } catch (error) {
+                console.error("❌ Error saving receipt:", error);
+                alert("Error saving receipt: " + error.message);
+            }
+        };
+
+        window.deleteReceipt = async function() {
+            const receiptNumber = document.getElementById('receipt-no').value;
+            if (!confirm(`Are you sure you want to delete Customer Receipt ${receiptNumber}? This action cannot be undone.`)) {
+                return;
+            }
+
+            try {
+                const ledgerQuery = query(collection(db, "ledger"), where("doc_number", "==", receiptNumber));
+                const ledgerSnapshot = await getDocs(ledgerQuery);
+                for (const docSnap of ledgerSnapshot.docs) {
+                    await deleteDoc(doc(db, "ledger", docSnap.id));
+                }
+                console.log(`✓ All ${ledgerSnapshot.size} ledger entries deleted`);
+
+                await deleteDoc(doc(db, "customerReceipts", receiptNumber));
+                console.log(`✓ Receipt document deleted`);
+
+                alert(`Customer Receipt ${receiptNumber} and all related ledger entries deleted successfully.`);
+                window.location.href = 'documents.html';
+            } catch (error) {
+                console.error("❌ Error deleting receipt:", error);
+                alert("Error deleting receipt: " + error.message);
+            }
+        };
+
+        window.generatePDF = function() {
+            const element = document.getElementById('receipt-content');
+            const opt = {
+                margin: 0.5,
+                filename: `Customer-Receipt-${document.getElementById('receipt-no').value}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, logging: false },
+                jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+            };
+
+            const watermarkDiv = document.querySelector('.watermark');
+            if (watermarkDiv) {
+                watermarkDiv.style.position = 'absolute';
+                watermarkDiv.style.zIndex = '1';
+            }
+
+            html2pdf().set(opt).from(element).save().then(() => {
+                if (watermarkDiv) {
+                    watermarkDiv.style.position = 'fixed';
+                    watermarkDiv.style.zIndex = '1000';
+                }
+            });
+        };
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            await fetchCustomerAccounts();
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const editId = urlParams.get('edit');
+
+            if (editId) {
+                const docRef = doc(db, "customerReceipts", editId);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    populateForm(docSnap.data());
+                    isEditing = true;
+                    originalDocNumber = editId;
+                    document.getElementById('deleteButton').style.display = 'inline-block';
+                } else {
+                    alert("Customer Receipt not found.");
+                    window.location.href = 'documents.html';
+                }
+            } else {
+                const nextReceiptNo = await getNextReceiptNumber();
+                document.getElementById('receipt-no').value = nextReceiptNo;
+                document.getElementById('receipt-date').value = new Date().toLocaleDateString('en-GB');
+                document.getElementById('deleteButton').style.display = 'none';
+                fetchPreviousBalance(document.getElementById('business-ledger').value);
+            }
+
+            attachListeners();
+            document.getElementById('remaining-receivable').setAttribute('readonly', true);
+        });
+    </script>
+</body>
+</html>
