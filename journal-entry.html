@@ -7,38 +7,41 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            margin: 20px;
-            color: #333;
+            margin: 0;
+            padding: 20px;
+            color: #000;
         }
         .report-container {
             width: 100%;
-            max-width: 1000px;
+            max-width: 1200px;
             margin: 0 auto;
             border: 1px solid #ccc;
             padding: 20px;
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            box-sizing: border-box;
         }
         .header {
             text-align: center;
             margin-bottom: 20px;
-            border-bottom: 2px solid #003366;
+            border-bottom: 2px solid #2e6da4;
             padding-bottom: 10px;
         }
         .header h1 {
-            font-size: 24px;
+            font-size: 28px;
             margin: 0;
-            color: #003366;
+            color: #2e6da4;
         }
         .business-info {
             text-align: center;
             margin-bottom: 20px;
         }
+        .business-info h2 {
+            margin: 0;
+            color: #2e6da4;
+        }
         .business-info p {
             margin: 5px 0;
             font-size: 14px;
-        }
-        .business-info h2 {
-            color: #003366;
         }
         .controls {
             margin-bottom: 20px;
@@ -49,14 +52,14 @@
         }
         button {
             padding: 10px 15px;
-            background-color: #003366;
+            background-color: #2e6da4;
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
         }
         button:hover {
-            background-color: #002244;
+            background-color: #245a8e;
         }
         .delete-button {
             background-color: #cc0000 !important;
@@ -70,6 +73,14 @@
             border: 1px solid #ddd;
             border-radius: 5px;
         }
+        .form-container h3 {
+            color: #2e6da4;
+            margin-top: 0;
+        }
+        .form-container h4 {
+            color: #2e6da4;
+            margin-bottom: 10px;
+        }
         .form-row {
             display: flex;
             gap: 10px;
@@ -80,6 +91,11 @@
             padding: 8px;
             border: 1px solid #ccc;
             border-radius: 4px;
+            background: transparent;
+        }
+        .form-row input:focus, .form-row select:focus {
+            outline: none;
+            background: #e6f0fa;
         }
         .input-je-no {
             flex: 0.5;
@@ -91,7 +107,7 @@
             font-size: 14px;
         }
         th, td {
-            border: 1px solid #ccc;
+            border: 2px solid #000;
             padding: 10px;
             text-align: left;
         }
@@ -100,6 +116,7 @@
         }
         .debit-column, .credit-column {
             text-align: right;
+            font-family: 'Courier New', monospace;
         }
         .total-row td {
             font-weight: bold;
@@ -117,16 +134,102 @@
         .loading {
             text-align: center;
             padding: 20px;
-            color: #003366;
+            color: #2e6da4;
+        }
+        .watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 26px;
+            color: rgba(255, 0, 0, 0.15);
+            font-weight: bold;
+            white-space: nowrap;
+            pointer-events: none;
+            z-index: 1000;
+            user-select: none;
+            letter-spacing: 2px;
+            max-width: 85vw;
+            text-align: center;
         }
 
-        @media (max-width: 600px) {
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 8mm;
+            }
             body {
-                margin: 10px;
+                padding: 0;
+                margin: 0;
+            }
+            .controls {
+                display: none !important;
             }
             .report-container {
-                padding: 10px;
+                border: none;
+                box-shadow: none;
+                padding: 5px;
+                max-width: 100%;
             }
+            .header h1 {
+                font-size: 22px;
+                margin: 5px 0;
+            }
+            .business-info h2 {
+                font-size: 18px;
+                margin: 3px 0;
+            }
+            .business-info p {
+                font-size: 11px;
+                margin: 2px 0;
+            }
+            .watermark {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%) rotate(-45deg);
+                font-size: 26px;
+                color: rgba(255, 0, 0, 0.15);
+                font-weight: bold;
+                white-space: nowrap;
+                z-index: 1000;
+                letter-spacing: 2px;
+            }
+            .header { 
+                border-bottom: 2px solid #2e6da4;
+                page-break-after: avoid;
+            }
+            .business-info h2 { 
+                color: #2e6da4;
+            }
+            .form-container {
+                display: none !important;
+            }
+            table {
+                page-break-inside: auto;
+                font-size: 10px;
+            }
+            th, td {
+                padding: 4px 3px;
+                font-size: 10px;
+            }
+            tr {
+                page-break-inside: avoid;
+                page-break-after: auto;
+            }
+            thead {
+                display: table-header-group;
+            }
+            tfoot {
+                display: table-footer-group;
+            }
+            .action-cell {
+                display: none;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 10px; }
             .form-row {
                 flex-direction: column;
                 gap: 5px;
@@ -143,16 +246,18 @@
             }
         }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 <body>
+    <div class="watermark">NOT VALID FOR COURT OR LEGAL PURPOSE</div>
     <div class="loading" id="loading">Loading...</div>
     <div class="report-container" style="display: none;" id="mainContent">
         <div class="header">
             <h1>General Journal</h1>
         </div>
         <div class="business-info">
-            <h2 style="color: #003366;">(BET) Bilal Ehtasham Traders</h2>
-            <p>Deals in all kinds of Cotton and Polyester Yarn</p>
+            <h2>(BET) Bilal Ehtasham Traders</h2>
+            <p><i>We deal in all kinds of Cotton and Polyester Yarn</i></p>
             <p>Email: bilalehtashamtraders@gmail.com</p>
             <p>Cell: (+92)-324-2479096</p>
         </div>
@@ -161,7 +266,8 @@
             <button onclick="saveJournalEntry()">Save/Update Entry</button>
             <button onclick="deleteJournalEntry()" id="deleteButton" class="delete-button" style="display: none;">Delete Entry</button>
             <button onclick="generatePDF()">Generate PDF</button>
-            <button onclick="window.location.href='documents.html'">View All Documents</button>
+            <button onclick="window.print()">Print</button>
+            <button onclick="window.location.href='documents.html'">Back to Documents</button>
         </div>
 
         <div class="form-container">
@@ -188,8 +294,8 @@
                 <tr>
                     <th>Account</th>
                     <th>Description</th>
-                    <th>Debit (Rs.)</th>
-                    <th>Credit (Rs.)</th>
+                    <th class="debit-column">Debit (Rs.)</th>
+                    <th class="credit-column">Credit (Rs.)</th>
                     <th class="action-cell">Action</th>
                 </tr>
             </thead>
@@ -200,7 +306,7 @@
                     <td colspan="2">TOTAL</td>
                     <td id="total-debit" class="debit-column">0.00</td>
                     <td id="total-credit" class="credit-column">0.00</td>
-                    <td></td>
+                    <td class="action-cell"></td>
                 </tr>
             </tfoot>
         </table>
@@ -480,67 +586,38 @@
             }
         }
         
-        // ... (generatePDF function remains unchanged, as it was correct) ...
         function generatePDF() {
+            const element = document.getElementById('mainContent');
             const docNumber = document.getElementById('je-no').value;
-            const date = document.getElementById('entry-date').value;
-            const narration = document.getElementById('entry-narration').value;
+            
+            const opt = {
+                margin: [8, 8, 8, 8],
+                filename: `Journal_Entry_${docNumber}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { 
+                    scale: 2, 
+                    useCORS: true, 
+                    logging: false,
+                    letterRendering: true,
+                    windowWidth: 1200
+                },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+            };
 
-            let pdfContent = `
-                <div style="font-family: Arial, sans-serif; padding: 20px;">
-                    <h2 style="text-align: center; color: #003366;">General Journal Entry</h2>
-                    <div style="text-align: center; margin-bottom: 20px;">
-                        <h3 style="color: #003366;">(BET) Bilal Ehtasham Traders</h3>
-                        <p>Deals in all kinds of Cotton and Polyester Yarn</p>
-                    </div>
-                    <p><strong>Entry Number:</strong> ${docNumber}</p>
-                    <p><strong>Date:</strong> ${date}</p>
-                    <p><strong>Narration:</strong> ${narration}</p>
-                    <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
-                        <thead>
-                            <tr style="background-color: #f2f2f2;">
-                                <th style="border: 1px solid #ccc; padding: 10px; text-align: left;">Account</th>
-                                <th style="border: 1px solid #ccc; padding: 10px; text-align: left;">Description</th>
-                                <th style="border: 1px solid #ccc; padding: 10px; text-align: right;">Debit (Rs.)</th>
-                                <th style="border: 1px solid #ccc; padding: 10px; text-align: right;">Credit (Rs.)</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-            `;
+            const watermarkDiv = document.querySelector('.watermark');
+            if (watermarkDiv) {
+                watermarkDiv.style.position = 'absolute';
+                watermarkDiv.style.zIndex = '1';
+            }
 
-            lineItems.forEach(item => {
-                pdfContent += `
-                    <tr>
-                        <td style="border: 1px solid #ccc; padding: 10px;">${item.account}</td>
-                        <td style="border: 1px solid #ccc; padding: 10px;">${item.description}</td>
-                        <td style="border: 1px solid #ccc; padding: 10px; text-align: right;">${(item.debit || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
-                        <td style="border: 1px solid #ccc; padding: 10px; text-align: right;">${(item.credit || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
-                    </tr>
-                `;
+            html2pdf().set(opt).from(element).save().then(() => {
+                if (watermarkDiv) {
+                    watermarkDiv.style.position = 'fixed';
+                    watermarkDiv.style.zIndex = '1000';
+                }
             });
-
-            const totalDebit = document.getElementById('total-debit').textContent;
-            const totalCredit = document.getElementById('total-credit').textContent;
-
-            pdfContent += `
-                        </tbody>
-                        <tfoot>
-                            <tr style="background-color: #e6e6ff; font-weight: bold;">
-                                <td colspan="2" style="border: 1px solid #ccc; padding: 10px;">TOTAL</td>
-                                <td style="border: 1px solid #ccc; padding: 10px; text-align: right;">${totalDebit}</td>
-                                <td style="border: 1px solid #ccc; padding: 10px; text-align: right;">${totalCredit}</td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-            `;
-
-            const printWindow = window.open('', '', 'height=600,width=800');
-            printWindow.document.write(pdfContent);
-            printWindow.document.close();
-            printWindow.print();
         }
-
 
         document.addEventListener('DOMContentLoaded', async function() {
             populateAccountSelect(); // Call this first to fill the dropdown
