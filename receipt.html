@@ -473,11 +473,12 @@
                 }
                 console.log("✓ Existing ledger entries cleared");
 
+                // Modified ledger entries for privacy - both show generic descriptions
                 const ledgerEntries = [
                     {
                         date: receiptDate,
                         account: paidToAccount,
-                        description: `Payment from ${businessLedger}`,
+                        description: `Payment Receipt to settle balance`,
                         debit: amountReceived,
                         credit: 0,
                         doc_number: receiptNumber,
@@ -535,6 +536,11 @@
         };
 
         window.generatePDF = function() {
+            // Hide the payment method dropdown before generating PDF
+            const paymentMethodDiv = document.querySelector('.payment-method');
+            const originalDisplay = paymentMethodDiv.style.display;
+            paymentMethodDiv.style.display = 'none';
+
             const element = document.getElementById('receipt-content');
             const opt = {
                 margin: 0.5,
@@ -555,6 +561,8 @@
                     watermarkDiv.style.position = 'fixed';
                     watermarkDiv.style.zIndex = '1000';
                 }
+                // Restore the payment method dropdown display
+                paymentMethodDiv.style.display = originalDisplay;
             });
         };
 
