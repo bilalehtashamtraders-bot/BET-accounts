@@ -23,7 +23,6 @@
         .payment-method { margin-bottom: 15px; }
         .payment-method label { font-weight: bold; margin-right: 10px; }
         .payment-method select { padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: auto; min-width: 300px; }
-        .payment-method input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: auto; min-width: 300px; text-align: left; background: white; }
         .signature { display: flex; justify-content: flex-end; margin-top: 50px; padding: 0 10px; }
         .signature-right { padding-top: 5px; font-weight: bold; text-transform: uppercase; text-align: center; }
         .auto-signature {
@@ -60,10 +59,6 @@
             color: #2e6da4;
             font-style: italic;
         }
-        #customAccountInput {
-            display: none;
-            margin-top: 10px;
-        }
         @media print {
             .action-buttons { display: none; }
             .payment-method { display: none; }
@@ -98,7 +93,6 @@
             .company-info { text-align: center; margin-top: 10px; }
             .receipt-heading { font-size: 20px; }
             .payment-method select { width: 100%; min-width: auto; }
-            .payment-method input { width: 100%; min-width: auto; }
         }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Dancing+Script&display=swap" rel="stylesheet">
@@ -131,19 +125,9 @@
 
         <div class="payment-method">
             <label for="paidToAccount">Paid To Account:</label>
-            <select id="paidToAccount" onchange="toggleCustomAccountInput()">
-                <option value="CashInHand">Cash in Hand</option>
-                <option value="MeezanBank">Meezan Bank</option>
-                <option value="MeezanBankAhmedBilal">Meezan Bank Ahmed Bilal</option>
-                <option value="UnitedBank">United Bank Ltd</option>
-                <option value="BankAlHabib">Bank Al Habib</option>
-                <option value="BET_Dasti">BET (Dasti) Account</option>
-                <option value="BET_Expense">BET (Expense) Account</option>
-                <option value="Custom">Other (Manual Entry)</option>
+            <select id="paidToAccount">
+                <option value="">-- Select Account --</option>
             </select>
-            <div id="customAccountInput">
-                <input type="text" id="customAccountName" placeholder="Enter custom account name">
-            </div>
         </div>
 
         <table>
@@ -220,17 +204,6 @@
         let originalDocNumber = null;
         const DEFAULT_STARTING_NUMBER = 155;
 
-        window.toggleCustomAccountInput = function() {
-            const selectElement = document.getElementById('paidToAccount');
-            const customInputDiv = document.getElementById('customAccountInput');
-            
-            if (selectElement.value === 'Custom') {
-                customInputDiv.style.display = 'block';
-            } else {
-                customInputDiv.style.display = 'none';
-            }
-        };
-
         function formatCurrency(value) {
             const num = parseFloat(value) || 0;
             return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '/=';
@@ -265,6 +238,39 @@
             } catch (error) {
                 console.error("Error getting next receipt number:", error);
                 return 'CR-' + String(DEFAULT_STARTING_NUMBER).padStart(4, '0');
+            }
+        }
+
+        async function fetchAllLedgerAccounts() {
+            const selectElement = document.getElementById('paidToAccount');
+            selectElement.innerHTML = '<option value="">-- Select Account --</option>';
+            
+            try {
+                const ledgerSnapshot = await getDocs(collection(db, "ledger"));
+                const accounts = new Set();
+                
+                ledgerSnapshot.forEach(docSnap => {
+                    const entry = docSnap.data();
+                    if (entry.account && entry.account.trim() !== '') {
+                        accounts.add(entry.account);
+                    }
+                });
+
+                // Sort accounts alphabetically
+                const sortedAccounts = Array.from(accounts).sort((a, b) => 
+                    a.toLowerCase().localeCompare(b.toLowerCase())
+                );
+
+                sortedAccounts.forEach(accountName => {
+                    const option = document.createElement('option');
+                    option.value = accountName;
+                    option.textContent = accountName;
+                    selectElement.appendChild(option);
+                });
+                
+                console.log(`Dropdown populated with ${accounts.size} unique ledger accounts.`);
+            } catch (error) {
+                console.error("Error fetching accounts for dropdown:", error);
             }
         }
 
@@ -390,24 +396,7 @@
             document.getElementById('receipt-date').value = doc.date;
             document.getElementById('received-from').value = doc.receivedFrom;
             document.getElementById('business-ledger').value = doc.businessLedger;
-            
-            const paidToAccountSelect = document.getElementById('paidToAccount');
-            const customAccountInput = document.getElementById('customAccountName');
-            const customAccountDiv = document.getElementById('customAccountInput');
-            
-            // Check if the saved account is one of the predefined options
-            const optionExists = Array.from(paidToAccountSelect.options).some(option => option.value === doc.paidToAccountID);
-            
-            if (optionExists) {
-                paidToAccountSelect.value = doc.paidToAccountID || 'CashInHand';
-                customAccountDiv.style.display = 'none';
-            } else {
-                // It's a custom account
-                paidToAccountSelect.value = 'Custom';
-                customAccountInput.value = doc.paidToAccountID || '';
-                customAccountDiv.style.display = 'block';
-            }
-            
+            document.getElementById('paidToAccount').value = doc.paidToAccountID || '';
             document.getElementById('previous-balance').value = formatCurrency(doc.previousBalance || 0);
             document.getElementById('cheque-ref').value = doc.chequeRef || '';
             document.getElementById('cheque-bank').value = doc.chequeBank || '';
@@ -422,19 +411,7 @@
             const receiptDate = document.getElementById('receipt-date').value;
             const receivedFrom = document.getElementById('received-from').value;
             const businessLedger = document.getElementById('business-ledger').value;
-            const paidToAccountSelect = document.getElementById('paidToAccount').value;
-            
-            let paidToAccount;
-            if (paidToAccountSelect === 'Custom') {
-                paidToAccount = document.getElementById('customAccountName').value.trim();
-                if (!paidToAccount) {
-                    alert("Please enter a custom account name.");
-                    return;
-                }
-            } else {
-                paidToAccount = paidToAccountSelect;
-            }
-            
+            const paidToAccount = document.getElementById('paidToAccount').value;
             const previousBalance = parseCurrency(document.getElementById('previous-balance').value);
             const amountReceived = parseCurrency(document.getElementById('amount-received').value);
             const chequeRef = document.getElementById('cheque-ref').value;
@@ -582,6 +559,7 @@
         };
 
         document.addEventListener('DOMContentLoaded', async function() {
+            await fetchAllLedgerAccounts();
             await fetchCustomerAccounts();
 
             const urlParams = new URLSearchParams(window.location.search);
