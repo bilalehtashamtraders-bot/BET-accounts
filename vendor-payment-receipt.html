@@ -202,6 +202,18 @@
         let originalDocNumber = null;
         const DEFAULT_STARTING_NUMBER = 99;
 
+        // Fixed bank accounts that will always appear first
+        const FIXED_ACCOUNTS = [
+            "Meezan Bank",
+            "United Bank Ltd",
+            "Bank Al-Habib",
+            "Cash in Hand",
+            "Meezan Bank Ahmed Bilal",
+            "Papa (Dasti)",
+            "Askari Bank",
+            "SadaPay (10% Account)"
+        ];
+
         function formatCurrency(value) {
             const num = parseFloat(value) || 0;
             return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '/=';
@@ -244,17 +256,35 @@
             selectElement.innerHTML = '<option value="">-- Select Account --</option>';
             
             try {
+                // First, add all fixed accounts
+                FIXED_ACCOUNTS.forEach(accountName => {
+                    const option = document.createElement('option');
+                    option.value = accountName;
+                    option.textContent = accountName;
+                    selectElement.appendChild(option);
+                });
+
+                // Add a separator
+                const separator = document.createElement('option');
+                separator.disabled = true;
+                separator.textContent = '─────────────────────';
+                selectElement.appendChild(separator);
+
+                // Then fetch and add ledger accounts
                 const ledgerSnapshot = await getDocs(collection(db, "ledger"));
                 const accounts = new Set();
                 
                 ledgerSnapshot.forEach(docSnap => {
                     const entry = docSnap.data();
                     if (entry.account && entry.account.trim() !== '') {
-                        accounts.add(entry.account);
+                        // Only add if not already in fixed accounts
+                        if (!FIXED_ACCOUNTS.includes(entry.account)) {
+                            accounts.add(entry.account);
+                        }
                     }
                 });
 
-                // Sort accounts alphabetically
+                // Sort ledger accounts alphabetically
                 const sortedAccounts = Array.from(accounts).sort((a, b) => 
                     a.toLowerCase().localeCompare(b.toLowerCase())
                 );
@@ -266,7 +296,7 @@
                     selectElement.appendChild(option);
                 });
                 
-                console.log(`Dropdown populated with ${accounts.size} unique ledger accounts.`);
+                console.log(`Dropdown populated with ${FIXED_ACCOUNTS.length} fixed accounts + ${accounts.size} ledger accounts.`);
             } catch (error) {
                 console.error("Error fetching accounts for dropdown:", error);
             }
