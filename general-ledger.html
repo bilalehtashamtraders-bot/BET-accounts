@@ -328,16 +328,32 @@
         let allLedgerEntries = [];
         let uniqueAccounts = new Set();
 
+        function parseDateToMillis(dateStr) {
+            if (!dateStr) return 0;
+            
+            // Handle DD-MM-YYYY format
+            const parts = dateStr.split('-');
+            if (parts.length === 3) {
+                const day = parseInt(parts[0], 10);
+                const month = parseInt(parts[1], 10) - 1; // months are 0-indexed
+                const year = parseInt(parts[2], 10);
+                
+                // Create date object
+                const date = new Date(year, month, day);
+                return date.getTime();
+            }
+            
+            // Fallback: try parsing as-is
+            return new Date(dateStr).getTime() || 0;
+        }
+
         function getEntrySortKey(entry) {
             const dateStr = entry.date || '';
             const timestampStr = entry.timestamp || '';
-            let date = new Date(0);
-            const parts = dateStr.split('-');
-            if (parts.length === 3) {
-                const isoDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
-                date = new Date(isoDate);
-            }
-            const dateMillis = date.getTime();
+            
+            // Parse the date string to milliseconds
+            const dateMillis = parseDateToMillis(dateStr);
+            
             return { dateMillis, timestampStr };
         }
 
@@ -382,13 +398,17 @@
                 console.log(`Loaded ${allLedgerEntries.length} entries`);
                 console.log(`Unique accounts: ${Array.from(uniqueAccounts).join(', ')}`);
 
+                // Sort entries by date first, then by timestamp
                 allLedgerEntries.sort((a, b) => {
                     const keyA = getEntrySortKey(a);
                     const keyB = getEntrySortKey(b);
                     
+                    // Primary sort: by date
                     if (keyA.dateMillis !== keyB.dateMillis) {
                         return keyA.dateMillis - keyB.dateMillis;
                     }
+                    
+                    // Secondary sort: by timestamp (for same-day entries)
                     return keyA.timestampStr.localeCompare(keyB.timestampStr);
                 });
                 
@@ -408,7 +428,7 @@
                 
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('mainContent').style.display = 'block';
-                console.log("✓ Ledger loaded successfully");
+                console.log("✓ Ledger loaded successfully with date-wise sorting");
             } catch (error) {
                 console.error("❌ Error loading ledger:", error);
                 document.getElementById('loading').innerHTML = 'Error loading ledger data. Please check your Firebase connection.';
@@ -503,6 +523,7 @@
                 });
             }
             
+            // Re-sort filtered entries by date and timestamp
             filteredEntries.sort((a, b) => {
                 const keyA = getEntrySortKey(a);
                 const keyB = getEntrySortKey(b);
