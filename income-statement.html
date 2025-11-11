@@ -255,14 +255,12 @@
         const db = getFirestore(app);
 
         let allLedgerData = [];
-        let allPurchaseInvoices = [];
-        let allGeneralPurchaseInvoices = [];
         let selectedMonth = null;
         let selectedYear = null;
 
         const incomeStatementGroups = {
             'Sales Revenue': [
-                'Sales Revenue', 'Sales', 'SALES', 'Revenue', 'Income', 
+                'Sales Revenue', 'Sales', 'SALES', 'Revenue', 
                 'Sales Income', 'Trading Revenue'
             ],
             'Other Revenue': [
@@ -270,11 +268,11 @@
                 'Cartage Income', 'Other Income', 
                 'Interest Income', 'Miscellaneous Income'
             ],
-            'COGS': [
-                'Cost of Goods Sold', 'COGS', 'Purchases', 'Purchase', 
-                'Purchase Invoices', 'Inventory Purchases', 'Cost of Sales',
-                'Direct Costs', 'Materials', 'Goods Purchased', 'Stock Purchase',
-                'Supplier', 'Vendor'
+            'Inventory': [
+                'Inventory', 'Stock', 'Closing Stock', 'Opening Stock'
+            ],
+            'Purchases': [
+                'Purchases Expense', 'Purchase Expense', 'Purchases', 'Purchase'
             ],
             'Operating Expenses': [
                 'Salaries Expense', 'Rent Expense', 'Utilities Expense',
@@ -287,7 +285,8 @@
         let calculatedAmounts = {
             salesRevenue: {},
             otherRevenue: {},
-            cogs: {},
+            inventory: 0,
+            purchases: 0,
             expenses: {}
         };
 
@@ -302,7 +301,7 @@
             const lowerAccount = accountName.toLowerCase().trim();
             return groupArray.some(pattern => {
                 const lowerPattern = pattern.toLowerCase().trim();
-                return lowerAccount.includes(lowerPattern) || lowerPattern.includes(lowerAccount);
+                return lowerAccount === lowerPattern || lowerAccount.includes(lowerPattern);
             });
         }
 
@@ -375,28 +374,14 @@
                 debugInfo = [];
                 
                 const ledgerSnapshot = await getDocs(collection(db, "ledger"));
-                const purchaseInvoicesSnapshot = await getDocs(collection(db, "purchaseInvoices"));
-                const generalPurchaseInvoicesSnapshot = await getDocs(collection(db, "generalPurchaseInvoices"));
                 
                 allLedgerData = [];
-                allPurchaseInvoices = [];
-                allGeneralPurchaseInvoices = [];
                 
                 ledgerSnapshot.forEach(docSnap => {
                     allLedgerData.push(docSnap.data());
                 });
                 
-                purchaseInvoicesSnapshot.forEach(docSnap => {
-                    allPurchaseInvoices.push(docSnap.data());
-                });
-                
-                generalPurchaseInvoicesSnapshot.forEach(docSnap => {
-                    allGeneralPurchaseInvoices.push(docSnap.data());
-                });
-                
                 debugInfo.push(`Total Ledger Entries: ${allLedgerData.length}`);
-                debugInfo.push(`Total Purchase Invoices (PI): ${allPurchaseInvoices.length}`);
-                debugInfo.push(`Total General Purchase Invoices (GPI): ${allGeneralPurchaseInvoices.length}`);
                 
                 setCurrentMonth();
                 applyFilter();
@@ -411,19 +396,13 @@
             debugInfo = [];
             
             const filteredLedger = allLedgerData.filter(entry => isInSelectedPeriod(entry.date));
-            const filteredPurchases = allPurchaseInvoices.filter(invoice => isInSelectedPeriod(invoice.date));
-            const filteredGeneralPurchases = allGeneralPurchaseInvoices.filter(invoice => isInSelectedPeriod(invoice.date));
             
             if (selectedMonth !== null && selectedYear !== null) {
                 debugInfo.push(`<strong>Filtered Period: ${selectedYear}-${String(selectedMonth + 1).padStart(2, '0')}</strong>`);
                 debugInfo.push(`Filtered Ledger Entries: ${filteredLedger.length}`);
-                debugInfo.push(`Filtered Purchase Invoices (PI): ${filteredPurchases.length}`);
-                debugInfo.push(`Filtered General Purchase Invoices (GPI): ${filteredGeneralPurchases.length}`);
             } else {
                 debugInfo.push(`<strong>Showing All Time Data</strong>`);
                 debugInfo.push(`Total Ledger Entries: ${filteredLedger.length}`);
-                debugInfo.push(`Total Purchase Invoices (PI): ${filteredPurchases.length}`);
-                debugInfo.push(`Total General Purchase Invoices (GPI): ${filteredGeneralPurchases.length}`);
             }
             
             const balances = {};
@@ -449,18 +428,19 @@
             });
             
             debugInfo.push(`Unique Account Names Found: ${allAccounts.size}`);
-            debugInfo.push(`Account Names: ${Array.from(allAccounts).join(', ')}`);
             
             calculatedAmounts = {
                 salesRevenue: {},
                 otherRevenue: {},
-                cogs: {},
+                inventory: 0,
+                purchases: 0,
                 expenses: {}
             };
             
             let totalSalesRevenue = 0;
             let totalOtherRevenue = 0;
-            let totalCOGS = 0;
+            let totalInventory = 0;
+            let totalPurchases = 0;
             let totalExpenses = 0;
 
             for (const accountName in balances) {
@@ -479,22 +459,24 @@
                         let amount = netBalance;
                         calculatedAmounts.otherRevenue[accountName] = amount;
                         totalOtherRevenue += amount;
-                        debugInfo.push(`✓ Commission/Other Revenue (DEBIT balance): ${accountName} = ${formatAmount(amount)}`);
+                        debugInfo.push(`✓ Other Revenue (DEBIT): ${accountName} = ${formatAmount(amount)}`);
                     } else if (netBalance < 0) {
                         let amount = Math.abs(netBalance);
                         calculatedAmounts.otherRevenue[accountName] = amount;
                         totalOtherRevenue += amount;
-                        debugInfo.push(`✓ Commission/Other Revenue (CREDIT balance): ${accountName} = ${formatAmount(amount)}`);
+                        debugInfo.push(`✓ Other Revenue (CREDIT): ${accountName} = ${formatAmount(amount)}`);
                     }
                 }
-                else if (matchesGroup(accountName, incomeStatementGroups.COGS)) {
+                else if (matchesGroup(accountName, incomeStatementGroups['Inventory'])) {
                     if (netBalance > 0) {
-                        let amount = netBalance;
-                        calculatedAmounts.cogs[accountName] = amount;
-                        totalCOGS += amount;
-                        debugInfo.push(`✓ COGS from Ledger: ${accountName} = ${formatAmount(amount)}`);
-                    } else if (netBalance < 0) {
-                        debugInfo.push(`⚠ COGS account with credit balance: ${accountName} = ${formatAmount(netBalance)}`);
+                        totalInventory += netBalance;
+                        debugInfo.push(`✓ Inventory: ${accountName} = ${formatAmount(netBalance)}`);
+                    }
+                }
+                else if (matchesGroup(accountName, incomeStatementGroups['Purchases'])) {
+                    if (netBalance > 0) {
+                        totalPurchases += netBalance;
+                        debugInfo.push(`✓ Purchases: ${accountName} = ${formatAmount(netBalance)}`);
                     }
                 }
                 else if (matchesGroup(accountName, incomeStatementGroups['Operating Expenses'])) {
@@ -507,50 +489,18 @@
                 }
             }
 
-            let cogsFromPurchases = 0;
-            
-            filteredPurchases.forEach(invoice => {
-                const total = parseFloat(invoice.grandTotal || invoice.totalAmount || invoice.total || 0);
-                if (total > 0) {
-                    cogsFromPurchases += total;
-                    debugInfo.push(`Purchase Invoice (PI): ${invoice.invoiceNumber || 'N/A'} = ${formatAmount(total)}`);
-                }
-            });
-
-            filteredGeneralPurchases.forEach(invoice => {
-                const total = parseFloat(invoice.grandTotal || invoice.totalAmount || invoice.total || 0);
-                if (total > 0) {
-                    cogsFromPurchases += total;
-                    debugInfo.push(`General Purchase Invoice (GPI): ${invoice.doc_number || 'N/A'} = ${formatAmount(total)}`);
-                }
-            });
-
-            debugInfo.push(`Total COGS from Purchase Documents (PI + GPI): ${formatAmount(cogsFromPurchases)}`);
-
-            if (cogsFromPurchases > 0) {
-                if (totalCOGS === 0) {
-                    calculatedAmounts.cogs['Total Purchases (from PI + GPI)'] = cogsFromPurchases;
-                    totalCOGS = cogsFromPurchases;
-                    debugInfo.push(`✓ Using Total Purchase Documents as COGS: ${formatAmount(cogsFromPurchases)}`);
-                } else {
-                    debugInfo.push(`⚠ COGS found in ledger (${formatAmount(totalCOGS)}), Purchase Document totals (${formatAmount(cogsFromPurchases)}) NOT used.`);
-                }
-            }
-
-            if (totalCOGS === 0 && cogsFromPurchases === 0) {
-                debugInfo.push(`❌ WARNING: No COGS data found!`);
-            }
-
+            calculatedAmounts.inventory = totalInventory;
+            calculatedAmounts.purchases = totalPurchases;
             calculatedAmounts.totalSalesRevenue = totalSalesRevenue;
             calculatedAmounts.totalOtherRevenue = totalOtherRevenue;
-            calculatedAmounts.totalCOGS = totalCOGS;
             calculatedAmounts.totalExpenses = totalExpenses;
 
             debugInfo.push(`<br><strong>Summary:</strong>`);
             debugInfo.push(`Total Sales Revenue: ${formatAmount(totalSalesRevenue)}`);
             debugInfo.push(`Total Other Revenue: ${formatAmount(totalOtherRevenue)}`);
-            debugInfo.push(`Total COGS: ${formatAmount(totalCOGS)}`);
-            debugInfo.push(`Total Expenses: ${formatAmount(totalExpenses)}`);
+            debugInfo.push(`Inventory (Asset): ${formatAmount(totalInventory)}`);
+            debugInfo.push(`Purchases Expense: ${formatAmount(totalPurchases)}`);
+            debugInfo.push(`Total Operating Expenses: ${formatAmount(totalExpenses)}`);
 
             document.getElementById('debug-content').innerHTML = debugInfo.join('<br>');
 
@@ -566,7 +516,8 @@
             
             const totalSalesRevenue = calculatedAmounts.totalSalesRevenue || 0;
             const totalOtherRevenue = calculatedAmounts.totalOtherRevenue || 0;
-            const totalCOGS = calculatedAmounts.totalCOGS || 0;
+            const inventory = calculatedAmounts.inventory || 0;
+            const purchases = calculatedAmounts.purchases || 0;
             const totalExpenses = calculatedAmounts.totalExpenses || 0;
             
             let html = '';
@@ -603,24 +554,34 @@
 
             html += `<tr><td class="section-header" colspan="2">Less: Cost of Goods Sold</td></tr>`;
             
-            if (Object.keys(calculatedAmounts.cogs).length > 0) {
-                for (const [account, amount] of Object.entries(calculatedAmounts.cogs)) {
-                    html += `
-                        <tr>
-                            <td class="account-line">${account}</td>
-                            <td class="negative-amount">(${formatAmount(amount)})</td>
-                        </tr>
-                    `;
-                }
-            } else {
+            if (inventory > 0) {
                 html += `
                     <tr>
-                        <td class="account-line" style="color: #999; font-style: italic;">No COGS entries found</td>
+                        <td class="account-line">Inventory</td>
+                        <td class="negative-amount">(${formatAmount(inventory)})</td>
+                    </tr>
+                `;
+            }
+            
+            if (purchases > 0) {
+                html += `
+                    <tr>
+                        <td class="account-line">Purchases Expense</td>
+                        <td class="negative-amount">(${formatAmount(purchases)})</td>
+                    </tr>
+                `;
+            }
+
+            if (inventory === 0 && purchases === 0) {
+                html += `
+                    <tr>
+                        <td class="account-line" style="color: #999; font-style: italic;">No expense entries found</td>
                         <td class="negative-amount">(0.00)</td>
                     </tr>
                 `;
             }
 
+            const totalCOGS = inventory + purchases;
             const grossProfit = totalRevenue - totalCOGS;
             html += `
                 <tr class="subtotal">
