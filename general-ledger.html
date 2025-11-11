@@ -328,23 +328,27 @@
         let allLedgerEntries = [];
         let uniqueAccounts = new Set();
 
+        // Fixed date parsing function that handles DD-MM-YYYY format correctly
         function parseDateToMillis(dateStr) {
             if (!dateStr) return 0;
             
-            // Handle DD-MM-YYYY format
-            const parts = dateStr.split('-');
+            // Handle DD-MM-YYYY format (your format)
+            const parts = dateStr.split(/[-/]/);
             if (parts.length === 3) {
                 const day = parseInt(parts[0], 10);
-                const month = parseInt(parts[1], 10) - 1; // months are 0-indexed
+                const month = parseInt(parts[1], 10) - 1; // JavaScript months are 0-indexed
                 const year = parseInt(parts[2], 10);
                 
-                // Create date object
-                const date = new Date(year, month, day);
-                return date.getTime();
+                // Validate the parsed values
+                if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+                    const date = new Date(year, month, day, 0, 0, 0, 0);
+                    return date.getTime();
+                }
             }
             
             // Fallback: try parsing as-is
-            return new Date(dateStr).getTime() || 0;
+            const fallbackDate = new Date(dateStr);
+            return isNaN(fallbackDate.getTime()) ? 0 : fallbackDate.getTime();
         }
 
         function getEntrySortKey(entry) {
@@ -354,7 +358,28 @@
             // Parse the date string to milliseconds
             const dateMillis = parseDateToMillis(dateStr);
             
-            return { dateMillis, timestampStr };
+            // Extract timestamp parts for secondary sorting
+            // Timestamp format is typically: DD/MM/YYYY, HH:MM:SS AM/PM
+            let timestampMillis = 0;
+            if (timestampStr) {
+                const timeMatch = timestampStr.match(/(\d{1,2}):(\d{2}):(\d{2})\s*(AM|PM)?/i);
+                if (timeMatch) {
+                    let hours = parseInt(timeMatch[1], 10);
+                    const minutes = parseInt(timeMatch[2], 10);
+                    const seconds = parseInt(timeMatch[3], 10);
+                    const ampm = timeMatch[4];
+                    
+                    // Convert to 24-hour format if AM/PM is present
+                    if (ampm) {
+                        if (ampm.toUpperCase() === 'PM' && hours < 12) hours += 12;
+                        if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0;
+                    }
+                    
+                    timestampMillis = (hours * 3600 + minutes * 60 + seconds) * 1000;
+                }
+            }
+            
+            return { dateMillis, timestampMillis, timestampStr };
         }
 
         function renameCommissionAccount(accountName) {
@@ -403,13 +428,24 @@
                     const keyA = getEntrySortKey(a);
                     const keyB = getEntrySortKey(b);
                     
-                    // Primary sort: by date
+                    // Primary sort: by date (in milliseconds)
                     if (keyA.dateMillis !== keyB.dateMillis) {
                         return keyA.dateMillis - keyB.dateMillis;
                     }
                     
-                    // Secondary sort: by timestamp (for same-day entries)
+                    // Secondary sort: by time of day (for same-day entries)
+                    if (keyA.timestampMillis !== keyB.timestampMillis) {
+                        return keyA.timestampMillis - keyB.timestampMillis;
+                    }
+                    
+                    // Tertiary sort: by full timestamp string
                     return keyA.timestampStr.localeCompare(keyB.timestampStr);
+                });
+                
+                // Log first few entries to verify sorting
+                console.log("First 5 entries after sorting:");
+                allLedgerEntries.slice(0, 5).forEach((entry, idx) => {
+                    console.log(`${idx + 1}. Date: ${entry.date}, Timestamp: ${entry.timestamp}`);
                 });
                 
                 populateAccountFilter();
@@ -531,6 +567,11 @@
                 if (keyA.dateMillis !== keyB.dateMillis) {
                     return keyA.dateMillis - keyB.dateMillis;
                 }
+                
+                if (keyA.timestampMillis !== keyB.timestampMillis) {
+                    return keyA.timestampMillis - keyB.timestampMillis;
+                }
+                
                 return keyA.timestampStr.localeCompare(keyB.timestampStr);
             });
 
