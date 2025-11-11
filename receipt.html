@@ -127,14 +127,6 @@
             <label for="paidToAccount">Paid To Account:</label>
             <select id="paidToAccount">
                 <option value="">-- Select Account --</option>
-                <option value="Meezan Bank">Meezan Bank</option>
-                <option value="United Bank Ltd">United Bank Ltd</option>
-                <option value="Bank Al-Habib">Bank Al-Habib</option>
-                <option value="Cash in Hand">Cash in Hand</option>
-                <option value="Meezan Bank Ahmed Bilal">Meezan Bank Ahmed Bilal</option>
-                <option value="Papa (Dasti)">Papa (Dasti)</option>
-                <option value="Askari Bank">Askari Bank</option>
-                <option value="SadaPay (10% Account)">SadaPay (10% Account)</option>
             </select>
         </div>
 
@@ -212,6 +204,18 @@
         let originalDocNumber = null;
         const DEFAULT_STARTING_NUMBER = 155;
 
+        // Fixed bank accounts that will always appear first
+        const FIXED_ACCOUNTS = [
+            "Meezan Bank",
+            "United Bank Ltd",
+            "Bank Al-Habib",
+            "Cash in Hand",
+            "Meezan Bank Ahmed Bilal",
+            "Papa (Dasti)",
+            "Askari Bank",
+            "SadaPay (10% Account)"
+        ];
+
         function formatCurrency(value) {
             const num = parseFloat(value) || 0;
             return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '/=';
@@ -246,6 +250,57 @@
             } catch (error) {
                 console.error("Error getting next receipt number:", error);
                 return 'CR-' + String(DEFAULT_STARTING_NUMBER).padStart(4, '0');
+            }
+        }
+
+        async function fetchAllLedgerAccounts() {
+            const selectElement = document.getElementById('paidToAccount');
+            selectElement.innerHTML = '<option value="">-- Select Account --</option>';
+            
+            try {
+                // First, add all fixed accounts
+                FIXED_ACCOUNTS.forEach(accountName => {
+                    const option = document.createElement('option');
+                    option.value = accountName;
+                    option.textContent = accountName;
+                    selectElement.appendChild(option);
+                });
+
+                // Add a separator
+                const separator = document.createElement('option');
+                separator.disabled = true;
+                separator.textContent = '─────────────────────';
+                selectElement.appendChild(separator);
+
+                // Then fetch and add ledger accounts
+                const ledgerSnapshot = await getDocs(collection(db, "ledger"));
+                const accounts = new Set();
+                
+                ledgerSnapshot.forEach(docSnap => {
+                    const entry = docSnap.data();
+                    if (entry.account && entry.account.trim() !== '') {
+                        // Only add if not already in fixed accounts
+                        if (!FIXED_ACCOUNTS.includes(entry.account)) {
+                            accounts.add(entry.account);
+                        }
+                    }
+                });
+
+                // Sort ledger accounts alphabetically
+                const sortedAccounts = Array.from(accounts).sort((a, b) => 
+                    a.toLowerCase().localeCompare(b.toLowerCase())
+                );
+
+                sortedAccounts.forEach(accountName => {
+                    const option = document.createElement('option');
+                    option.value = accountName;
+                    option.textContent = accountName;
+                    selectElement.appendChild(option);
+                });
+                
+                console.log(`Dropdown populated with ${FIXED_ACCOUNTS.length} fixed accounts + ${accounts.size} ledger accounts.`);
+            } catch (error) {
+                console.error("Error fetching accounts for dropdown:", error);
             }
         }
 
@@ -542,6 +597,7 @@
         };
 
         document.addEventListener('DOMContentLoaded', async function() {
+            await fetchAllLedgerAccounts();
             await fetchCustomerAccounts();
 
             const urlParams = new URLSearchParams(window.location.search);
