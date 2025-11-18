@@ -334,6 +334,13 @@
         let lineItems = [];
         const DEFAULT_STARTING_NUMBER = 1000;
         
+        // Fixed ledger accounts that should always appear
+        const FIXED_ACCOUNTS = [
+            "Drawings",
+            "Drawings SadaPay (10% Account)",
+            "Drawings Askari Bank (Savings)"
+        ];
+        
         // Function to rename Commission Expense to Commission Earned
         function renameCommissionAccount(accountName) {
             if (accountName && accountName.toLowerCase().includes('commission expense')) {
@@ -348,7 +355,7 @@
             return renameCommissionAccount(rawAccount);
         }
 
-        // Fetch unique accounts from ledger collection
+        // Fetch unique accounts from ledger collection and merge with fixed accounts
         async function populateAccountSelect() {
             const selectEl = document.getElementById('line-account-type');
             selectEl.innerHTML = '<option value="">Loading accounts...</option>';
@@ -360,6 +367,12 @@
                 
                 const uniqueAccounts = new Set();
                 
+                // Add all fixed accounts first
+                FIXED_ACCOUNTS.forEach(account => {
+                    uniqueAccounts.add(account);
+                });
+                
+                // Then add accounts from ledger
                 snapshot.forEach(doc => {
                     const data = doc.data();
                     const accountKey = getAccountName(data);
@@ -369,7 +382,7 @@
                     }
                 });
 
-                console.log(`Found ${uniqueAccounts.size} unique accounts`);
+                console.log(`Found ${uniqueAccounts.size} unique accounts (including ${FIXED_ACCOUNTS.length} fixed accounts)`);
                 
                 // Convert to sorted array
                 const sortedAccounts = Array.from(uniqueAccounts).sort();
@@ -386,7 +399,7 @@
                         option.textContent = account;
                         selectEl.appendChild(option);
                     });
-                    console.log("✓ Account dropdown populated with ledger accounts");
+                    console.log("✓ Account dropdown populated with ledger accounts + fixed accounts");
                 }
             } catch (error) {
                 console.error("Error fetching accounts from ledger:", error);
@@ -641,7 +654,7 @@
 
         document.addEventListener('DOMContentLoaded', async function() {
             try {
-                // First, populate the account dropdown from ledger
+                // First, populate the account dropdown from ledger + fixed accounts
                 await populateAccountSelect();
 
                 const urlParams = new URLSearchParams(window.location.search);
