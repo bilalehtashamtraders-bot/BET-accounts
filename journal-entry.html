@@ -281,7 +281,8 @@
             <h4>Line Items</h4>
             <div class="form-row">
                 <select id="line-account-type">
-                    </select>
+                    <option value="">Loading accounts...</option>
+                </select>
                 <input type="text" id="line-description" placeholder="Description/Reference">
                 <input type="text" id="line-debit" class="debit-input" placeholder="Debit (Rs.)">
                 <input type="text" id="line-credit" class="credit-input" placeholder="Credit (Rs.)">
@@ -333,34 +334,68 @@
         let lineItems = [];
         const DEFAULT_STARTING_NUMBER = 1000;
         
-        // Comprehensive Chart of Accounts (CoAs) for the General Journal
-        const chartOfAccounts = [
-            // Assets
-            "Cash", "Bank", "Accounts Receivable", "Inventory", "Fixed Assets", "Prepaid Expenses", 
-            // Liabilities
-            "Accounts Payable", "Loans Payable", "Unearned Revenue", 
-            // Equity
-            "Capital", "Drawings", 
-            // Revenue
-            "Sales Revenue", "Other Income",
-            // Expenses
-            "Cost of Goods Sold (COGS)", "Salaries Expense", "Rent Expense", "Utilities Expense", "Depreciation Expense", "Other Expense"
-        ];
-        
-        function populateAccountSelect() {
+        // Function to rename Commission Expense to Commission Earned
+        function renameCommissionAccount(accountName) {
+            if (accountName && accountName.toLowerCase().includes('commission expense')) {
+                return accountName.replace(/Commission Expense/gi, 'Commission Earned');
+            }
+            return accountName;
+        }
+
+        // Function to get account name from various field names
+        function getAccountName(entry) {
+            const rawAccount = entry.account || entry.accountType || entry.doc_type || '';
+            return renameCommissionAccount(rawAccount);
+        }
+
+        // Fetch unique accounts from ledger collection
+        async function populateAccountSelect() {
             const selectEl = document.getElementById('line-account-type');
-            selectEl.innerHTML = '';
-            chartOfAccounts.sort().forEach(account => {
-                const option = document.createElement('option');
-                option.value = account;
-                option.textContent = account;
-                selectEl.appendChild(option);
-            });
+            selectEl.innerHTML = '<option value="">Loading accounts...</option>';
+            
+            try {
+                console.log("Fetching accounts from ledger...");
+                const ledgerQuery = query(collection(db, "ledger"));
+                const snapshot = await getDocs(ledgerQuery);
+                
+                const uniqueAccounts = new Set();
+                
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    const accountKey = getAccountName(data);
+                    
+                    if (accountKey && accountKey.trim() !== '' && accountKey !== 'Unknown') {
+                        uniqueAccounts.add(accountKey);
+                    }
+                });
+
+                console.log(`Found ${uniqueAccounts.size} unique accounts`);
+                
+                // Convert to sorted array
+                const sortedAccounts = Array.from(uniqueAccounts).sort();
+                
+                // Clear and populate dropdown
+                selectEl.innerHTML = '';
+                
+                if (sortedAccounts.length === 0) {
+                    selectEl.innerHTML = '<option value="">No accounts found</option>';
+                } else {
+                    sortedAccounts.forEach(account => {
+                        const option = document.createElement('option');
+                        option.value = account;
+                        option.textContent = account;
+                        selectEl.appendChild(option);
+                    });
+                    console.log("✓ Account dropdown populated with ledger accounts");
+                }
+            } catch (error) {
+                console.error("Error fetching accounts from ledger:", error);
+                selectEl.innerHTML = '<option value="">Error loading accounts</option>';
+            }
         }
 
         async function getNextJENumber() {
             try {
-                // Ensure we query by 'number' field (which should be JE-10001) for correct sorting
                 const q = query(collection(db, "journalEntries"), orderBy("number", "desc"), limit(1));
                 const snapshot = await getDocs(q);
                 
@@ -369,7 +404,6 @@
                     const lastNumberStr = lastDoc.number.replace('JE-', '');
                     const lastNumber = parseInt(lastNumberStr) || DEFAULT_STARTING_NUMBER;
                     const nextNumber = lastNumber + 1;
-                    // Keep the number padded to 5 digits for consistency
                     return `JE-${String(nextNumber).padStart(5, '0')}`; 
                 } else {
                     return `JE-${String(DEFAULT_STARTING_NUMBER + 1).padStart(5, '0')}`;
@@ -380,23 +414,16 @@
             }
         }
         
-        // Corrected number formatting function
         function formatInput(event) {
             const input = event.target;
-            // 1. Remove non-digit and non-dot characters
             let value = input.value.replace(/[^0-9.]/g, '');
             
-            // 2. Prevent multiple decimal points
             const parts = value.split('.');
             if (parts.length > 2) {
                 value = parts[0] + '.' + parts.slice(1).join('');
             }
 
-            // 3. Update the input field with the cleaned value (without commas)
             input.value = value;
-            
-            // Note: We leave the value unformatted (without commas) in the input for easier editing,
-            // but rely on parseFloat and toLocaleString when calculating totals and saving.
         }
 
         async function populateForm(doc) {
@@ -411,9 +438,13 @@
         function addLineItem() {
             const accountType = document.getElementById('line-account-type').value;
             const description = document.getElementById('line-description').value;
-            // CORRECTED: Use .value directly, as the formatInput function now keeps it clean
             const debit = parseFloat(document.getElementById('line-debit').value) || 0; 
             const credit = parseFloat(document.getElementById('line-credit').value) || 0;
+
+            if (!accountType) {
+                alert("Please select an account.");
+                return;
+            }
 
             if (debit > 0 && credit > 0) {
                 alert("A journal line can only have a Debit OR a Credit, not both.");
@@ -475,7 +506,6 @@
             const date = document.getElementById('entry-date').value;
             const narration = document.getElementById('entry-narration').value;
             
-            // Get total from UI element (which is formatted) and clean it
             const totalDebit = parseFloat(document.getElementById('total-debit').textContent.replace(/,/g, '')) || 0;
             const totalCredit = parseFloat(document.getElementById('total-credit').textContent.replace(/,/g, '')) || 0;
 
@@ -484,7 +514,6 @@
                 return;
             }
 
-            // Check for balance (allowing for minute floating-point error)
             if (Math.abs(totalDebit - totalCredit) > 0.001) { 
                 alert(`Journal Entry is unbalanced! Total Debit (${totalDebit.toLocaleString('en-US')}) must equal Total Credit (${totalCredit.toLocaleString('en-US')}).`);
                 return;
@@ -496,7 +525,6 @@
             }
             
             const newJournal = {
-                // Ensure docNumber is used as the Firebase document ID for easy retrieval
                 number: docNumber, 
                 date: date,
                 narration: narration,
@@ -508,19 +536,15 @@
             };
 
             try {
-                // 1. Save the Journal Entry
                 await setDoc(doc(db, "journalEntries", docNumber), newJournal);
 
-                // 2. Handle Ledger Update/Deletion for existing entries
                 if (isEditing) {
-                    // Query the ledger for all entries related to this document number
                     const ledgerQuery = query(collection(db, "ledger"));
                     const ledgerSnapshot = await getDocs(ledgerQuery);
                     
                     let deletedCount = 0;
                     for (const docSnap of ledgerSnapshot.docs) {
                         const ledgerEntry = docSnap.data();
-                        // Delete all existing ledger entries associated with the original document number
                         if (ledgerEntry.doc_number === originalDocNumber) {
                             await deleteDoc(doc(db, "ledger", docSnap.id));
                             deletedCount++;
@@ -529,14 +553,12 @@
                     console.log(`Updated: Deleted ${deletedCount} old ledger entries.`);
                 }
 
-                // 3. Create NEW Ledger Entries
                 for (const item of lineItems) {
-                    // Create a unique ID for each ledger line item
                     const ledgerId = `${docNumber}_L${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
                     await setDoc(doc(db, "ledger", ledgerId), {
                         date: date,
                         description: `${item.description} (${narration})`,
-                        account: item.account, // Renamed from accountType to account for consistency with ledger.html
+                        account: item.account,
                         debit: item.debit,
                         credit: item.credit,
                         doc_number: docNumber,
@@ -560,11 +582,9 @@
             }
 
             try {
-                // 1. Delete the main document
                 await deleteDoc(doc(db, "journalEntries", docNumber));
                 console.log(`Main Journal Entry ${docNumber} deleted.`);
 
-                // 2. Delete related ledger entries
                 const ledgerQuery = query(collection(db, "ledger"));
                 const ledgerSnapshot = await getDocs(ledgerQuery);
                 
@@ -620,9 +640,10 @@
         }
 
         document.addEventListener('DOMContentLoaded', async function() {
-            populateAccountSelect(); // Call this first to fill the dropdown
-
             try {
+                // First, populate the account dropdown from ledger
+                await populateAccountSelect();
+
                 const urlParams = new URLSearchParams(window.location.search);
                 const editId = urlParams.get('edit');
 
@@ -636,7 +657,6 @@
                         originalDocNumber = editId;
                         document.getElementById('deleteButton').style.display = 'inline-block';
                     } else {
-                        // If edit ID is bad, fall back to new entry mode
                         window.location.href = 'journal-entry.html'; 
                         return;
                     }
@@ -644,7 +664,6 @@
                     const nextNumber = await getNextJENumber();
                     document.getElementById('je-no').value = nextNumber;
                     
-                    // CORRECTED: Set today's date in DD-MM-YYYY format
                     const today = new Date();
                     const day = String(today.getDate()).padStart(2, '0');
                     const month = String(today.getMonth() + 1).padStart(2, '0');
@@ -657,12 +676,10 @@
                 document.getElementById('line-debit').addEventListener('input', formatInput);
                 document.getElementById('line-credit').addEventListener('input', formatInput);
                 
-                // Add a simple check/clear function on focus to help users
                 document.getElementById('line-debit').addEventListener('focus', function(e) { e.target.value = e.target.value.replace(/[^0-9.]/g, ''); });
                 document.getElementById('line-credit').addEventListener('focus', function(e) { e.target.value = e.target.value.replace(/[^0-9.]/g, ''); });
                 document.getElementById('line-debit').addEventListener('blur', function(e) { if (e.target.value && parseFloat(e.target.value)) e.target.value = parseFloat(e.target.value).toFixed(2); });
                 document.getElementById('line-credit').addEventListener('blur', function(e) { if (e.target.value && parseFloat(e.target.value)) e.target.value = parseFloat(e.target.value).toFixed(2); });
-
 
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('mainContent').style.display = 'block';
