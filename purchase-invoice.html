@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Purchase Invoice - BET</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; color: #000; }
+        .header { display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+        .company-info { text-align: right; }
+        .company-info h2 { margin: 0; color: #003366; }
+        .invoice-heading { font-size: 28px; font-weight: bold; color: #003366; line-height: 1.5; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        table, th, td { border: 2px solid #000; }
+        th, td { padding: 10px; text-align: center; }
+        .totals { margin-top: 20px; width: 100%; }
+        .totals td { padding: 8px; }
+        .totals .label { text-align: right; font-weight: bold; }
+        .action-buttons button { padding: 10px; margin: 10px 5px 10px 0; cursor: pointer; background-color: #003366; color: white; border: none; }
+        .action-buttons button:hover { background-color: #002244; }
+        .delete-button { background-color: #cc0000 !important; }
+        .delete-button:hover { background-color: #aa0000 !important; }
+        input { border: none; width: 100%; text-align: center; background: transparent; }
+        input:focus { outline: none; background: #eef6ff; }
+        .total-amount-input { text-align: right !important; }
+        .editable-percent { background: #fffef0 !important; cursor: text; }
+        .payment-method { margin-bottom: 15px; }
+        .signature { display: flex; justify-content: space-between; margin-top: 50px; padding: 0 10px; }
+        .signature-right { padding-top: 5px; font-weight: bold; text-transform: uppercase; }
+        .auto-signature {
+            font-family: 'Dancing Script', cursive;
+            font-size: 28px;
+            color: #000;
+            margin: 0;
+            line-height: 1;
+        }
+        @keyframes signatureFade {
+            0% { opacity: 0; }
+            100% { opacity: 1; }
+        }
+        .auto-signature { animation: signatureFade 0.5s ease-in-out; }
+        .watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 26px;
+            color: rgba(255, 0, 0, 0.15);
+            font-weight: bold;
+            white-space: nowrap;
+            pointer-events: none;
+            z-index: 1000;
+            user-select: none;
+            letter-spacing: 2px;
+            max-width: 85vw;
+            text-align: center;
+        }
+        @media print {
+            .action-buttons { display: none; }
+            .watermark {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%) rotate(-45deg);
+                font-size: 26px;
+                color: rgba(255, 0, 0, 0.15);
+                font-weight: bold;
+                white-space: nowrap;
+                z-index: 1000;
+                letter-spacing: 2px;
+            }
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="watermark">NOT VALID FOR COURT OR LEGAL PURPOSE</div>
+    
+    <div class="action-buttons" style="max-width: 800px; margin: 0 auto 20px;">
+        <button onclick="saveInvoice()">Save/Update Invoice</button>
+        <button onclick="deleteInvoice()" id="deleteButton" class="delete-button" style="display: none;">Delete Invoice</button>
+        <button onclick="generatePDF()">Generate PDF</button>
+        <button onclick="window.print()">Print</button>
+        <button onclick="window.location.href='documents.html'">View All Documents</button>
+    </div>
+    <div style="max-width: 800px; margin: 0 auto;" id="invoice-content">
+        <div class="header">
+            <div class="invoice-heading">
+                PURCHASE INVOICE <br>
+                Invoice Number: <input type="text" id="invoiceNumber" placeholder="e.g., PI-00120" style="width: 150px;" readonly><br>
+                Date: <input type="date" id="invoiceDate" style="width: 150px;"><br>
+                Party Name: <input type="text" id="partyName" placeholder="Enter Party Name">
+            </div>
+            <div class="company-info">
+                <h2>(BET) Bilal Ehtasham Traders</h2>
+                <p><i>We deal in all kinds of Cotton and Polyester Yarn</i></p>
+                <p>Cell: (+92)-324-2479096</p>
+                <p>Email: bilalehtashamtraders@gmail.com</p>
+            </div>
+        </div>
+
+        <div class="payment-method">
+            <label for="paymentMethod">Payment Method:</label>
+            <select id="paymentMethod">
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="Cash">Cash</option>
+                <option value="Cheque">Cheque</option>
+            </select>
+        </div>
+
+        <button onclick="addRow()">Add New Row</button>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Quantity</th>
+                    <th>Description</th>
+                    <th>Packing (kg)</th>
+                    <th>Weight (kg)</th>
+                    <th>Weight (lbs)</th>
+                    <th>Price</th>
+                    <th>Amount</th>
+                </tr>
+            </thead>
+            <tbody id="invoice-body">
+                <tr>
+                    <td><input type="text" class="quantity" value="0"></td>
+                    <td><input type="text" class="description"></td>
+                    <td><input type="text" class="packing" value="0"></td>
+                    <td><input type="text" class="weightKg" value="0.00" readonly></td>
+                    <td><input type="text" class="weightLbs" value="0.00" readonly></td>
+                    <td><input type="text" class="price" value="0"></td>
+                    <td><input type="text" class="amount total-amount-input" value="0.00/=" readonly></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <table class="totals">
+            <tr>
+                <td class="label" style="width: 80%;">Gross Total:</td>
+                <td><input type="text" id="grossTotal" class="total-amount-input" style="font-weight:bold;" readonly></td>
+            </tr>
+            <tr>
+                <td class="label">Commission %:</td>
+                <td><input type="text" id="commissionPercent" class="total-amount-input editable-percent" value="0.00" placeholder="e.g., 0.225, 0.45, 0.90"></td>
+            </tr>
+            <tr>
+                <td class="label">Commission Earned:</td>
+                <td><input type="text" id="commissionAmount" class="total-amount-input" readonly></td>
+            </tr>
+            <tr>
+                <td class="label"><b>Net Total:</b></td>
+                <td><input type="text" id="netTotal" class="total-amount-input" style="font-weight:bold;" readonly></td>
+            </tr>
+        </table>
+
+        <div class="signature">
+            <div class="signature-left">
+                Payment Terms: <input type="text" id="paymentTerms" placeholder="Enter Payment Terms">
+            </div>
+            <div class="signature-right">
+                <p class="auto-signature">Ehtasham</p>
+                <p>(EHTASHAM BILAL)</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
+            authDomain: "bet-acc-software.firebaseapp.com",
+            projectId: "bet-acc-software",
+            storageBucket: "bet-acc-software.firebasestorage.app",
+            messagingSenderId: "879522152449",
+            appId: "1:879522152449:web:73b8ef899d5c1cbfd90000"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        let isEditing = false;
+        let originalDocNumber = null;
+        const LBS_IN_KG = 2.20462;
+        const DEFAULT_STARTING_NUMBER = 119;
+
+        function formatCurrency(value) {
+            const num = parseFloat(value) || 0;
+            return num.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) + '/=';
+        }
+
+        function parseCurrency(value) {
+            return parseFloat(String(value).replace(/,/g, '').replace('/=', '')) || 0;
+        }
+
+        async function getNextInvoiceNumber() {
+            try {
+                const q = query(collection(db, "purchaseInvoices"), orderBy("numericNumber", "desc"), limit(1));
+                const snapshot = await getDocs(q);
+                
+                let lastNumber = DEFAULT_STARTING_NUMBER;
+                if (!snapshot.empty) {
+                    const lastDoc = snapshot.docs[0].data();
+                    lastNumber = parseInt(lastDoc.numericNumber, 10);
+                }
+                return 'PI-' + String(lastNumber + 1).padStart(5, '0');
+            } catch (error) {
+                console.error("Error getting next invoice number:", error);
+                return 'PI-' + String(DEFAULT_STARTING_NUMBER + 1).padStart(5, '0');
+            }
+        }
+
+        function calculateRowAndTotals(row) {
+            const quantity = parseCurrency(row.querySelector('.quantity').value);
+            const packingKg = parseCurrency(row.querySelector('.packing').value);
+            const price = parseCurrency(row.querySelector('.price').value);
+
+            const weightKg = quantity * packingKg;
+            const weightLbs = weightKg * LBS_IN_KG;
+            const amount = weightLbs * price; 
+
+            row.querySelector('.weightKg').value = weightKg.toFixed(2);
+            row.querySelector('.weightLbs').value = weightLbs.toFixed(2);
+            row.querySelector('.amount').value = formatCurrency(amount);
+
+            calculateTotals();
+        }
+
+        function calculateTotals() {
+            let grossTotal = 0;
+            document.querySelectorAll('.amount').forEach(amountInput => {
+                grossTotal += parseCurrency(amountInput.value);
+            });
+
+            const commissionPercent = parseFloat(document.getElementById('commissionPercent').value) || 0;
+            const commissionAmount = grossTotal * (commissionPercent / 100); 
+            const netTotal = grossTotal - commissionAmount;
+
+            document.getElementById('grossTotal').value = formatCurrency(grossTotal);
+            document.getElementById('commissionAmount').value = formatCurrency(commissionAmount);
+            document.getElementById('netTotal').value = formatCurrency(netTotal);
+        }
+
+        function attachEventListeners(row) {
+            const inputs = ['quantity', 'packing', 'price'];
+            inputs.forEach(className => {
+                const input = row.querySelector('.' + className);
+                input.removeEventListener('input', formatRowInputAndRecalculate);
+                input.addEventListener('input', formatRowInputAndRecalculate);
+            });
+        }
+
+        function formatRowInputAndRecalculate(event) {
+            const input = event.target;
+            let value = input.value.replace(/,/g, '').replace('/=', '').replace(/[^0-9.]/g, '');
+            
+            if (value === '') {
+                input.value = '';
+                calculateRowAndTotals(input.closest('tr'));
+                return;
+            }
+            
+            let parsedValue = parseFloat(value);
+            
+            if (isNaN(parsedValue)) { 
+                input.value = ''; 
+            } else {
+                if (input.classList.contains('price') || input.classList.contains('packing')) {
+                    input.value = value;
+                } else {
+                    input.value = parseInt(parsedValue) || 0;
+                }
+            }
+            calculateRowAndTotals(input.closest('tr'));
+        }
+
+        function formatCommissionAndRecalculate(event) {
+            const input = event.target;
+            let value = input.value.replace(/,/g, '').replace(/[^0-9.]/g, '');
+            
+            if (value === '') {
+                input.value = '0.00';
+                calculateTotals();
+                return;
+            }
+            
+            let parsedValue = parseFloat(value);
+            
+            if (isNaN(parsedValue)) { 
+                input.value = '0.00'; 
+            } else {
+                input.value = parsedValue.toFixed(4).replace(/\.?0*$/, '');
+            }
+            calculateTotals();
+        }
+
+        window.addRow = function() {
+            const newRow = document.createElement('tr');
+            newRow.innerHTML = `
+                <td><input type="text" class="quantity" value="0"></td>
+                <td><input type="text" class="description"></td>
+                <td><input type="text" class="packing" value="0"></td>
+                <td><input type="text" class="weightKg" value="0.00" readonly></td>
+                <td><input type="text" class="weightLbs" value="0.00" readonly></td>
+                <td><input type="text" class="price" value="0"></td>
+                <td><input type="text" class="amount total-amount-input" value="0.00/=" readonly></td>
+            `;
+            document.getElementById('invoice-body').appendChild(newRow);
+            attachEventListeners(newRow);
+            calculateTotals();
+        };
+        
+        function populateForm(doc) {
+            document.getElementById('invoiceNumber').value = doc.number;
+            document.getElementById('invoiceDate').value = doc.date;
+            document.getElementById('partyName').value = doc.party;
+            document.getElementById('paymentMethod').value = doc.paymentMethod;
+            document.getElementById('paymentTerms').value = doc.paymentTerms || '';
+
+            const tbody = document.getElementById('invoice-body');
+            tbody.innerHTML = '';
+
+            doc.lineItems.forEach(item => {
+                const newRow = document.createElement('tr');
+                newRow.innerHTML = `
+                    <td><input type="text" class="quantity" value="${item.quantity}"></td>
+                    <td><input type="text" class="description" value="${item.description}"></td>
+                    <td><input type="text" class="packing" value="${item.packing}"></td>
+                    <td><input type="text" class="weightKg" value="${item.weightKg.toFixed(2)}" readonly></td>
+                    <td><input type="text" class="weightLbs" value="${item.weightLbs.toFixed(2)}" readonly></td>
+                    <td><input type="text" class="price" value="${item.price}"></td>
+                    <td><input type="text" class="amount total-amount-input" value="${formatCurrency(item.amount)}" readonly></td>
+                `;
+                tbody.appendChild(newRow);
+                attachEventListeners(newRow);
+            });
+            
+            const comm = parseFloat(doc.commissionPercent) || 0;
+            document.getElementById('commissionPercent').value = comm.toFixed(4).replace(/\.?0*$/, ''); 
+            calculateTotals();
+        }
+
+        function getLineItemsData() {
+            const lineItems = [];
+            document.querySelectorAll('#invoice-body tr').forEach(row => {
+                lineItems.push({
+                    quantity: parseCurrency(row.querySelector('.quantity').value),
+                    description: row.querySelector('.description').value,
+                    packing: parseCurrency(row.querySelector('.packing').value),
+                    weightKg: parseFloat(row.querySelector('.weightKg').value) || 0,
+                    weightLbs: parseFloat(row.querySelector('.weightLbs').value) || 0,
+                    price: parseCurrency(row.querySelector('.price').value),
+                    amount: parseCurrency(row.querySelector('.amount').value)
+                });
+            });
+            return lineItems;
+        }
+
+        window.saveInvoice = async function() {
+            const invoiceNumber = document.getElementById('invoiceNumber').value;
+            const invoiceDate = document.getElementById('invoiceDate').value;
+            const partyName = document.getElementById('partyName').value;
+            const paymentMethod = document.getElementById('paymentMethod').value;
+            const paymentTerms = document.getElementById('paymentTerms').value;
+            
+            const commissionPercent = parseFloat(document.getElementById('commissionPercent').value) || 0;
+            const grossTotal = parseCurrency(document.getElementById('grossTotal').value);
+            const commissionAmount = parseCurrency(document.getElementById('commissionAmount').value);
+            const netTotal = parseCurrency(document.getElementById('netTotal').value);
+            const lineItems = getLineItemsData();
+
+            if (!invoiceNumber || !invoiceDate || !partyName) {
+                alert("Please fill in Invoice Number, Date, and Party Name.");
+                return;
+            }
+            if (netTotal === 0 && lineItems.length === 0) {
+                if (!confirm("The net total is zero and there are no line items. Do you want to save this invoice?")) {
+                    return;
+                }
+            }
+
+            try {
+                const numericNumber = parseInt(invoiceNumber.replace('PI-', ''), 10);
+                const baseTimestamp = Date.now();
+                
+                let itemDescriptions = lineItems.map(item => item.description).filter(d => d.trim() !== '');
+                let goodsSummary = "Yarn Purchased";
+                if (itemDescriptions.length > 0) {
+                    if (itemDescriptions.length === 1) {
+                        goodsSummary = itemDescriptions[0];
+                    } else if (itemDescriptions.length === 2) {
+                        goodsSummary = `${itemDescriptions[0]} and ${itemDescriptions[1]}`;
+                    } else {
+                        goodsSummary = `${itemDescriptions[0]} & ${itemDescriptions.length - 1} other items`;
+                    }
+                }
+                const purchaseDescription = `Yarn purchase facilitated with ${partyName}: ${goodsSummary}`;
+
+                const invoiceData = {
+                    type: 'Purchase Invoice',
+                    number: invoiceNumber,
+                    numericNumber: numericNumber, 
+                    date: invoiceDate,
+                    party: partyName,
+                    paymentMethod: paymentMethod,
+                    paymentTerms: paymentTerms,
+                    lineItems: lineItems,
+                    commissionPercent: commissionPercent,
+                    grossTotal: grossTotal,
+                    commissionAmount: commissionAmount,
+                    netTotal: netTotal,
+                    timestamp: new Date(baseTimestamp).toISOString()
+                };
+
+                await setDoc(doc(db, "purchaseInvoices", invoiceNumber), invoiceData);
+                console.log("✓ Purchase Invoice saved to purchaseInvoices collection");
+
+                if (isEditing && originalDocNumber && originalDocNumber !== invoiceNumber) {
+                    await deleteDoc(doc(db, "purchaseInvoices", originalDocNumber));
+                    const oldLedgerQuery = query(collection(db, "ledger"), where("doc_number", "==", originalDocNumber));
+                    const oldLedgerSnapshot = await getDocs(oldLedgerQuery);
+                    for (const docSnap of oldLedgerSnapshot.docs) {
+                        await deleteDoc(doc(db, "ledger", docSnap.id));
+                    }
+                    console.log("✓ Old invoice and related ledger entries deleted");
+                }
+
+                const existingLedgerQuery = query(collection(db, "ledger"), where("doc_number", "==", invoiceNumber));
+                const existingLedgerSnapshot = await getDocs(existingLedgerQuery);
+                for (const docSnap of existingLedgerSnapshot.docs) {
+                    await deleteDoc(doc(db, "ledger", docSnap.id));
+                }
+                console.log("✓ Existing ledger entries cleared");
+                
+                const ledgerEntries = [];
+                
+                // CORRECTED LOGIC: No Inventory account for commission agent
+                // Entry 1: Supplier Payable (what we owe supplier for gross amount)
+                if (netTotal !== 0) {
+                    ledgerEntries.push({
+                        date: invoiceDate,
+                        doc_number: invoiceNumber,
+                        account: partyName,
+                        party: partyName,
+                        debit: 0,
+                        credit: netTotal,
+                        description: purchaseDescription,
+                        goods_summary: goodsSummary,
+                        timestamp: new Date(baseTimestamp).toISOString()
+                    });
+                }
+
+                // Entry 2: Commission Earned (our income from this transaction)
+                if (commissionAmount > 0) {
+                    ledgerEntries.push({
+                        date: invoiceDate,
+                        doc_number: invoiceNumber,
+                        account: "Commission Earned",
+                        party: partyName,
+                        debit: commissionAmount,
+                        credit: 0,
+                        description: `Commission earned on yarn purchase ${invoiceNumber}`,
+                        goods_summary: goodsSummary,
+                        timestamp: new Date(baseTimestamp + 1).toISOString()
+                    });
+                }
+
+                for (let i = 0; i < ledgerEntries.length; i++) {
+                    const entry = ledgerEntries[i];
+                    const ledgerDocRef = doc(collection(db, "ledger"));
+                    await setDoc(ledgerDocRef, entry);
+                }
+                console.log("✓ All ledger entries saved successfully");
+
+                alert(isEditing ? `Purchase Invoice ${invoiceNumber} updated successfully!` : `New Purchase Invoice ${invoiceNumber} saved successfully!`);
+                window.location.href = 'documents.html';
+            } catch (error) {
+                console.error("❌ Error saving invoice:", error);
+                alert("Error saving invoice: " + error.message);
+            }
+        };
+
+        window.deleteInvoice = async function() {
+            const invoiceNumber = document.getElementById('invoiceNumber').value;
+            if (!confirm(`Are you sure you want to delete Purchase Invoice ${invoiceNumber}? This action cannot be undone.`)) {
+                return;
+            }
+
+            try {
+                const ledgerQuery = query(collection(db, "ledger"), where("doc_number", "==", invoiceNumber));
+                const ledgerSnapshot = await getDocs(ledgerQuery);
+                
+                for (const docSnap of ledgerSnapshot.docs) {
+                    await deleteDoc(doc(db, "ledger", docSnap.id));
+                }
+                console.log(`✓ All ${ledgerSnapshot.size} ledger entries deleted`);
+
+                await deleteDoc(doc(db, "purchaseInvoices", invoiceNumber));
+                console.log(`✓ Purchase Invoice document deleted`);
+
+                alert(`Purchase Invoice ${invoiceNumber} and all related ledger entries deleted successfully.`);
+                window.location.href = 'documents.html';
+            } catch (error) {
+                console.error("❌ Error deleting invoice:", error);
+                alert("Error deleting invoice: " + error.message);
+            }
+        };
+
+        window.generatePDF = function() {
+            const element = document.getElementById('invoice-content');
+            const opt = {
+                margin: 0.5,
+                filename: `Purchase-Invoice-${document.getElementById('invoiceNumber').value}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, logging: false },
+                jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+            };
+
+            const watermarkDiv = document.querySelector('.watermark');
+            if (watermarkDiv) {
+                watermarkDiv.style.position = 'absolute';
+                watermarkDiv.style.zIndex = '1';
+            }
+
+            html2pdf().set(opt).from(element).save().then(() => {
+                if (watermarkDiv) {
+                    watermarkDiv.style.position = 'fixed';
+                    watermarkDiv.style.zIndex = '1000';
+                }
+            });
+        };
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const editNumber = urlParams.get('edit');
+
+            if (editNumber) {
+                try {
+                    const docRef = doc(db, "purchaseInvoices", editNumber);
+                    const docSnap = await getDoc(docRef);
+                    
+                    if (docSnap.exists()) {
+                        populateForm(docSnap.data());
+                        isEditing = true;
+                        originalDocNumber = editNumber;
+                        document.getElementById('deleteButton').style.display = 'inline-block';
+                    } else {
+                        alert("Purchase Invoice not found.");
+                        window.location.href = 'documents.html';
+                    }
+                } catch (error) {
+                    console.error("Error loading invoice:", error);
+                    alert("Error loading invoice.");
+                }
+            } else {
+                const nextNumber = await getNextInvoiceNumber();
+                document.getElementById('invoiceNumber').value = nextNumber;
+                
+                // Set date in YYYY-MM-DD format for date input
+                const today = new Date();
+                const formattedDate = today.toISOString().split('T')[0];
+                document.getElementById('invoiceDate').value = formattedDate;
+                
+                document.getElementById('deleteButton').style.display = 'none';
+            }
+
+            document.querySelectorAll('#invoice-body tr').forEach(row => attachEventListeners(row));
+            document.getElementById('commissionPercent').addEventListener('input', formatCommissionAndRecalculate);
+
+            setTimeout(() => {
+                document.querySelectorAll('#invoice-body tr').forEach(row => calculateRowAndTotals(row));
+            }, 100);
+        });
+    </script>
+</body>
+</html>

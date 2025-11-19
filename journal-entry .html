@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>General Journal - Bilal Ehtasham Traders</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            color: #000;
+        }
+        .report-container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            border: 1px solid #ccc;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            box-sizing: border-box;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #2e6da4;
+            padding-bottom: 10px;
+        }
+        .header h1 {
+            font-size: 28px;
+            margin: 0;
+            color: #2e6da4;
+        }
+        .business-info {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .business-info h2 {
+            margin: 0;
+            color: #2e6da4;
+        }
+        .business-info p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        .controls {
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #2e6da4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #245a8e;
+        }
+        .delete-button {
+            background-color: #cc0000 !important;
+        }
+        .delete-button:hover {
+            background-color: #aa0000 !important;
+        }
+        .form-container {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .form-container h3 {
+            color: #2e6da4;
+            margin-top: 0;
+        }
+        .form-container h4 {
+            color: #2e6da4;
+            margin-bottom: 10px;
+        }
+        .form-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .form-row input, .form-row select {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: transparent;
+        }
+        .form-row input:focus, .form-row select:focus {
+            outline: none;
+            background: #e6f0fa;
+        }
+        .input-je-no {
+            flex: 0.5;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        th, td {
+            border: 2px solid #000;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .debit-column, .credit-column {
+            text-align: right;
+            font-family: 'Courier New', monospace;
+        }
+        .total-row td {
+            font-weight: bold;
+            background-color: #e6e6ff;
+        }
+        .action-cell {
+            text-align: center;
+            width: 50px;
+        }
+        .action-cell button {
+            padding: 4px 8px;
+            background-color: #555;
+            font-size: 12px;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #2e6da4;
+        }
+        .watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 26px;
+            color: rgba(255, 0, 0, 0.15);
+            font-weight: bold;
+            white-space: nowrap;
+            pointer-events: none;
+            z-index: 1000;
+            user-select: none;
+            letter-spacing: 2px;
+            max-width: 85vw;
+            text-align: center;
+        }
+
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 8mm;
+            }
+            body {
+                padding: 0;
+                margin: 0;
+            }
+            .controls {
+                display: none !important;
+            }
+            .report-container {
+                border: none;
+                box-shadow: none;
+                padding: 5px;
+                max-width: 100%;
+            }
+            .header h1 {
+                font-size: 22px;
+                margin: 5px 0;
+            }
+            .business-info h2 {
+                font-size: 18px;
+                margin: 3px 0;
+            }
+            .business-info p {
+                font-size: 11px;
+                margin: 2px 0;
+            }
+            .watermark {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%) rotate(-45deg);
+                font-size: 26px;
+                color: rgba(255, 0, 0, 0.15);
+                font-weight: bold;
+                white-space: nowrap;
+                z-index: 1000;
+                letter-spacing: 2px;
+            }
+            .header { 
+                border-bottom: 2px solid #2e6da4;
+                page-break-after: avoid;
+            }
+            .business-info h2 { 
+                color: #2e6da4;
+            }
+            .form-container {
+                display: none !important;
+            }
+            table {
+                page-break-inside: auto;
+                font-size: 10px;
+            }
+            th, td {
+                padding: 4px 3px;
+                font-size: 10px;
+            }
+            tr {
+                page-break-inside: avoid;
+                page-break-after: auto;
+            }
+            thead {
+                display: table-header-group;
+            }
+            tfoot {
+                display: table-footer-group;
+            }
+            .action-cell {
+                display: none;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+            .form-row {
+                flex-direction: column;
+                gap: 5px;
+            }
+            .form-row input, .form-row select {
+                width: 100%;
+            }
+            .input-je-no {
+                flex: 1;
+            }
+            table, th, td {
+                font-size: 10px;
+                padding: 5px;
+            }
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+    <div class="watermark">NOT VALID FOR COURT OR LEGAL PURPOSE</div>
+    <div class="loading" id="loading">Loading...</div>
+    <div class="report-container" style="display: none;" id="mainContent">
+        <div class="header">
+            <h1>General Journal</h1>
+        </div>
+        <div class="business-info">
+            <h2>(BET) Bilal Ehtasham Traders</h2>
+            <p><i>We deal in all kinds of Cotton and Polyester Yarn</i></p>
+            <p>Email: bilalehtashamtraders@gmail.com</p>
+            <p>Cell: (+92)-324-2479096</p>
+        </div>
+        
+        <div class="controls">
+            <button onclick="saveJournalEntry()">Save/Update Entry</button>
+            <button onclick="deleteJournalEntry()" id="deleteButton" class="delete-button" style="display: none;">Delete Entry</button>
+            <button onclick="generatePDF()">Generate PDF</button>
+            <button onclick="window.print()">Print</button>
+            <button onclick="window.location.href='documents.html'">Back to Documents</button>
+        </div>
+
+        <div class="form-container">
+            <h3>Journal Entry Details</h3>
+            <div class="form-row">
+                <input type="text" id="je-no" class="input-je-no" placeholder="JE No." readonly>
+                <input type="date" id="entry-date">
+                <input type="text" id="entry-narration" placeholder="Narration/Summary">
+            </div>
+
+            <h4>Line Items</h4>
+            <div class="form-row">
+                <select id="line-account-type">
+                    <option value="">Loading accounts...</option>
+                </select>
+                <input type="text" id="line-description" placeholder="Description/Reference">
+                <input type="text" id="line-debit" class="debit-input" placeholder="Debit (Rs.)">
+                <input type="text" id="line-credit" class="credit-input" placeholder="Credit (Rs.)">
+            </div>
+            <button onclick="addLineItem()">Add Line</button>
+        </div>
+        
+        <table id="journal-entries-table">
+            <thead>
+                <tr>
+                    <th>Account</th>
+                    <th>Description</th>
+                    <th class="debit-column">Debit (Rs.)</th>
+                    <th class="credit-column">Credit (Rs.)</th>
+                    <th class="action-cell">Action</th>
+                </tr>
+            </thead>
+            <tbody id="journal-lines-body">
+            </tbody>
+            <tfoot>
+                <tr class="total-row">
+                    <td colspan="2">TOTAL</td>
+                    <td id="total-debit" class="debit-column">0.00</td>
+                    <td id="total-credit" class="credit-column">0.00</td>
+                    <td class="action-cell"></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
+            authDomain: "bet-acc-software.firebaseapp.com",
+            projectId: "bet-acc-software",
+            storageBucket: "bet-acc-software.firebasestorage.app",
+            messagingSenderId: "879522152449",
+            appId: "1:879522152449:web:73b8ef899d5c1cbfd90000"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        let isEditing = false;
+        let originalDocNumber = null;
+        let lineItems = [];
+        const DEFAULT_STARTING_NUMBER = 1000;
+        
+        // Fixed accounts that should always appear in the dropdown
+        const FIXED_ACCOUNTS = [
+            "Capital",
+            "Drawings",
+            "Drawings SadaPay (10% Account)",
+            "Drawings Askari Bank (Savings)",
+            "Commission Earned",
+            "Service Income",
+            "Bank Charges",
+            "Rent Expense",
+            "Utilities Expense",
+            "Salaries Expense",
+            "Office Supplies",
+            "Transportation Expense",
+            "Miscellaneous Expense"
+        ];
+
+        // Fetch unique accounts from ledger and merge with fixed accounts
+        async function populateAccountSelect() {
+            const selectEl = document.getElementById('line-account-type');
+            selectEl.innerHTML = '<option value="">Loading accounts...</option>';
+            
+            try {
+                console.log("Fetching accounts from ledger...");
+                const ledgerQuery = query(collection(db, "ledger"));
+                const snapshot = await getDocs(ledgerQuery);
+                
+                const uniqueAccounts = new Set();
+                
+                // Add all fixed accounts first
+                FIXED_ACCOUNTS.forEach(account => {
+                    uniqueAccounts.add(account);
+                });
+                
+                // Then add accounts from ledger
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    const accountKey = data.account || '';
+                    
+                    // Only add non-empty, non-default accounts
+                    if (accountKey && accountKey.trim() !== '' && accountKey !== 'Unknown') {
+                        uniqueAccounts.add(accountKey);
+                    }
+                });
+
+                console.log(`Found ${uniqueAccounts.size} unique accounts (including ${FIXED_ACCOUNTS.length} fixed accounts)`);
+                
+                // Convert to sorted array
+                const sortedAccounts = Array.from(uniqueAccounts).sort();
+                
+                // Clear and populate dropdown
+                selectEl.innerHTML = '<option value="">-- Select Account --</option>'; // Added default placeholder
+                
+                if (sortedAccounts.length === 0) {
+                    selectEl.innerHTML = '<option value="">No accounts found</option>';
+                } else {
+                    sortedAccounts.forEach(account => {
+                        const option = document.createElement('option');
+                        option.value = account;
+                        option.textContent = account;
+                        selectEl.appendChild(option);
+                    });
+                    console.log("✓ Account dropdown populated with ledger accounts + fixed accounts");
+                }
+            } catch (error) {
+                console.error("Error fetching accounts from ledger:", error);
+                selectEl.innerHTML = '<option value="">Error loading accounts</option>';
+            }
+        }
+
+        async function getNextJENumber() {
+            try {
+                // Query the collection, filter for documents starting with 'JE-', order by number, and take the last one
+                // Firestore doesn't support complex string querying like 'startsWith' or numerical comparison on non-numeric fields easily.
+                // The most reliable way is to fetch all JE documents and find the highest number manually, or rely on a helper field 'number' if available.
+                
+                // Assuming the documents are stored with a document ID of 'JE-XXXXX' and have a field 'number' with value 'JE-XXXXX'
+                // We'll query by the 'number' field, ordering descendingly for string comparison.
+                // This approach works best if the padded JE number (e.g., JE-01001) is used for the 'number' field.
+                
+                const q = query(
+                    collection(db, "journalEntries"), 
+                    orderBy("number", "desc"), 
+                    limit(1)
+                );
+                const snapshot = await getDocs(q);
+                
+                let highestNumber = DEFAULT_STARTING_NUMBER;
+
+                if (!snapshot.empty) {
+                    const lastDoc = snapshot.docs[0].data();
+                    const lastNumberStr = (lastDoc.number || lastDoc.id || '').replace('JE-', '');
+                    
+                    // Attempt to parse the number part
+                    const parsedNumber = parseInt(lastNumberStr, 10);
+                    
+                    if (!isNaN(parsedNumber) && parsedNumber > highestNumber) {
+                        highestNumber = parsedNumber;
+                    }
+                }
+                
+                const nextNumber = highestNumber + 1;
+                return `JE-${String(nextNumber).padStart(5, '0')}`; 
+                
+            } catch (error) {
+                console.error("Error getting next JE number:", error);
+                // Fallback in case of error
+                return `JE-${String(DEFAULT_STARTING_NUMBER + 1).padStart(5, '0')}`;
+            }
+        }
+        
+        function formatInput(event) {
+            const input = event.target;
+            let value = input.value.replace(/[^0-9.]/g, '');
+            
+            const parts = value.split('.');
+            if (parts.length > 2) {
+                // Keep the first dot, remove the rest
+                value = parts[0] + '.' + parts.slice(1).join('');
+            }
+
+            input.value = value;
+        }
+
+        async function populateForm(doc) {
+            document.getElementById('je-no').value = doc.number;
+            
+            // Convert date from DD-MM-YYYY to YYYY-MM-DD for date input
+            if (doc.date) {
+                const dateParts = doc.date.split('-');
+                if (dateParts.length === 3) {
+                    const day = dateParts[0];
+                    const month = dateParts[1];
+                    const year = dateParts[2];
+                    document.getElementById('entry-date').value = `${year}-${month}-${day}`;
+                }
+            }
+            
+            document.getElementById('entry-narration').value = doc.narration;
+
+            lineItems = doc.lineItems || [];
+            displayLineItems();
+        }
+
+        function addLineItem() {
+            const accountType = document.getElementById('line-account-type').value;
+            const description = document.getElementById('line-description').value;
+            const debit = parseFloat(document.getElementById('line-debit').value) || 0; 
+            const credit = parseFloat(document.getElementById('line-credit').value) || 0;
+
+            if (!accountType) {
+                alert("Please select an account.");
+                return;
+            }
+
+            if (debit > 0 && credit > 0) {
+                alert("A journal line can only have a Debit OR a Credit, not both.");
+                return;
+            }
+
+            if (!description.trim()) {
+                alert("Please provide a description.");
+                return;
+            }
+
+            if (debit > 0 || credit > 0) {
+                lineItems.push({
+                    account: accountType,
+                    description: description.trim(),
+                    debit: parseFloat(debit.toFixed(2)),
+                    credit: parseFloat(credit.toFixed(2))
+                });
+                displayLineItems();
+                
+                // Clear inputs for next line
+                document.getElementById('line-account-type').value = ''; // Reset dropdown
+                document.getElementById('line-description').value = '';
+                document.getElementById('line-debit').value = '';
+                document.getElementById('line-credit').value = '';
+            } else {
+                alert('Please provide a debit or credit amount.');
+            }
+        }
+
+        function removeLineItem(index) {
+            lineItems.splice(index, 1);
+            displayLineItems();
+        }
+
+        function displayLineItems() {
+            const tbody = document.getElementById('journal-lines-body');
+            tbody.innerHTML = '';
+            let totalDebit = 0;
+            let totalCredit = 0;
+
+            lineItems.forEach((item, index) => {
+                const row = tbody.insertRow();
+                const debit = item.debit || 0;
+                const credit = item.credit || 0;
+
+                row.innerHTML = `
+                    <td>${item.account}</td>
+                    <td>${item.description}</td>
+                    <td class="debit-column">${(debit).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td class="credit-column">${(credit).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td class="action-cell"><button onclick="window.removeLineItem(${index})">X</button></td>
+                `;
+                totalDebit += debit;
+                totalCredit += credit;
+            });
+
+            document.getElementById('total-debit').textContent = totalDebit.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            document.getElementById('total-credit').textContent = totalCredit.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        }
+
+        async function saveJournalEntry() {
+            const docNumber = document.getElementById('je-no').value;
+            const dateValue = document.getElementById('entry-date').value; // YYYY-MM-DD format
+            const narration = document.getElementById('entry-narration').value;
+            
+            if (!dateValue || !narration.trim() || !docNumber) {
+                alert("Please fill in JE No., Date, and Narration.");
+                return;
+            }
+
+            // Convert YYYY-MM-DD to DD-MM-YYYY for storage
+            const [year, month, day] = dateValue.split('-');
+            const displayDate = `${day}-${month}-${year}`;
+            
+            const totalDebit = parseFloat(document.getElementById('total-debit').textContent.replace(/,/g, '')) || 0;
+            const totalCredit = parseFloat(document.getElementById('total-credit').textContent.replace(/,/g, '')) || 0;
+
+            // Check for balance, allowing for minor floating point errors
+            if (Math.abs(totalDebit - totalCredit) > 0.01) { 
+                alert(`Journal Entry is unbalanced! Total Debit (${totalDebit.toLocaleString('en-US')}) must equal Total Credit (${totalCredit.toLocaleString('en-US')}). Difference: ${Math.abs(totalDebit - totalCredit).toFixed(2)} Rs.`);
+                return;
+            }
+
+            if (lineItems.length === 0) {
+                alert('Please add at least one line item.');
+                return;
+            }
+            
+            const baseTimestamp = Date.now();
+            
+            const newJournal = {
+                number: docNumber, 
+                date: displayDate, // Store in DD-MM-YYYY format
+                narration: narration.trim(),
+                lineItems: lineItems,
+                totalDebit: parseFloat(totalDebit.toFixed(2)),
+                totalCredit: parseFloat(totalCredit.toFixed(2)),
+                type: 'Journal Entry',
+                timestamp: new Date(baseTimestamp).toISOString()
+            };
+
+            try {
+                await setDoc(doc(db, "journalEntries", docNumber), newJournal);
+                console.log("✓ Journal Entry saved to journalEntries collection");
+
+                // Delete old ledger entries if editing
+                if (isEditing && originalDocNumber) {
+                    const ledgerQuery = query(collection(db, "ledger"), where("doc_number", "==", originalDocNumber));
+                    const ledgerSnapshot = await getDocs(ledgerQuery);
+                    
+                    for (const docSnap of ledgerSnapshot.docs) {
+                        await deleteDoc(doc(db, "ledger", docSnap.id));
+                    }
+                    console.log(`✓ Deleted ${ledgerSnapshot.size} old ledger entries`);
+                }
+
+                // Create new ledger entries
+                for (let i = 0; i < lineItems.length; i++) {
+                    const item = lineItems[i];
+                    const ledgerEntry = {
+                        date: displayDate, // Store in DD-MM-YYYY format
+                        description: `${item.description} (JE: ${narration.trim()})`,
+                        account: item.account,
+                        party: '', // No party for journal entries
+                        debit: item.debit || 0,
+                        credit: item.credit || 0,
+                        doc_number: docNumber,
+                        doc_type: 'Journal Entry',
+                        goods_summary: '', // No goods for journal entries
+                        // Ensure unique timestamp for sorting in general ledger
+                        timestamp: new Date(baseTimestamp + i).toISOString() 
+                    };
+                    
+                    const ledgerDocRef = doc(collection(db, "ledger"));
+                    await setDoc(ledgerDocRef, ledgerEntry);
+                }
+                console.log(`✓ Created ${lineItems.length} ledger entries`);
+
+                alert(isEditing ? 'Journal Entry updated successfully!' : 'Journal Entry saved and ledger updated!');
+                window.location.href = 'documents.html';
+            } catch (error) {
+                console.error("Error saving journal entry:", error);
+                alert("Error saving journal entry. Please try again.");
+            }
+        }
+
+        async function deleteJournalEntry() {
+            const docNumber = document.getElementById('je-no').value;
+            
+            if (!confirm(`Are you sure you want to delete Journal Entry ${docNumber}? This will remove all associated ledger lines.`)) {
+                return;
+            }
+
+            try {
+                await deleteDoc(doc(db, "journalEntries", docNumber));
+                console.log(`✓ Main Journal Entry ${docNumber} deleted`);
+
+                // Delete associated ledger entries
+                const ledgerQuery = query(collection(db, "ledger"), where("doc_number", "==", docNumber));
+                const ledgerSnapshot = await getDocs(ledgerQuery);
+                
+                for (const docSnap of ledgerSnapshot.docs) {
+                    await deleteDoc(doc(db, "ledger", docSnap.id));
+                }
+                console.log(`✓ Deleted ${ledgerSnapshot.size} related ledger entries`);
+
+                alert('Journal Entry and all associated ledger lines deleted successfully.');
+                window.location.href = 'documents.html';
+            } catch (error) {
+                console.error("Error deleting journal entry:", error);
+                alert("Error deleting journal entry. Please try again.");
+            }
+        }
+        
+        function generatePDF() {
+            const element = document.getElementById('mainContent');
+            const docNumber = document.getElementById('je-no').value;
+            
+            const opt = {
+                margin: [8, 8, 8, 8],
+                filename: `Journal_Entry_${docNumber}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { 
+                    scale: 2, 
+                    useCORS: true, 
+                    logging: false,
+                    letterRendering: true,
+                    windowWidth: 1200
+                },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+            };
+
+            const watermarkDiv = document.querySelector('.watermark');
+            if (watermarkDiv) {
+                watermarkDiv.style.position = 'absolute';
+                watermarkDiv.style.zIndex = '1';
+            }
+
+            html2pdf().set(opt).from(element).save().then(() => {
+                if (watermarkDiv) {
+                    watermarkDiv.style.position = 'fixed';
+                    watermarkDiv.style.zIndex = '1000';
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            try {
+                // 1. Populate the account dropdown first
+                await populateAccountSelect();
+
+                const urlParams = new URLSearchParams(window.location.search);
+                const editId = urlParams.get('edit');
+
+                if (editId) {
+                    const docRef = doc(db, "journalEntries", editId);
+                    const docSnap = await getDoc(docRef);
+                    
+                    if (docSnap.exists()) {
+                        await populateForm(docSnap.data());
+                        isEditing = true;
+                        originalDocNumber = editId;
+                        document.getElementById('deleteButton').style.display = 'inline-block';
+                    } else {
+                        // If edit ID is provided but document doesn't exist, start a new one
+                        window.location.href = 'journal-entry.html'; 
+                        return;
+                    }
+                } else {
+                    // New entry mode
+                    const nextNumber = await getNextJENumber();
+                    document.getElementById('je-no').value = nextNumber;
+                    
+                    // Auto-set today's date in YYYY-MM-DD format for date input
+                    const today = new Date();
+                    const formattedDate = today.toISOString().split('T')[0];
+                    document.getElementById('entry-date').value = formattedDate;
+                    
+                    setTimeout(() => {
+                        document.getElementById('entry-date').focus();
+                    }, 100);
+                    
+                    document.getElementById('deleteButton').style.display = 'none';
+                    displayLineItems(); // Show empty table
+                }
+
+                // Attach formatting/blur listeners
+                document.getElementById('line-debit').addEventListener('input', formatInput);
+                document.getElementById('line-credit').addEventListener('input', formatInput);
+                
+                document.getElementById('line-debit').addEventListener('focus', function(e) { e.target.value = e.target.value.replace(/[^0-9.]/g, ''); });
+                document.getElementById('line-credit').addEventListener('focus', function(e) { e.target.value = e.target.value.replace(/[^0-9.]/g, ''); });
+                document.getElementById('line-debit').addEventListener('blur', function(e) { if (e.target.value && parseFloat(e.target.value)) e.target.value = parseFloat(e.target.value).toFixed(2); });
+                document.getElementById('line-credit').addEventListener('blur', function(e) { if (e.target.value && parseFloat(e.target.value)) e.target.value = parseFloat(e.target.value).toFixed(2); });
+
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('mainContent').style.display = 'block';
+            } catch (error) {
+                console.error("Error initializing:", error);
+                document.getElementById('loading').innerHTML = 'Error loading. Please refresh the page.';
+            }
+        });
+
+        window.addLineItem = addLineItem;
+        window.removeLineItem = removeLineItem;
+        window.saveJournalEntry = saveJournalEntry;
+        window.deleteJournalEntry = deleteJournalEntry;
+        window.generatePDF = generatePDF;
+    </script>
+</body>
+</html>

@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trial Balance - Bilal Ehtasham Traders</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            color: #333;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            position: relative;
+        }
+
+        .sync-badge {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 11px;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #003366;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            color: #003366;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .business-info {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        .business-info h2 {
+            color: #003366;
+            font-size: 20px;
+            margin-bottom: 5px;
+        }
+
+        .business-info p {
+            color: #666;
+            font-size: 14px;
+            margin: 3px 0;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #003366;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background-color: #005599;
+            transform: translateY(-2px);
+            box-shadow: 0 2px 8px rgba(0,51,102,0.3);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-style: italic;
+        }
+
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 12px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .category-header {
+            background-color: #e8f4f8;
+            font-weight: bold;
+            color: #003366;
+            padding: 12px;
+            border-top: 2px solid #003366;
+            border-bottom: 1px solid #003366;
+        }
+
+        .category-total {
+            background-color: #f0f0f0;
+            font-weight: bold;
+            font-style: italic;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        thead {
+            background-color: #003366;
+            color: white;
+        }
+
+        th {
+            padding: 12px;
+            text-align: left;
+            font-weight: bold;
+        }
+
+        th.amount {
+            text-align: right;
+            width: 150px;
+        }
+
+        tbody tr {
+            border-bottom: 1px solid #ddd;
+            transition: background-color 0.2s;
+        }
+
+        tbody tr:hover:not(.category-header):not(.category-total) {
+            background-color: #f5f5f5;
+        }
+
+        td {
+            padding: 10px 12px;
+        }
+
+        td.amount {
+            text-align: right;
+            font-family: 'Courier New', monospace;
+            font-weight: 500;
+        }
+
+        td.account-indent {
+            padding-left: 30px;
+        }
+
+        tfoot {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            border-top: 3px solid #003366;
+        }
+
+        tfoot td {
+            padding: 15px 12px;
+            font-size: 16px;
+        }
+
+        .balance-check {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .balance-matched {
+            background-color: #d4edda;
+            color: #155724;
+            border: 2px solid #28a745;
+        }
+
+        .balance-unmatched {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 2px solid #dc3545;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 26px;
+            color: rgba(255, 0, 0, 0.15);
+            font-weight: bold;
+            white-space: nowrap;
+            pointer-events: none;
+            z-index: 1000;
+            user-select: none;
+            letter-spacing: 2px;
+            max-width: 85vw;
+            text-align: center;
+        }
+
+        @media print {
+            .controls, .btn-group, .sync-badge {
+                display: none !important;
+            }
+            
+            body {
+                background: white;
+            }
+            
+            .container {
+                box-shadow: none;
+            }
+
+            .watermark {
+                /* On print, make watermark absolute to stay on the page content */
+                position: absolute; 
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%) rotate(-45deg);
+                font-size: 26px;
+                color: rgba(255, 0, 0, 0.15);
+                font-weight: bold;
+                white-space: nowrap;
+                z-index: 1000;
+                letter-spacing: 2px;
+            }
+
+            /* Adjust table for better print layout */
+            table {
+                font-size: 12px;
+            }
+            th, td {
+                padding: 6px;
+            }
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+    <div class="watermark">NOT VALID FOR COURT OR LEGAL PURPOSE</div>
+    <div class="container" id="report-container">
+        <div class="sync-badge">SYNCED</div>
+        
+        <div class="header">
+            <h1>Trial Balance</h1>
+        </div>
+
+        <div class="business-info">
+            <h2>(BET) Bilal Ehtasham Traders</h2>
+            <p>Deals in all kinds of Cotton and Polyester Yarn</p>
+            <p>Email: bilalehtashamtraders@gmail.com | Cell: (+92)-324-2479096</p>
+        </div>
+
+        <div class="info-box">
+            <strong>Note:</strong> This Trial Balance is automatically generated from all your ledger entries. Accounts are grouped by type for easier analysis.
+        </div>
+
+        <div class="controls">
+            <div class="btn-group">
+                <button onclick="refreshData()">🔄 Recalculate & Refresh</button>
+            </div>
+            <div class="btn-group">
+                <button onclick="generatePDF()">📄 Generate PDF</button>
+                <button onclick="window.location.href='index.html'">← Back to Dashboard</button>
+            </div>
+        </div>
+
+        <div id="loading" class="loading">Calculating trial balance from ledger data...</div>
+
+        <div id="trial-balance-content" style="display: none;">
+            <table id="trial-balance-table">
+                <thead>
+                    <tr>
+                        <th>Account Name</th>
+                        <th class="amount">Debit (Rs.)</th>
+                        <th class="amount">Credit (Rs.)</th>
+                    </tr>
+                </thead>
+                <tbody id="trial-balance-body">
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td><strong>TOTAL</strong></td>
+                        <td class="amount" id="total-debit">0.00</td>
+                        <td class="amount" id="total-credit">0.00</td>
+                    </tr>
+                </tfoot>
+            </table>
+
+            <div id="balance-check" class="balance-check balance-matched">
+            </div>
+        </div>
+    </div>
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
+            authDomain: "bet-acc-software.firebaseapp.com",
+            projectId: "bet-acc-software",
+            storageBucket: "bet-acc-software.firebasestorage.app",
+            messagingSenderId: "879522152449",
+            appId: "1:879522152449:web:73b8ef899d5c1cbfd90000"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        
+        let aggregatedBalances = {};
+
+        // Define account categories for proper grouping
+        const ACCOUNT_CATEGORIES = {
+            'ASSETS': ['Cash', 'Bank', 'Accounts Receivable', 'Inventory', 'SadaPay', 'Askari'],
+            'LIABILITIES': ['Accounts Payable', 'Payable', 'Loan'],
+            'EQUITY': ['Capital', 'Retained Earnings'],
+            'INCOME': ['Commission Earned', 'Service Income', 'Sales Revenue', 'Other Income'],
+            'EXPENSES': ['Bank Charges', 'Rent Expense', 'Utilities Expense', 'Salaries Expense', 
+                         'Office Supplies', 'Transportation Expense', 'Miscellaneous Expense', 'Cost of Goods Sold'], // Added COGS
+            'DRAWINGS': ['Drawings', 'Drawing']
+        };
+
+        // Helper function for consistent formatting
+        function formatAmount(amount) {
+            return parseFloat(amount || 0).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        }
+
+        // Helper function to find the category of an account
+        function categorizeAccount(accountName) {
+            const nameLower = accountName.toLowerCase();
+            
+            // Check each defined category
+            for (const [category, keywords] of Object.entries(ACCOUNT_CATEGORIES)) {
+                for (const keyword of keywords) {
+                    if (nameLower.includes(keyword.toLowerCase())) {
+                        // Special handling for 'Accounts Payable' vs 'Accounts Receivable' when only 'Accounts' might be matched
+                        if (category === 'LIABILITIES' && nameLower.includes('receivable')) return 'ASSETS';
+                        if (category === 'ASSETS' && nameLower.includes('payable')) return 'LIABILITIES';
+                        return category;
+                    }
+                }
+            }
+            
+            // If none of the defined keywords match, classify it as UNCATEGORIZED/PARTY
+            return 'UNCATEGORIZED';
+        }
+
+        async function loadTrialBalance() {
+            try {
+                const ledgerSnapshot = await getDocs(collection(db, "ledger"));
+                
+                const balances = {};
+                
+                // 1. Calculate net balance for each account
+                ledgerSnapshot.forEach(docSnap => {
+                    const entry = docSnap.data();
+                    const accountName = entry.account || entry.accountType;
+
+                    if (!accountName || accountName.trim() === '') return;
+
+                    // Ensure numeric values are used, falling back to 0
+                    const debit = parseFloat(entry.debit || 0);
+                    const credit = parseFloat(entry.credit || 0);
+
+                    if (!balances[accountName]) {
+                        balances[accountName] = 0;
+                    }
+                    
+                    // Net balance calculation: Debit - Credit
+                    balances[accountName] += (debit - credit);
+                });
+                
+                // 2. Convert net balances to trial balance format (Debit/Credit columns) and categorize
+                const categorizedBalances = {
+                    'ASSETS': [],
+                    'LIABILITIES': [],
+                    'EQUITY': [],
+                    'INCOME': [],
+                    'EXPENSES': [],
+                    'DRAWINGS': [],
+                    'PARTY ACCOUNTS': [],
+                    'UNCATEGORIZED': []
+                };
+
+                Object.keys(balances).forEach(accountName => {
+                    const balance = balances[accountName];
+                    
+                    // Skip accounts with a near-zero balance (fully settled)
+                    if (Math.abs(balance) < 0.01) return;
+                    
+                    let debit = 0;
+                    let credit = 0;
+                    
+                    if (balance > 0) {
+                        debit = balance; // Debit balance (e.g., Asset, Expense)
+                    } else if (balance < 0) {
+                        credit = Math.abs(balance); // Credit balance (e.g., Liability, Income)
+                    }
+
+                    const category = categorizeAccount(accountName);
+                    
+                    const accountData = {
+                        accountName: accountName,
+                        debit: debit,
+                        credit: credit,
+                        category: category
+                    };
+
+                    // Place uncategorized accounts into the 'PARTY ACCOUNTS' group for clarity
+                    if (category === 'UNCATEGORIZED') {
+                        categorizedBalances['PARTY ACCOUNTS'].push(accountData);
+                    } else {
+                        categorizedBalances[category].push(accountData);
+                    }
+                });
+
+                // 3. Sort accounts within each category alphabetically
+                Object.keys(categorizedBalances).forEach(category => {
+                    categorizedBalances[category].sort((a, b) => 
+                        a.accountName.localeCompare(b.accountName)
+                    );
+                });
+
+                aggregatedBalances = categorizedBalances;
+                displayTrialBalance();
+                
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('trial-balance-content').style.display = 'block';
+            } catch (error) {
+                console.error("Error loading trial balance:", error);
+                document.getElementById('loading').innerHTML = 
+                    '<span style="color: #dc3545;">🚨 Error: Failed to calculate Trial Balance. Please refresh the page.</span>';
+            }
+        }
+
+        function displayTrialBalance() {
+            const tbody = document.getElementById('trial-balance-body');
+            tbody.innerHTML = '';
+
+            let totalDebit = 0;
+            let totalCredit = 0;
+
+            const categoryOrder = ['ASSETS', 'LIABILITIES', 'EQUITY', 'INCOME', 'EXPENSES', 'DRAWINGS', 'PARTY ACCOUNTS'];
+
+            let hasAnyAccounts = false;
+
+            categoryOrder.forEach(category => {
+                const accounts = aggregatedBalances[category];
+                
+                if (accounts && accounts.length > 0) {
+                    hasAnyAccounts = true;
+                    
+                    // Category header
+                    tbody.innerHTML += `
+                        <tr class="category-header">
+                            <td colspan="3">${category}</td>
+                        </tr>
+                    `;
+
+                    let categoryDebit = 0;
+                    let categoryCredit = 0;
+
+                    // Individual accounts
+                    accounts.forEach(entry => {
+                        totalDebit += entry.debit;
+                        totalCredit += entry.credit;
+                        categoryDebit += entry.debit;
+                        categoryCredit += entry.credit;
+
+                        tbody.innerHTML += `
+                            <tr>
+                                <td class="account-indent">${entry.accountName}</td>
+                                <td class="amount">${entry.debit > 0.01 ? formatAmount(entry.debit) : '-'}</td>
+                                <td class="amount">${entry.credit > 0.01 ? formatAmount(entry.credit) : '-'}</td>
+                            </tr>
+                        `;
+                    });
+
+                    // Category subtotal
+                    tbody.innerHTML += `
+                        <tr class="category-total">
+                            <td><em>Total ${category}</em></td>
+                            <td class="amount">${categoryDebit > 0.01 ? formatAmount(categoryDebit) : '-'}</td>
+                            <td class="amount">${categoryCredit > 0.01 ? formatAmount(categoryCredit) : '-'}</td>
+                        </tr>
+                    `;
+                }
+            });
+
+            if (!hasAnyAccounts) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="3" class="empty-state">
+                            <div>No ledger entries found. Create invoices, receipts, or journal entries to populate the Trial Balance.</div>
+                        </td>
+                    </tr>
+                `;
+            }
+
+            // Update totals
+            document.getElementById('total-debit').textContent = formatAmount(totalDebit);
+            document.getElementById('total-credit').textContent = formatAmount(totalCredit);
+
+            // Check balance
+            const balanceCheck = document.getElementById('balance-check');
+            const difference = Math.abs(totalDebit - totalCredit);
+            
+            // Allow for a very small tolerance (e.g., 0.01 Rs) for floating point arithmetic
+            if (difference < 0.01) { 
+                balanceCheck.className = 'balance-check balance-matched';
+                balanceCheck.innerHTML = `✓ Books are Balanced! Total Debits (${formatAmount(totalDebit)}) equals Total Credits (${formatAmount(totalCredit)}).`;
+            } else {
+                balanceCheck.className = 'balance-check balance-unmatched';
+                balanceCheck.innerHTML = `⚠ Books are NOT Balanced! Difference: Rs. ${formatAmount(difference)}`;
+            }
+        }
+
+        window.refreshData = async function() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('trial-balance-content').style.display = 'none';
+            await loadTrialBalance();
+        };
+
+        // Use html2pdf for better PDF generation
+        window.generatePDF = function() {
+            const element = document.getElementById('report-container');
+            
+            const opt = {
+                margin: [8, 8, 8, 8],
+                filename: `Trial_Balance_${new Date().toISOString().slice(0, 10)}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { 
+                    scale: 2, 
+                    useCORS: true, 
+                    logging: false,
+                    letterRendering: true,
+                    windowWidth: 1200
+                },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+            };
+            
+            // Temporarily change watermark position for PDF generation
+            const watermarkDiv = document.querySelector('.watermark');
+            if (watermarkDiv) {
+                watermarkDiv.style.position = 'absolute';
+                watermarkDiv.style.zIndex = '1';
+            }
+
+            // Remove controls before PDF generation
+            const controlsDiv = document.querySelector('.controls');
+            if (controlsDiv) controlsDiv.style.display = 'none';
+
+            html2pdf().set(opt).from(element).save().then(() => {
+                // Restore styles after PDF is generated
+                if (watermarkDiv) {
+                    watermarkDiv.style.position = 'fixed';
+                    watermarkDiv.style.zIndex = '1000';
+                }
+                if (controlsDiv) controlsDiv.style.display = 'flex'; // Restore controls visibility
+            });
+        };
+
+        document.addEventListener('DOMContentLoaded', loadTrialBalance);
+    </script>
+</body>
+</html>
