@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Customer Payment Receipt - BET</title>
+    <title>Vendor Payment Voucher - BET</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 40px; color: #000; }
         .header { display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
@@ -17,7 +17,18 @@
         .action-buttons button:hover { background-color: #245a8e; }
         .delete-button { background-color: #cc0000 !important; }
         .delete-button:hover { background-color: #aa0000 !important; }
-        input { border: none; width: 100%; text-align: center; background: transparent; }
+        /* Changed input type from text to date, so we need to adjust its style slightly for the date picker */
+        input:not([type="date"]) { border: none; width: 100%; text-align: center; background: transparent; }
+        input[type="date"] {
+            border: none;
+            width: 150px; /* Specific width for date input */
+            text-align: center;
+            background: transparent;
+            /* Added padding/margin to align better with other inputs */
+            padding: 0; 
+            margin: 0;
+            cursor: pointer;
+        }
         input:focus { outline: none; background: #e6f0fa; }
         .amount-input { text-align: right !important; }
         .payment-method { margin-bottom: 15px; }
@@ -36,9 +47,7 @@
             0% { opacity: 0; }
             100% { opacity: 1; }
         }
-        .auto-signature {
-            animation: signatureFade 0.5s ease-in-out;
-        }
+        .auto-signature { animation: signatureFade 0.5s ease-in-out; }
         .watermark {
             position: fixed;
             top: 50%;
@@ -101,8 +110,8 @@
     <div class="watermark">NOT VALID FOR COURT OR LEGAL PURPOSE</div>
     
     <div class="action-buttons" style="max-width: 800px; margin: 0 auto 20px;">
-        <button onclick="saveReceipt()">Save/Update Receipt</button>
-        <button onclick="deleteReceipt()" id="deleteButton" class="delete-button" style="display: none;">Delete Payment</button>
+        <button onclick="savePayment()">Save/Update Payment</button>
+        <button onclick="deletePayment()" id="deleteButton" class="delete-button" style="display: none;">Delete Payment</button>
         <button onclick="generatePDF()">Generate PDF</button>
         <button onclick="window.print()">Print</button>
         <button onclick="window.location.href='documents.html'">View All Documents</button>
@@ -110,10 +119,10 @@
     <div style="max-width: 800px; margin: 0 auto;" id="receipt-content">
         <div class="header">
             <div class="receipt-heading">
-                CUSTOMER PAYMENT RECEIPT <br>
-                Receipt No: <input type="text" id="receipt-no" placeholder="e.g., CR-0156" style="width: 150px;" readonly><br>
+                VENDOR PAYMENT VOUCHER <br>
+                Voucher No: <input type="text" id="receipt-no" placeholder="e.g., VP-0100" style="width: 150px;" readonly><br>
                 Date: <input type="date" id="receipt-date" style="width: 150px;"><br>
-                Received from: <input type="text" id="received-from" placeholder="e.g., XYZ Textiles">
+                Paid To: <input type="text" id="paid-to" placeholder="e.g., XYZ Suppliers">
             </div>
             <div class="company-info">
                 <h2>(BET) Bilal Ehtasham Traders</h2>
@@ -124,8 +133,8 @@
         </div>
 
         <div class="payment-method">
-            <label for="paidToAccount">Received In Account:</label>
-            <select id="paidToAccount">
+            <label for="paidFromAccount">Paid From Account:</label>
+            <select id="paidFromAccount">
                 <option value="">-- Select Account --</option>
             </select>
         </div>
@@ -134,14 +143,14 @@
             <tr>
                 <td class="label" style="width: 50%;">Business (Ledger):</td>
                 <td>
-                    <input type="text" id="business-ledger" placeholder="e.g., Customer Name" list="customer-accounts-list">
-                    <datalist id="customer-accounts-list"></datalist>
+                    <input type="text" id="business-ledger" placeholder="e.g., Vendor Name" list="vendor-accounts-list">
+                    <datalist id="vendor-accounts-list"></datalist>
                     <div id="balance-status" class="balance-status" style="display: none;"></div>
                 </td>
             </tr>
             <tr>
-                <td class="label">Previous Balance:</td>
-                <td><input type="text" id="previous-balance" class="amount-input" readonly></td>
+                <td class="label">Previous Payable:</td>
+                <td><input type="text" id="previous-payable" class="amount-input" readonly></td>
             </tr>
             <tr>
                 <td class="label">Cheque/Online Ref:</td>
@@ -153,14 +162,14 @@
             </tr>
             <tr>
                 <td class="label">Account Title:</td>
-                <td><input type="text" id="account-title" placeholder="e.g., Customer Account Title"></td>
+                <td><input type="text" id="account-title" placeholder="e.g., Vendor Account Title"></td>
             </tr>
         </table>
 
         <table class="amount-table">
             <tr>
-                <th class="label" style="width: 50%;">Amount Received:</th>
-                <td><input type="text" id="amount-received" class="amount-input" oninput="formatCurrencyInput(this)"></td>
+                <th class="label" style="width: 50%;">Amount Paid:</th>
+                <td><input type="text" id="amount-paid" class="amount-input" oninput="formatCurrencyInput(this)"></td>
             </tr>
             <tr>
                 <th class="label">In Words:</th>
@@ -170,8 +179,8 @@
 
         <table class="totals">
             <tr>
-                <td class="label" style="width: 80%;"><b>Remaining Receivable:</b></td>
-                <td><input type="text" id="remaining-receivable" class="amount-input" style="font-weight:bold;" readonly></td>
+                <td class="label" style="width: 80%;"><b>Remaining Payable:</b></td>
+                <td><input type="text" id="remaining-payable" class="amount-input" style="font-weight:bold;" readonly></td>
             </tr>
         </table>
 
@@ -202,7 +211,7 @@
 
         let isEditing = false;
         let originalDocNumber = null;
-        const DEFAULT_STARTING_NUMBER = 155;
+        const DEFAULT_STARTING_NUMBER = 99;
 
         // Fixed bank accounts that will always appear first
         const FIXED_ACCOUNTS = [
@@ -217,7 +226,7 @@
             "Drawings",
             "Expenses"
         ];
-
+        
         // --- Helper Functions for Date and Currency ---
         
         // Converts DD-MM-YYYY to YYYY-MM-DD for <input type="date">
@@ -239,7 +248,7 @@
             }
             return dateStr;
         }
-
+        
         function formatCurrency(value) {
             const num = parseFloat(value) || 0;
             return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '/=';
@@ -256,31 +265,30 @@
             } else {
                 input.value = '';
             }
-            calculateRemainingReceivable();
+            calculateRemainingPayable();
             updateAmountInWords();
         }
         // ---------------------------------------------
 
-
-        async function getNextReceiptNumber() {
+        async function getNextVoucherNumber() {
             try {
-                const q = query(collection(db, "customerReceipts"), orderBy("numericNumber", "desc"), limit(1));
+                const q = query(collection(db, "vendorPayments"), orderBy("numericNumber", "desc"), limit(1));
                 const snapshot = await getDocs(q);
                 
                 if (!snapshot.empty) {
                     const lastDoc = snapshot.docs[0].data();
                     const lastNumber = parseInt(lastDoc.numericNumber, 10);
-                    return 'CR-' + String(lastNumber + 1).padStart(4, '0');
+                    return 'VP-' + String(lastNumber + 1).padStart(4, '0');
                 }
-                return 'CR-' + String(DEFAULT_STARTING_NUMBER).padStart(4, '0');
+                return 'VP-' + String(DEFAULT_STARTING_NUMBER).padStart(4, '0');
             } catch (error) {
-                console.error("Error getting next receipt number:", error);
-                return 'CR-' + String(DEFAULT_STARTING_NUMBER).padStart(4, '0');
+                console.error("Error getting next voucher number:", error);
+                return 'VP-' + String(DEFAULT_STARTING_NUMBER).padStart(4, '0');
             }
         }
 
         async function fetchAllLedgerAccounts() {
-            const selectElement = document.getElementById('paidToAccount');
+            const selectElement = document.getElementById('paidFromAccount');
             selectElement.innerHTML = '<option value="">-- Select Account --</option>';
             
             try {
@@ -330,8 +338,8 @@
             }
         }
 
-        async function fetchCustomerAccounts() {
-            const datalist = document.getElementById('customer-accounts-list');
+        async function fetchVendorAccounts() {
+            const datalist = document.getElementById('vendor-accounts-list');
             datalist.innerHTML = '';
             
             try {
@@ -356,77 +364,77 @@
             }
         }
 
-        async function fetchPreviousBalance(customerName) {
-            const previousBalanceInput = document.getElementById('previous-balance');
+        async function fetchPreviousPayable(vendorName) {
+            const previousPayableInput = document.getElementById('previous-payable');
             const statusDiv = document.getElementById('balance-status');
 
-            if (!customerName || customerName.trim() === '') {
-                previousBalanceInput.value = formatCurrency(0);
+            if (!vendorName || vendorName.trim() === '') {
+                previousPayableInput.value = formatCurrency(0);
                 statusDiv.style.display = 'none';
-                calculateRemainingReceivable();
+                calculateRemainingPayable();
                 return;
             }
 
             statusDiv.style.display = 'block';
-            statusDiv.textContent = 'Fetching balance...';
+            statusDiv.textContent = 'Fetching payable...';
 
             try {
                 const ledgerQuery = query(collection(db, "ledger"));
                 const ledgerSnapshot = await getDocs(ledgerQuery);
 
-                let customerBalance = 0;
+                let vendorPayable = 0;
                 let foundEntries = 0;
-                const searchLower = customerName.toLowerCase().trim();
+                const searchLower = vendorName.toLowerCase().trim();
 
                 ledgerSnapshot.forEach((doc) => {
                     const entry = doc.data();
                     if (entry.account && entry.account.toLowerCase().trim() === searchLower) {
-                        customerBalance += parseFloat(entry.debit || 0);
-                        customerBalance -= parseFloat(entry.credit || 0);
+                        vendorPayable += parseFloat(entry.credit || 0);
+                        vendorPayable -= parseFloat(entry.debit || 0);
                         foundEntries++;
                     }
                 });
 
-                previousBalanceInput.value = formatCurrency(customerBalance);
+                previousPayableInput.value = formatCurrency(vendorPayable);
 
                 if (foundEntries > 0) {
-                    statusDiv.textContent = `✓ Found ${foundEntries} transaction(s) | Balance: ${formatCurrency(customerBalance)}`;
+                    statusDiv.textContent = `✓ Found ${foundEntries} transaction(s) | Payable: ${formatCurrency(vendorPayable)}`;
                     setTimeout(() => { statusDiv.style.display = 'none'; }, 3000);
                 } else {
-                    statusDiv.textContent = '✗ No transactions found for this customer';
-                    previousBalanceInput.value = formatCurrency(0);
+                    statusDiv.textContent = '✗ No transactions found for this vendor';
+                    previousPayableInput.value = formatCurrency(0);
                     setTimeout(() => { statusDiv.style.display = 'none'; }, 3000);
                 }
 
-                calculateRemainingReceivable();
+                calculateRemainingPayable();
 
             } catch (error) {
-                console.error("Error fetching previous balance:", error);
-                statusDiv.textContent = '✗ Error fetching balance';
+                console.error("Error fetching previous payable:", error);
+                statusDiv.textContent = '✗ Error fetching payable';
                 setTimeout(() => { statusDiv.style.display = 'none'; }, 3000);
             }
         }
 
         function attachListeners() {
             document.getElementById('business-ledger').addEventListener('input', function(e) {
-                fetchPreviousBalance(e.target.value);
+                fetchPreviousPayable(e.target.value);
             });
-            document.getElementById('amount-received').addEventListener('input', function(e) {
+            document.getElementById('amount-paid').addEventListener('input', function(e) {
                 formatCurrencyInput(e.target);
             });
         }
 
-        function calculateRemainingReceivable() {
-            const previousBalance = parseCurrency(document.getElementById('previous-balance').value);
-            const amountReceived = parseCurrency(document.getElementById('amount-received').value);
-            const remaining = previousBalance - amountReceived;
-            document.getElementById('remaining-receivable').value = formatCurrency(remaining);
+        function calculateRemainingPayable() {
+            const previousPayable = parseCurrency(document.getElementById('previous-payable').value);
+            const amountPaid = parseCurrency(document.getElementById('amount-paid').value);
+            const remaining = previousPayable - amountPaid;
+            document.getElementById('remaining-payable').value = formatCurrency(remaining);
         }
 
         function updateAmountInWords() {
-            const amountReceivedInput = document.getElementById('amount-received');
+            const amountPaidInput = document.getElementById('amount-paid');
             const amountInWordsInput = document.getElementById('amount-in-words');
-            let amountValue = parseCurrency(amountReceivedInput.value) || 0;
+            let amountValue = parseCurrency(amountPaidInput.value) || 0;
             
             const words = numberToWords(amountValue);
             amountInWordsInput.value = words ? words + " only" : "";
@@ -449,81 +457,81 @@
 
         function populateForm(doc) {
             document.getElementById('receipt-no').value = doc.number;
-            // Update date format for HTML date input
+            // Use new helper function to set date input value
             document.getElementById('receipt-date').value = formatDateToInput(doc.date); 
-            document.getElementById('received-from').value = doc.receivedFrom;
+            document.getElementById('paid-to').value = doc.paidTo;
             document.getElementById('business-ledger').value = doc.businessLedger;
-            document.getElementById('paidToAccount').value = doc.paidToAccountID || '';
-            document.getElementById('previous-balance').value = formatCurrency(doc.previousBalance || 0);
+            document.getElementById('paidFromAccount').value = doc.paidFromAccountID || '';
+            document.getElementById('previous-payable').value = formatCurrency(doc.previousPayable || 0);
             document.getElementById('cheque-ref').value = doc.chequeRef || '';
             document.getElementById('cheque-bank').value = doc.chequeBank || '';
             document.getElementById('account-title').value = doc.accountTitle || '';
-            document.getElementById('amount-received').value = formatCurrency(doc.amountReceived || 0);
-            calculateRemainingReceivable();
-            fetchPreviousBalance(doc.businessLedger);
+            document.getElementById('amount-paid').value = formatCurrency(doc.amountPaid || 0);
+            calculateRemainingPayable();
+            fetchPreviousPayable(doc.businessLedger);
         }
 
-        window.saveReceipt = async function() {
+        window.savePayment = async function() {
             const receiptNumber = document.getElementById('receipt-no').value;
             // Get date from HTML input and convert to DD-MM-YYYY for storage
             const receiptDateInput = document.getElementById('receipt-date').value;
             const receiptDate = formatDateToDisplay(receiptDateInput);
 
-            const receivedFrom = document.getElementById('received-from').value;
+            const paidTo = document.getElementById('paid-to').value;
             const businessLedger = document.getElementById('business-ledger').value;
-            const paidToAccount = document.getElementById('paidToAccount').value;
-            const previousBalance = parseCurrency(document.getElementById('previous-balance').value);
-            const amountReceived = parseCurrency(document.getElementById('amount-received').value);
+            const paidFromAccount = document.getElementById('paidFromAccount').value;
+            const previousPayable = parseCurrency(document.getElementById('previous-payable').value);
+            const amountPaid = parseCurrency(document.getElementById('amount-paid').value);
             const chequeRef = document.getElementById('cheque-ref').value;
             const chequeBank = document.getElementById('cheque-bank').value;
             const accountTitle = document.getElementById('account-title').value;
             const amountInWords = document.getElementById('amount-in-words').value;
-            const remainingReceivable = parseCurrency(document.getElementById('remaining-receivable').value);
+            const remainingPayable = parseCurrency(document.getElementById('remaining-payable').value);
 
-            if (!receiptDate || !receivedFrom || !businessLedger) {
-                alert("Please fill in Date, Received From, and Business (Ledger) fields.");
+            if (!receiptDate || !paidTo || !businessLedger) {
+                alert("Please fill in Date, Paid To, and Business (Ledger) fields.");
                 return;
             }
-            if (!paidToAccount) {
-                alert("Please select the Account the payment was received to.");
+            if (!paidFromAccount) {
+                alert("Please select the Account the payment was made from.");
                 return;
             }
-            if (amountReceived <= 0) {
-                alert("Please enter a valid amount received.");
+            if (amountPaid <= 0) {
+                alert("Please enter a valid amount paid.");
                 return;
             }
 
-            const numericNumber = parseInt(receiptNumber.replace('CR-', ''), 10);
-            const newReceipt = {
+            const numericNumber = parseInt(receiptNumber.replace('VP-', ''), 10);
+            const newPayment = {
                 number: receiptNumber,
                 numericNumber: numericNumber,
                 date: receiptDate,
-                receivedFrom: receivedFrom,
+                paidTo: paidTo,
                 businessLedger: businessLedger,
-                paidToAccountID: paidToAccount,
-                previousBalance: previousBalance,
+                paidFromAccountID: paidFromAccount,
+                previousPayable: previousPayable,
                 chequeRef: chequeRef,
                 chequeBank: chequeBank,
                 accountTitle: accountTitle,
-                amountReceived: amountReceived,
+                amountPaid: amountPaid,
                 amountInWords: amountInWords,
-                remainingReceivable: remainingReceivable,
-                type: 'Customer Payment',
+                remainingPayable: remainingPayable,
+                type: 'Vendor Payment',
                 timestamp: new Date().toISOString()
             };
 
             try {
-                await setDoc(doc(db, "customerReceipts", receiptNumber), newReceipt);
-                console.log("✓ Receipt saved to customerReceipts collection");
+                await setDoc(doc(db, "vendorPayments", receiptNumber), newPayment);
+                console.log("✓ Payment saved to vendorPayments collection");
 
                 if (isEditing && originalDocNumber && originalDocNumber !== receiptNumber) {
-                    await deleteDoc(doc(db, "customerReceipts", originalDocNumber));
+                    await deleteDoc(doc(db, "vendorPayments", originalDocNumber));
                     const oldLedgerQuery = query(collection(db, "ledger"), where("doc_number", "==", originalDocNumber));
                     const oldLedgerSnapshot = await getDocs(oldLedgerQuery);
                     for (const docSnap of oldLedgerSnapshot.docs) {
                         await deleteDoc(doc(db, "ledger", docSnap.id));
                     }
-                    console.log("✓ Old receipt and related ledger entries deleted");
+                    console.log("✓ Old payment and related ledger entries deleted");
                 }
 
                 const existingLedgerQuery = query(collection(db, "ledger"), where("doc_number", "==", receiptNumber));
@@ -537,19 +545,19 @@
                 const ledgerEntries = [
                     {
                         date: receiptDate,
-                        account: paidToAccount,
-                        description: `Payment Receipt to settle balance`,
-                        debit: amountReceived,
+                        account: businessLedger,
+                        description: `Payment Voucher to settle balance`,
+                        debit: amountPaid,
                         credit: 0,
                         doc_number: receiptNumber,
                         timestamp: new Date().toISOString()
                     },
                     {
                         date: receiptDate,
-                        account: businessLedger,
-                        description: `Payment Receipt to settle balance`,
+                        account: paidFromAccount,
+                        description: `Payment Voucher to settle balance`,
                         debit: 0,
-                        credit: amountReceived,
+                        credit: amountPaid,
                         doc_number: receiptNumber,
                         timestamp: new Date(Date.now() + 1).toISOString()
                     }
@@ -562,17 +570,17 @@
                 }
                 console.log("✓ All ledger entries saved successfully");
 
-                alert(isEditing ? 'Customer Receipt updated successfully!' : 'Customer Receipt saved and ledger updated!');
+                alert(isEditing ? 'Vendor Payment updated successfully!' : 'Vendor Payment saved and ledger updated!');
                 window.location.href = 'documents.html';
             } catch (error) {
-                console.error("❌ Error saving receipt:", error);
-                alert("Error saving receipt: " + error.message);
+                console.error("❌ Error saving payment:", error);
+                alert("Error saving payment: " + error.message);
             }
         };
 
-        window.deleteReceipt = async function() {
+        window.deletePayment = async function() {
             const receiptNumber = document.getElementById('receipt-no').value;
-            if (!confirm(`Are you sure you want to delete Customer Receipt ${receiptNumber}? This action cannot be undone.`)) {
+            if (!confirm(`Are you sure you want to delete Vendor Payment ${receiptNumber}? This action cannot be undone.`)) {
                 return;
             }
 
@@ -584,14 +592,14 @@
                 }
                 console.log(`✓ All ${ledgerSnapshot.size} ledger entries deleted`);
 
-                await deleteDoc(doc(db, "customerReceipts", receiptNumber));
-                console.log(`✓ Receipt document deleted`);
+                await deleteDoc(doc(db, "vendorPayments", receiptNumber));
+                console.log(`✓ Payment document deleted`);
 
-                alert(`Customer Receipt ${receiptNumber} and all related ledger entries deleted successfully.`);
+                alert(`Vendor Payment ${receiptNumber} and all related ledger entries deleted successfully.`);
                 window.location.href = 'documents.html';
             } catch (error) {
-                console.error("❌ Error deleting receipt:", error);
-                alert("Error deleting receipt: " + error.message);
+                console.error("❌ Error deleting payment:", error);
+                alert("Error deleting payment: " + error.message);
             }
         };
 
@@ -604,7 +612,7 @@
             const element = document.getElementById('receipt-content');
             const opt = {
                 margin: 0.5,
-                filename: `Customer-Receipt-${document.getElementById('receipt-no').value}.pdf`,
+                filename: `Vendor-Payment-Voucher-${document.getElementById('receipt-no').value}.pdf`,
                 image: { type: 'jpeg', quality: 0.98 },
                 html2canvas: { scale: 2, useCORS: true, logging: false },
                 jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
@@ -628,13 +636,13 @@
 
         document.addEventListener('DOMContentLoaded', async function() {
             await fetchAllLedgerAccounts();
-            await fetchCustomerAccounts();
+            await fetchVendorAccounts();
 
             const urlParams = new URLSearchParams(window.location.search);
             const editId = urlParams.get('edit');
 
             if (editId) {
-                const docRef = doc(db, "customerReceipts", editId);
+                const docRef = doc(db, "vendorPayments", editId);
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
                     populateForm(docSnap.data());
@@ -642,12 +650,12 @@
                     originalDocNumber = editId;
                     document.getElementById('deleteButton').style.display = 'inline-block';
                 } else {
-                    alert("Customer Receipt not found.");
+                    alert("Vendor Payment not found.");
                     window.location.href = 'documents.html';
                 }
             } else {
-                const nextReceiptNo = await getNextReceiptNumber();
-                document.getElementById('receipt-no').value = nextReceiptNo;
+                const nextVoucherNo = await getNextVoucherNumber();
+                document.getElementById('receipt-no').value = nextVoucherNo;
                 
                 // Set default date to today, formatted for the HTML date input (YYYY-MM-DD)
                 const today = new Date();
@@ -657,11 +665,11 @@
                 document.getElementById('receipt-date').value = `${year}-${month}-${day}`;
                 
                 document.getElementById('deleteButton').style.display = 'none';
-                fetchPreviousBalance(document.getElementById('business-ledger').value);
+                fetchPreviousPayable(document.getElementById('business-ledger').value);
             }
 
             attachListeners();
-            document.getElementById('remaining-receivable').setAttribute('readonly', true);
+            document.getElementById('remaining-payable').setAttribute('readonly', true);
         });
     </script>
 </body>
