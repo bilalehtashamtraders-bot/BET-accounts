@@ -312,6 +312,35 @@
 
         let allDocuments = [];
 
+        // --- Date Helper Function (Consistent with Ledger/Receipt fixes) ---
+        /**
+         * Converts a date string (DD-MM-YYYY or YYYY-MM-DD) to a comparable number (YYYYMMDD).
+         * This ensures correct chronological ordering for filtering/sorting.
+         */
+        function dateToComparableNumber(dateStr) {
+            if (!dateStr) return 0;
+            const parts = String(dateStr).split(/[-\/]/);
+            if (parts.length === 3) {
+                // If DD-MM-YYYY (day is first, year is last) - Most common storage format
+                if (parts[2].length === 4) {
+                    const year = parts[2];
+                    const month = parts[1].padStart(2, '0');
+                    const day = parts[0].padStart(2, '0');
+                    return parseInt(year + month + day);
+                }
+                // If YYYY-MM-DD (year is first)
+                if (parts[0].length === 4) {
+                    const year = parts[0];
+                    const month = parts[1].padStart(2, '0');
+                    const day = parts[2].padStart(2, '0');
+                    return parseInt(year + month + day);
+                }
+            }
+            return 0; // Invalid date
+        }
+        // -------------------------------------------------------------------
+
+
         async function loadAllDocuments() {
             try {
                 console.log('\n=== Loading All Documents ===');
@@ -367,10 +396,11 @@
                     }
                 }
 
+                // Sorting documents by date (latest first) using the robust helper function
                 allDocuments.sort((a, b) => {
-                    const dateA = parseDate(a.date);
-                    const dateB = parseDate(b.date);
-                    return dateB - dateA;
+                    const dateA = dateToComparableNumber(a.date);
+                    const dateB = dateToComparableNumber(b.date);
+                    return dateB - dateA; // Descending order (Latest first)
                 });
 
                 console.log(`\n✓ Total documents loaded: ${allDocuments.length}`);
@@ -386,7 +416,8 @@
             }
         }
 
-        function parseDate(dateStr) {
+        // NOTE: The original `parseDate` function is replaced by `dateToComparableNumber` for robust sorting.
+        /* function parseDate(dateStr) {
             if (!dateStr) return new Date(0);
             const parts = String(dateStr).split(/[-\/]/);
             if (parts.length === 3) {
@@ -394,7 +425,8 @@
                 return new Date(Date.UTC(parts[2], parts[1] - 1, parts[0]));
             }
             return new Date(dateStr);
-        }
+        } */
+
 
         function updateStats() {
             const totalDocs = allDocuments.length;
@@ -437,13 +469,16 @@
                 const amount = doc.netTotal || doc.grandTotal || doc.amountReceived || doc.amountPaid || doc.totalDebit || 0;
                 const displayNumber = doc.docIdentifier;
 
+                // Function to format amount with commas and 2 decimals
+                const formattedAmount = Number(amount).toLocaleString('en-US', {minimumFractionDigits: 2});
+
                 return `
                     <div class="document-card" data-doc-id="${doc.docId}">
                         <div class="document-info">
                             <h3>${doc.type} #${displayNumber}</h3>
                             <p><strong>Date:</strong> ${doc.date || 'N/A'}</p>
                             <p><strong>Party:</strong> ${partyName}</p>
-                            <p><strong>Amount:</strong> PKR ${Number(amount).toLocaleString('en-US', {minimumFractionDigits: 2})}</p>
+                            <p><strong>Amount:</strong> PKR ${formattedAmount}</p>
                         </div>
                         <div class="document-actions">
                             <button class="view-btn" onclick="viewDocument('${doc.docId}', '${doc.editUrl}', '${escapeForAttribute(doc.docIdentifier)}')">View</button>
