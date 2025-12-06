@@ -225,6 +225,7 @@
             if (!dateStr || dateStr.includes('-') === false) return '';
             const parts = dateStr.split('-');
             if (parts.length === 3) {
+                // Assuming DD-MM-YYYY storage format
                 return `${parts[2]}-${parts[1]}-${parts[0]}`;
             }
             return dateStr;
@@ -235,6 +236,7 @@
             if (!dateStr || dateStr.includes('-') === false) return '';
             const parts = dateStr.split('-');
             if (parts.length === 3) {
+                // Assuming YYYY-MM-DD input format
                 return `${parts[2]}-${parts[1]}-${parts[0]}`;
             }
             return dateStr;
@@ -243,18 +245,27 @@
         /**
          * Converts a date string (DD-MM-YYYY or YYYY-MM-DD) to a comparable number (YYYYMMDD).
          * This ensures correct chronological ordering for filtering.
+         * NOTE: This function is critical for 'fetchPreviousBalance' and should be robust.
          */
         function dateToComparableNumber(dateStr) {
             if (!dateStr) return 0;
-            const parts = dateStr.includes('-') ? dateStr.split('-') : [];
+            const parts = String(dateStr).split(/[-\/]/);
             if (parts.length === 3) {
-                // If YYYY-MM-DD
-                if (parts[0].length === 4) {
-                    return parseInt(parts[0] + parts[1] + parts[2]);
+                // Check if the format is DD-MM-YYYY (day is first)
+                if (parts[0].length <= 2 && parts[2].length === 4) {
+                    // Convert DD-MM-YYYY to YYYYMMDD
+                    const year = parts[2];
+                    const month = parts[1].padStart(2, '0');
+                    const day = parts[0].padStart(2, '0');
+                    return parseInt(year + month + day);
                 }
-                // If DD-MM-YYYY
-                if (parts[2].length === 4) {
-                    return parseInt(parts[2] + parts[1] + parts[0]);
+                // Check if the format is YYYY-MM-DD (year is first)
+                if (parts[0].length === 4) {
+                    // Convert YYYY-MM-DD to YYYYMMDD
+                    const year = parts[0];
+                    const month = parts[1].padStart(2, '0');
+                    const day = parts[2].padStart(2, '0');
+                    return parseInt(year + month + day);
                 }
             }
             return 0; // Invalid date
@@ -262,6 +273,7 @@
 
         function formatCurrency(value) {
             const num = parseFloat(value) || 0;
+            // Use comma separators and two fixed decimal places, as required by the existing logic
             return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '/=';
         }
 
@@ -272,6 +284,7 @@
         function formatCurrencyInput(input) {
             let value = input.value.replace(/[^0-9.]/g, '');
             if (value) {
+                // Re-format the display value using US locale (comma thousands, period decimal)
                 input.value = parseFloat(value).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
             } else {
                 input.value = '';
@@ -410,8 +423,7 @@
                     const entry = doc.data();
                     const entryDateNumber = dateToComparableNumber(entry.date);
                     
-                    // 💡 CRITICAL CHANGE: Only include transactions for the customer 
-                    // that occurred on or before the receipt date.
+                    // Only include transactions for the customer that occurred ON or BEFORE the receipt date.
                     if (entry.account && entry.account.toLowerCase().trim() === searchLower && entryDateNumber <= cutoffDateNumber) {
                         customerBalance += parseFloat(entry.debit || 0);
                         customerBalance -= parseFloat(entry.credit || 0);
@@ -557,9 +569,11 @@
             };
 
             try {
+                // 1. Save/Update Receipt Document
                 await setDoc(doc(db, "customerReceipts", receiptNumber), newReceipt);
                 console.log("✓ Receipt saved to customerReceipts collection");
 
+                // --- Handle Deletion of Old Document/Ledger Entries on Edit ---
                 if (isEditing && originalDocNumber && originalDocNumber !== receiptNumber) {
                     await deleteDoc(doc(db, "customerReceipts", originalDocNumber));
                     const oldLedgerQuery = query(collection(db, "ledger"), where("doc_number", "==", originalDocNumber));
@@ -570,44 +584,51 @@
                     console.log("✓ Old receipt and related ledger entries deleted");
                 }
 
+                // 2. Clear Existing Ledger Entries for THIS Receipt
                 const existingLedgerQuery = query(collection(db, "ledger"), where("doc_number", "==", receiptNumber));
                 const existingLedgerSnapshot = await getDocs(existingLedgerQuery);
                 for (const docSnap of existingLedgerSnapshot.docs) {
                     await deleteDoc(doc(db, "ledger", docSnap.id));
                 }
-                console.log("✓ Existing ledger entries cleared");
+                console.log("✓ Existing ledger entries cleared for re-entry");
 
-                // Modified ledger entries for privacy - both show generic descriptions
-                const ledgerEntries = [
-                    {
-                        date: receiptDate,
-                        account: paidToAccount,
-                        description: `Payment Receipt from ${businessLedger}`,
-                        debit: amountReceived,
-                        credit: 0,
-                        doc_number: receiptNumber,
-                        doc_type: 'CR',
-                        timestamp: new Date().toISOString()
-                    },
-                    {
-                        date: receiptDate,
-                        account: businessLedger,
-                        description: `Payment Receipt to settle balance`,
-                        debit: 0,
-                        credit: amountReceived,
-                        doc_number: receiptNumber,
-                        doc_type: 'CR',
-                        // Add a small delay for secondary entry to ensure sorting works correctly
-                        timestamp: new Date(Date.now() + 10).toISOString() 
-                    }
-                ];
+                // 3. Create NEW Ledger Entries (Double Entry)
+                
+                // Entry 1: Debit (Money received into Cash/Bank Account)
+                // DESCRIPTION FIXED: Does not show customer name (businessLedger) in fixed account ledger
+                const ledgerEntryDebit = {
+                    date: receiptDate,
+                    account: paidToAccount, // e.g., Meezan Bank (Fixed Account)
+                    description: `Payment Receipt against Doc No. ${receiptNumber}`,
+                    debit: amountReceived,
+                    credit: 0,
+                    doc_number: receiptNumber,
+                    doc_type: 'CR',
+                    timestamp: new Date().toISOString()
+                };
 
-                for (let i = 0; i < ledgerEntries.length; i++) {
-                    const entry = ledgerEntries[i];
-                    const ledgerDocRef = doc(collection(db, "ledger"));
-                    await setDoc(ledgerDocRef, entry);
-                }
-                console.log("✓ All ledger entries saved successfully");
+                // Entry 2: Credit (Customer's balance is reduced/credited)
+                // DESCRIPTION FIXED: Shows context for the Customer's ledger
+                const ledgerEntryCredit = {
+                    date: receiptDate,
+                    account: businessLedger, // e.g., XYZ Textiles (Customer Account)
+                    description: `Payment Receipt to settle balance (Doc No. ${receiptNumber})`,
+                    debit: 0,
+                    credit: amountReceived, // **CRITICAL FIX: This must be credit to reduce receivable**
+                    doc_number: receiptNumber,
+                    doc_type: 'CR',
+                    // Add a small delay for secondary entry to ensure sorting works correctly
+                    timestamp: new Date(Date.now() + 10).toISOString() 
+                };
+                
+                // Save both entries
+                const ledgerDocRef1 = doc(collection(db, "ledger"));
+                await setDoc(ledgerDocRef1, ledgerEntryDebit);
+                
+                const ledgerDocRef2 = doc(collection(db, "ledger"));
+                await setDoc(ledgerDocRef2, ledgerEntryCredit);
+
+                console.log("✓ All ledger entries saved successfully (Debit to Bank, Credit to Customer)");
 
                 alert(isEditing ? 'Customer Receipt updated successfully!' : 'Customer Receipt saved and ledger updated!');
                 window.location.href = 'documents.html';
