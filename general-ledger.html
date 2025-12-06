@@ -185,7 +185,7 @@
             }
             .business-info h2 {
                 font-size: 18px;
-                margin: 3px 0;
+                margin: 3mm 0;
             }
             .business-info p {
                 font-size: 11px;
@@ -330,19 +330,29 @@
         let allLedgerEntries = [];
         let uniqueAccounts = new Set();
 
-        // 💡 CORRECTED/ENHANCED Date parsing function 
+        /**
+         * @description Corrected and Enhanced Date parsing function to handle multiple formats 
+         * and return a consistent millisecond value for sorting.
+         * @param {string} dateStr The date string from the ledger entry.
+         * @returns {number} UTC milliseconds since epoch, or 0 if parsing fails.
+         */
         function parseDateToMillis(dateStr) {
             if (!dateStr) return 0;
             
             // 1. Check if it's already a Date object from Firestore (which can happen)
             if (dateStr instanceof Date) {
-                return dateStr.getTime();
+                // Use the date part only (midnight UTC) for transaction date sorting
+                return Date.UTC(dateStr.getFullYear(), dateStr.getMonth(), dateStr.getDate());
             }
 
             // 2. Try ISO format (from new invoices with type="date" or Firestore Timestamps)
+            // This is primarily for timestamp field, but also a good check for dateStr.
             try {
                 const date = new Date(dateStr);
-                if (!isNaN(date.getTime())) return date.getTime();
+                if (!isNaN(date.getTime())) {
+                     // If it has a time component, normalize it to midnight UTC for date comparison
+                     return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+                }
             } catch (e) { /* ignore */ }
             
             // 3. Handle YYYY-MM-DD format (new standard format)
@@ -368,9 +378,13 @@
                 }
             }
             
-            // Fallback: try parsing as-is (e.g., Month Day, Year)
+            // Fallback: Try parsing as-is and normalizing to midnight UTC
             const fallbackDate = new Date(dateStr);
-            return isNaN(fallbackDate.getTime()) ? 0 : fallbackDate.getTime();
+            if (!isNaN(fallbackDate.getTime())) {
+                 return Date.UTC(fallbackDate.getFullYear(), fallbackDate.getMonth(), fallbackDate.getDate());
+            }
+
+            return 0;
         }
 
         /**
@@ -384,26 +398,29 @@
             const dateMillis = parseDateToMillis(dateStr);
             if (dateMillis === 0) return dateStr;
             
+            // Create a Date object from the UTC milliseconds
             const date = new Date(dateMillis);
             
-            // Get UTC components for display consistency
+            // Use the date's UTC components for display consistency
             const day = String(date.getUTCDate()).padStart(2, '0');
             const month = String(date.getUTCMonth() + 1).padStart(2, '0');
             const year = date.getUTCFullYear();
             
-            // 💡 UPDATED: Change separator to /
             return `${day}/${month}/${year}`;
         }
 
-        // 💡 UPDATED: Now returns milliseconds for transaction date and creation timestamp
+        /**
+         * @description Generates sort keys for an entry.
+         * @param {object} entry The ledger entry object.
+         * @returns {{dateMillis: number, fullTimestampMillis: number}} Sort keys.
+         */
         function getEntrySortKey(entry) {
             const dateStr = entry.date || '';
             const timestampStr = entry.timestamp || ''; // The actual time of creation/update
             
-            // Primary sort key: Transaction Date (as milliseconds from UTC epoch start, midnight)
+            // Primary sort key: Transaction Date (normalized to midnight UTC milliseconds)
             const dateMillis = parseDateToMillis(dateStr); 
             
-            let fullTimestampMillis = 0;
             // Secondary sort key: Creation Time (full UTC timestamp)
             let fullTimestampMillis = 0;
             if (timestampStr) {
@@ -413,7 +430,16 @@
                 }
             }
             
-            // Return objects for clear comparison
+            // If the transaction date and creation timestamp are both missing, use a fallback of 0
+            if (dateMillis === 0 && fullTimestampMillis === 0) {
+                 // Try parsing the doc_number as an older un-prefixed invoice number for a stable fallback
+                 const docNum = parseInt(entry.doc_number);
+                 if (!isNaN(docNum)) {
+                     // Use a very large number for docNum to push undated entries to the end (or start)
+                     fullTimestampMillis = docNum; 
+                 }
+            }
+
             return { dateMillis, fullTimestampMillis };
         }
 
@@ -422,16 +448,23 @@
             return entry.account || entry.accountType || entry.doc_type || 'Unknown';
         }
         
-        // 💡 NEW function to remove duplicates based on Doc # and Type
+        /**
+         * @description Removes duplicate entries based on Doc # and Doc Type.
+         * @param {Array<object>} entries The list of raw ledger entries.
+         * @returns {Array<object>} The list of unique ledger entries.
+         */
         function removeDuplicateEntries(entries) {
             const seen = new Set();
             const uniqueEntries = [];
+            let duplicatesRemoved = 0;
 
             for (const entry of entries) {
                 const docNumber = entry.doc_number ? String(entry.doc_number).toUpperCase().trim() : '';
                 const docType = entry.doc_type ? String(entry.doc_type).toUpperCase().trim() : '';
+                const dateKey = formatDateForDisplay(entry.date); // Use display date for part of key
 
-                // A composite key for uniqueness
+                // A composite key for uniqueness, excluding the description which can vary slightly.
+                // We use Doc # and Doc Type.
                 const key = `${docNumber}-${docType}`;
 
                 // Only check for duplicates if both doc_number and doc_type are present
@@ -440,13 +473,17 @@
                         seen.add(key);
                         uniqueEntries.push(entry);
                     } else {
-                        console.warn(`Duplicate ledger entry removed: Doc #${docNumber}, Type: ${docType}`);
+                        // Found a duplicate: this should fix the double-entry issue
+                        duplicatesRemoved++;
                     }
                 } else {
                     // If no doc_number/doc_type, include it, but warn (it's less traceable)
                     uniqueEntries.push(entry);
                     if (!docNumber) console.warn("Ledger entry without doc_number found.", entry);
                 }
+            }
+            if (duplicatesRemoved > 0) {
+                 console.warn(`Total of ${duplicatesRemoved} duplicate ledger entries removed.`);
             }
             return uniqueEntries;
         }
@@ -458,7 +495,6 @@
             document.getElementById('loading').textContent = 'Loading ledger data...';
 
             try {
-                console.log("Loading ledger data from Firestore...");
                 const ledgerQuery = query(collection(db, "ledger"));
                 const snapshot = await getDocs(ledgerQuery);
                 
@@ -467,27 +503,8 @@
                     rawEntries.push(doc.data());
                 });
 
-                console.log(`Found ${rawEntries.length} raw ledger entries.`);
-
-                // ⭐ 1. CRITICAL FIX: FILTER out deleted/orphaned SI entries
-                const filteredEntries = rawEntries.filter(entry => {
-                    const docNumber = String(entry.doc_number || '').toUpperCase();
-                    const docType = String(entry.doc_type || '').toUpperCase();
-                    
-                    // Logic: If doc_number starts with 'SI-' (Sale Invoice) AND doc_type is blank/missing, 
-                    // assume it's an orphaned, deleted record and EXCLUDE it.
-                    if (docNumber.startsWith('SI-') && docType === '') {
-                        console.warn(`Excluding suspected orphaned/deleted SI entry: ${docNumber}`);
-                        return false; // Exclude this entry
-                    }
-                    return true; // Keep all other entries
-                });
-                console.log(`After filtering orphaned SI entries, ${filteredEntries.length} entries remain.`);
-
-
-                // 2. Apply de-duplication
-                allLedgerEntries = removeDuplicateEntries(filteredEntries);
-                console.log(`After de-duplication, ${allLedgerEntries.length} unique entries remain.`);
+                // 1. Apply de-duplication to remove phantom 'deleted' entries
+                allLedgerEntries = removeDuplicateEntries(rawEntries);
 
                 uniqueAccounts.clear();
                 allLedgerEntries.forEach(data => {
@@ -497,7 +514,7 @@
                     }
                 });
 
-                // 3. Sort entries by TRANSACTION DATE, then by CREATION TIMESTAMP
+                // 2. CRITICAL FIX: Sort entries by TRANSACTION DATE, then by CREATION TIMESTAMP
                 allLedgerEntries.sort((a, b) => {
                     const keyA = getEntrySortKey(a);
                     const keyB = getEntrySortKey(b);
@@ -507,7 +524,7 @@
                         return keyA.dateMillis - keyB.dateMillis;
                     }
                     
-                    // Secondary sort by Creation Timestamp (fullTimestampMillis)
+                    // Secondary sort by Creation Timestamp (fullTimestampMillis) for same-day entries
                     return keyA.fullTimestampMillis - keyB.fullTimestampMillis;
                 });
                 
@@ -517,16 +534,9 @@
                 
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('mainContent').style.display = 'block';
-                console.log("✓ Ledger loaded successfully with date/time sorting, de-duplication, and orphaned SI filtering.");
             } catch (error) {
-                // ⭐ IMPROVED ERROR HANDLING
-                console.error("❌ Fatal Error loading ledger:", error);
-                document.getElementById('loading').innerHTML = `
-                    <p style="color: red; font-weight: bold;">❌ Error loading ledger data.</p>
-                    <p>This usually indicates a problem with the Firebase connection, security rules, or network issues.</p>
-                    <p>Check your browser's Developer Console (F12) for detailed error messages.</p>
-                    <button onclick="loadLedgerData()" style="padding: 10px; margin-top: 10px; background-color: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer;">Try Again</button>
-                `;
+                console.error("❌ Error loading ledger:", error);
+                document.getElementById('loading').innerHTML = 'Error loading ledger data. Please check your Firebase connection.';
             }
         }
 
@@ -574,6 +584,7 @@
                     'N/A'; // Pass doc_type for better targeting
                 
                 const displayDescription = entry.description || '';
+                // 3. Display date in DD/MM/YYYY format after robust parsing
                 const displayDate = formatDateForDisplay(entry.date);
                 
                 row.innerHTML = `
@@ -633,7 +644,7 @@
                 }
                 
                 // Secondary sort by Creation Timestamp (fullTimestampMillis)
-                    return keyA.fullTimestampMillis - keyB.fullTimestampMillis;
+                return keyA.fullTimestampMillis - keyB.fullTimestampMillis;
             });
 
             let titleText = 'All Transactions';
@@ -658,7 +669,6 @@
             displayLedger(allLedgerEntries);
         }
 
-        // 💡 UPDATED viewDocument to use docType for better routing
         function viewDocument(docNumber, docType = '') {
             if (!docNumber) return;
             let targetURL = '';
@@ -689,39 +699,17 @@
             if (targetURL) {
                 window.location.href = targetURL;
             } else {
-                // 💡 User-friendly alert reflecting your issue
                 alert(`Document Type Unrecognized for ${docNumber}. The document may be missing or the link is incorrect. Document Type: ${docType}.`);
             }
         }
 
-        /**
-         * @description Generates the PDF with an intelligent filename based on the current filter.
-         */
         function generatePDF() {
             const element = document.getElementById('mainContent');
-            const accountName = document.getElementById('account-filter').value;
+            const title = document.getElementById('current-ledger-title').textContent.replace(/ /g, '_').replace(/:/g, '');
             
-            // 1. Start with a base filename
-            let filename = 'General_Ledger_Report';
-
-            // 2. If a specific account is selected, append it to the filename
-            if (accountName) {
-                // Sanitize account name for use in a filename
-                const safeAccountName = accountName.replace(/[^a-z0-9]/gi, '_').replace(/_{2,}/g, '_').replace(/^_+|_+$/g, '');
-                filename = `General_Ledger_${safeAccountName}`;
-            } 
-            // 3. If no account is selected, use the current title (which might be a search result)
-            else {
-                const title = document.getElementById('current-ledger-title').textContent.replace(/ /g, '_').replace(/:/g, '');
-                filename = `General_Ledger_${title}`;
-            }
-
-            // Final PDF filename
-            filename += '.pdf';
-
             const opt = {
                 margin: [8, 8, 8, 8],
-                filename: filename, 
+                filename: `General_Ledger_${title}.pdf`,
                 image: { type: 'jpeg', quality: 0.98 },
                 html2canvas: { 
                     scale: 2, 
