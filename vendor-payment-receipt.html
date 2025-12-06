@@ -233,7 +233,8 @@
         function formatDateToInput(dateStr) {
             if (!dateStr || dateStr.includes('-') === false) return '';
             const parts = dateStr.split('-');
-            if (parts.length === 3) {
+            // Check if format is DD-MM-YYYY
+            if (parts.length === 3 && parts[2].length === 4) {
                 return `${parts[2]}-${parts[1]}-${parts[0]}`;
             }
             return dateStr;
@@ -243,7 +244,8 @@
         function formatDateToDisplay(dateStr) {
             if (!dateStr || dateStr.includes('-') === false) return '';
             const parts = dateStr.split('-');
-            if (parts.length === 3) {
+            // Check if format is YYYY-MM-DD
+            if (parts.length === 3 && parts[0].length === 4) {
                 return `${parts[2]}-${parts[1]}-${parts[0]}`;
             }
             return dateStr;
@@ -257,11 +259,11 @@
             if (!dateStr) return 0;
             const parts = dateStr.includes('-') ? dateStr.split('-') : [];
             if (parts.length === 3) {
-                // If YYYY-MM-DD
+                // If YYYY-MM-DD (from input field)
                 if (parts[0].length === 4) {
                     return parseInt(parts[0] + parts[1] + parts[2]);
                 }
-                // If DD-MM-YYYY
+                // If DD-MM-YYYY (from database)
                 if (parts[2].length === 4) {
                     return parseInt(parts[2] + parts[1] + parts[0]);
                 }
@@ -292,6 +294,7 @@
 
         async function getNextVoucherNumber() {
             try {
+                // Using numericNumber for reliable sorting
                 const q = query(collection(db, "vendorPayments"), orderBy("numericNumber", "desc"), limit(1));
                 const snapshot = await getDocs(q);
                 
@@ -419,11 +422,11 @@
                     const entry = doc.data();
                     const entryDateNumber = dateToComparableNumber(entry.date);
                     
-                    // CRITICAL CHANGE: Only include transactions for the vendor
-                    // that occurred on or before the receipt date.
+                    // CRITICAL: Only include transactions for the vendor
+                    // that occurred ON OR BEFORE the receipt date.
                     if (entry.account && entry.account.toLowerCase().trim() === searchLower && entryDateNumber <= cutoffDateNumber) {
-                        vendorPayable += parseFloat(entry.credit || 0); // Credit increases Payable
-                        vendorPayable -= parseFloat(entry.debit || 0);  // Debit decreases Payable (payments)
+                        vendorPayable += parseFloat(entry.credit || 0); // Credit increases Payable (Invoices)
+                        vendorPayable -= parseFloat(entry.debit || 0);  // Debit decreases Payable (Payments/Returns)
                         foundEntries++;
                     }
                 });
@@ -587,30 +590,34 @@
                 }
                 console.log("✓ Existing ledger entries cleared");
 
-                // Modified ledger entries for privacy - both show generic descriptions
-                const ledgerEntries = [
-                    {
-                        date: receiptDate,
-                        account: businessLedger,
-                        description: `Payment Voucher to settle balance`,
-                        debit: amountPaid,
-                        credit: 0,
-                        doc_number: receiptNumber,
-                        doc_type: 'VP',
-                        timestamp: new Date().toISOString()
-                    },
-                    {
-                        date: receiptDate,
-                        account: paidFromAccount,
-                        description: `Payment Voucher to settle balance for ${businessLedger}`,
-                        debit: 0,
-                        credit: amountPaid,
-                        doc_number: receiptNumber,
-                        doc_type: 'VP',
-                        // Add a small delay for secondary entry to ensure sorting works correctly
-                        timestamp: new Date(Date.now() + 10).toISOString()
-                    }
-                ];
+                // 🌟 FIX 1: Vendor Ledger (Debit) - Generic Text and clear debit entry
+                const vendorEntry = {
+                    date: receiptDate,
+                    account: businessLedger,
+                    description: `Vendor Payment via Bank/Cash (Doc: ${receiptNumber})`,
+                    debit: amountPaid,
+                    credit: 0,
+                    doc_number: receiptNumber,
+                    doc_type: 'VP',
+                    account_name_credit: paidFromAccount, // Contra account
+                    timestamp: new Date().toISOString()
+                };
+
+                // 🌟 FIX 2: Bank/Source Account (Credit) - Generic Text and clear credit entry
+                const bankEntry = {
+                    date: receiptDate,
+                    account: paidFromAccount,
+                    description: `Payment Voucher (VP: ${receiptNumber})`,
+                    debit: 0,
+                    credit: amountPaid,
+                    doc_number: receiptNumber,
+                    doc_type: 'VP',
+                    account_name_debit: businessLedger, // Contra account
+                    // Add a small delay for secondary entry to ensure sorting works correctly
+                    timestamp: new Date(Date.now() + 10).toISOString()
+                };
+                
+                const ledgerEntries = [vendorEntry, bankEntry];
 
                 for (let i = 0; i < ledgerEntries.length; i++) {
                     const entry = ledgerEntries[i];
