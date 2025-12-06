@@ -577,13 +577,14 @@
                 }
                 console.log("✓ Existing ledger entries cleared");
 
-                // 🌟 FIX: Updated Ledger Entry Descriptions
+                // 🌟 FIX 1: Bank Ledger Description reverted to generic text.
+                // 🌟 FIX 2: Customer Ledger Description improved for clarity of Credit entry.
 
-                // Entry 1: Bank/Destination Account (Debit) - Needs Customer Name
+                // Entry 1: Bank/Destination Account (Debit) - Generic Text
                 const bankEntry = {
                     date: receiptDate,
                     account: paidToAccount,
-                    description: `Customer Receipt from ${businessLedger}`, 
+                    description: `Payment Receipt from Customer via Bank/Cash (Doc: ${receiptNumber})`, 
                     debit: amountReceived,
                     credit: 0,
                     doc_number: receiptNumber,
@@ -592,11 +593,11 @@
                     timestamp: new Date().toISOString()
                 };
 
-                // Entry 2: Customer/Origin Account (Credit) - Needs Bank Name
+                // Entry 2: Customer/Origin Account (Credit) - Clear Credit Entry
                 const customerEntry = {
                     date: receiptDate,
                     account: businessLedger,
-                    description: `Payment settled via ${paidToAccount}`, 
+                    description: `Customer Payment Received (CR: ${receiptNumber})`, 
                     debit: 0,
                     credit: amountReceived,
                     doc_number: receiptNumber,
