@@ -577,30 +577,36 @@
                 }
                 console.log("✓ Existing ledger entries cleared");
 
-                // Modified ledger entries for privacy - both show generic descriptions
-                const ledgerEntries = [
-                    {
-                        date: receiptDate,
-                        account: paidToAccount,
-                        description: `Payment Receipt from ${businessLedger}`,
-                        debit: amountReceived,
-                        credit: 0,
-                        doc_number: receiptNumber,
-                        doc_type: 'CR',
-                        timestamp: new Date().toISOString()
-                    },
-                    {
-                        date: receiptDate,
-                        account: businessLedger,
-                        description: `Payment Receipt to settle balance`,
-                        debit: 0,
-                        credit: amountReceived,
-                        doc_number: receiptNumber,
-                        doc_type: 'CR',
-                        // Add a small delay for secondary entry to ensure sorting works correctly
-                        timestamp: new Date(Date.now() + 10).toISOString() 
-                    }
-                ];
+                // 🌟 FIX: Updated Ledger Entry Descriptions
+
+                // Entry 1: Bank/Destination Account (Debit) - Needs Customer Name
+                const bankEntry = {
+                    date: receiptDate,
+                    account: paidToAccount,
+                    description: `Customer Receipt from ${businessLedger}`, 
+                    debit: amountReceived,
+                    credit: 0,
+                    doc_number: receiptNumber,
+                    doc_type: 'CR',
+                    account_name_credit: businessLedger, 
+                    timestamp: new Date().toISOString()
+                };
+
+                // Entry 2: Customer/Origin Account (Credit) - Needs Bank Name
+                const customerEntry = {
+                    date: receiptDate,
+                    account: businessLedger,
+                    description: `Payment settled via ${paidToAccount}`, 
+                    debit: 0,
+                    credit: amountReceived,
+                    doc_number: receiptNumber,
+                    doc_type: 'CR',
+                    account_name_debit: paidToAccount,
+                    // Add a small delay for secondary entry to ensure sorting works correctly
+                    timestamp: new Date(Date.now() + 10).toISOString() 
+                };
+                
+                const ledgerEntries = [bankEntry, customerEntry];
 
                 for (let i = 0; i < ledgerEntries.length; i++) {
                     const entry = ledgerEntries[i];
