@@ -332,43 +332,32 @@
 
         /**
          * @description Corrected and Enhanced Date parsing function to handle multiple formats 
-         * and return a consistent millisecond value for sorting.
+         * and return a consistent millisecond value for sorting (midnight UTC).
          * @param {string} dateStr The date string from the ledger entry.
-         * @returns {number} UTC milliseconds since epoch, or 0 if parsing fails.
+         * @returns {number} UTC milliseconds since epoch (midnight of the date), or 0 if parsing fails.
          */
         function parseDateToMillis(dateStr) {
             if (!dateStr) return 0;
             
-            // 1. Check if it's already a Date object from Firestore (which can happen)
+            // 1. Check if it's already a Date object (e.g., from Firestore Timestamp/Date field)
             if (dateStr instanceof Date) {
-                // Use the date part only (midnight UTC) for transaction date sorting
+                // Normalize to midnight UTC for transaction date sorting
                 return Date.UTC(dateStr.getFullYear(), dateStr.getMonth(), dateStr.getDate());
             }
 
-            // 2. Try ISO format (from new invoices with type="date" or Firestore Timestamps)
-            // This is primarily for timestamp field, but also a good check for dateStr.
-            try {
-                const date = new Date(dateStr);
-                if (!isNaN(date.getTime())) {
-                     // If it has a time component, normalize it to midnight UTC for date comparison
-                     return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
-                }
-            } catch (e) { /* ignore */ }
-            
-            // 3. Handle YYYY-MM-DD format (new standard format)
+            // 2. Handle YYYY-MM-DD format (new standard format)
             if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-                // Use UTC to prevent local timezone issues from shifting the date
                 const [year, month, day] = dateStr.split('-');
                 // We parse to a Date object set to midnight UTC for consistent date comparison
                 const date = new Date(Date.UTC(year, parseInt(month, 10) - 1, day));
                 if (!isNaN(date.getTime())) return date.getTime();
             }
             
-            // 4. Handle DD-MM-YYYY format (old format)
+            // 3. Handle DD-MM-YYYY format (old format)
             const parts = dateStr.split(/[-/]/);
             if (parts.length === 3) {
                 const day = parseInt(parts[0], 10);
-                const month = parseInt(parts[1], 10) - 1;
+                const month = parseInt(parts[1], 10) - 1; // Months are 0-indexed
                 const year = parseInt(parts[2], 10);
                 
                 if (day > 0 && month >= 0 && month <= 11 && year > 1900) {
@@ -378,13 +367,13 @@
                 }
             }
             
-            // Fallback: Try parsing as-is and normalizing to midnight UTC
+            // 4. Fallback: Try parsing as-is and normalizing to midnight UTC
             const fallbackDate = new Date(dateStr);
             if (!isNaN(fallbackDate.getTime())) {
                  return Date.UTC(fallbackDate.getFullYear(), fallbackDate.getMonth(), fallbackDate.getDate());
             }
 
-            return 0;
+            return 0; // Return 0 for invalid dates
         }
 
         /**
@@ -393,11 +382,10 @@
          * @returns {string} The formatted date string.
          */
         function formatDateForDisplay(dateStr) {
-            if (!dateStr) return 'N/A';
-            
-            const dateMillis = parseDateToMillis(dateStr);
-            if (dateMillis === 0) return dateStr;
-            
+            // Get the normalized millisecond value for the date
+            const dateMillis = parseDateToMillis(dateStr); 
+            if (dateMillis === 0) return 'N/A'; // If parsing failed
+
             // Create a Date object from the UTC milliseconds
             const date = new Date(dateMillis);
             
@@ -406,7 +394,8 @@
             const month = String(date.getUTCMonth() + 1).padStart(2, '0');
             const year = date.getUTCFullYear();
             
-            return `${day}/${month}/${year}`;
+            // **Required format: DD/MM/YYYY**
+            return `${day}/${month}/${year}`; 
         }
 
         /**
@@ -415,32 +404,25 @@
          * @returns {{dateMillis: number, fullTimestampMillis: number}} Sort keys.
          */
         function getEntrySortKey(entry) {
-            const dateStr = entry.date || '';
-            const timestampStr = entry.timestamp || ''; // The actual time of creation/update
-            
-            // Primary sort key: Transaction Date (normalized to midnight UTC milliseconds)
-            const dateMillis = parseDateToMillis(dateStr); 
+            // Primary sort key: Transaction Date (dateMillis)
+            const dateMillis = parseDateToMillis(entry.date); 
             
             // Secondary sort key: Creation Time (full UTC timestamp)
             let fullTimestampMillis = 0;
-            if (timestampStr) {
-                const timestampDate = new Date(timestampStr);
+            if (entry.timestamp) {
+                // Assuming entry.timestamp is a valid date/timestamp string or object
+                const timestampDate = new Date(entry.timestamp);
                 if (!isNaN(timestampDate.getTime())) {
                     fullTimestampMillis = timestampDate.getTime();
                 }
             }
             
-            // If the transaction date and creation timestamp are both missing, use a fallback of 0
-            if (dateMillis === 0 && fullTimestampMillis === 0) {
-                 // Try parsing the doc_number as an older un-prefixed invoice number for a stable fallback
-                 const docNum = parseInt(entry.doc_number);
-                 if (!isNaN(docNum)) {
-                     // Use a very large number for docNum to push undated entries to the end (or start)
-                     fullTimestampMillis = docNum; 
-                 }
-            }
+            // If the date is invalid (dateMillis === 0), use the creation time for a stable sort
+            // Otherwise, prioritize the dateMillis.
+            const primarySortValue = dateMillis > 0 ? dateMillis : 0;
+            const secondarySortValue = fullTimestampMillis > 0 ? fullTimestampMillis : 0;
 
-            return { dateMillis, fullTimestampMillis };
+            return { dateMillis: primarySortValue, fullTimestampMillis: secondarySortValue };
         }
 
         function getAccountName(entry) {
@@ -461,10 +443,8 @@
             for (const entry of entries) {
                 const docNumber = entry.doc_number ? String(entry.doc_number).toUpperCase().trim() : '';
                 const docType = entry.doc_type ? String(entry.doc_type).toUpperCase().trim() : '';
-                const dateKey = formatDateForDisplay(entry.date); // Use display date for part of key
 
-                // A composite key for uniqueness, excluding the description which can vary slightly.
-                // We use Doc # and Doc Type.
+                // A composite key for uniqueness
                 const key = `${docNumber}-${docType}`;
 
                 // Only check for duplicates if both doc_number and doc_type are present
@@ -473,11 +453,10 @@
                         seen.add(key);
                         uniqueEntries.push(entry);
                     } else {
-                        // Found a duplicate: this should fix the double-entry issue
                         duplicatesRemoved++;
                     }
                 } else {
-                    // If no doc_number/doc_type, include it, but warn (it's less traceable)
+                    // Include entries without doc_number/doc_type, as we can't reliably deduplicate them
                     uniqueEntries.push(entry);
                     if (!docNumber) console.warn("Ledger entry without doc_number found.", entry);
                 }
@@ -503,7 +482,7 @@
                     rawEntries.push(doc.data());
                 });
 
-                // 1. Apply de-duplication to remove phantom 'deleted' entries
+                // 1. Apply de-duplication
                 allLedgerEntries = removeDuplicateEntries(rawEntries);
 
                 uniqueAccounts.clear();
@@ -514,17 +493,17 @@
                     }
                 });
 
-                // 2. CRITICAL FIX: Sort entries by TRANSACTION DATE, then by CREATION TIMESTAMP
+                // 2. CRITICAL FIX: Sort entries by TRANSACTION DATE (DD/MM/YYYY), then by CREATION TIMESTAMP
                 allLedgerEntries.sort((a, b) => {
                     const keyA = getEntrySortKey(a);
                     const keyB = getEntrySortKey(b);
                     
-                    // Primary sort by Transaction Date (dateMillis)
+                    // **Primary Sort: Transaction Date (ascending - oldest first)**
                     if (keyA.dateMillis !== keyB.dateMillis) {
                         return keyA.dateMillis - keyB.dateMillis;
                     }
                     
-                    // Secondary sort by Creation Timestamp (fullTimestampMillis) for same-day entries
+                    // **Secondary Sort: Creation Timestamp (ascending)** for same-day entries
                     return keyA.fullTimestampMillis - keyB.fullTimestampMillis;
                 });
                 
