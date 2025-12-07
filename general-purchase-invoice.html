@@ -23,20 +23,34 @@
         input:focus { outline: none; background: #e6f0fa; }
         .total-amount-input { text-align: right !important; }
         .payment-method { margin-bottom: 15px; }
-        .signature { display: flex; justify-content: space-between; margin-top: 50px; padding: 0 10px; }
-        .signature-right { padding-top: 5px; font-weight: bold; text-transform: uppercase; }
-        .auto-signature {
-            font-family: 'Dancing Script', cursive;
-            font-size: 28px;
-            color: #000;
-            margin: 0;
-            line-height: 1;
+        
+        /* Signature Section Styles */
+        .signature { display: flex; justify-content: space-between; margin-top: 50px; padding: 0 10px; align-items: flex-end; }
+        .signature-right { text-align: center; width: 200px; }
+        .signature-heading { 
+            font-weight: bold; 
+            margin-bottom: 5px; 
+            border-bottom: 1px solid #ccc; 
+            display: inline-block;
+            width: 100%;
         }
-        @keyframes signatureFade {
-            0% { opacity: 0; }
-            100% { opacity: 1; }
+        
+        /* SVG Signature Path Animation */
+        .signature-path {
+            fill: none;
+            stroke: #000;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+            animation: drawSignature 2s ease-out forwards;
         }
-        .auto-signature { animation: signatureFade 0.5s ease-in-out; }
+        
+        @keyframes drawSignature {
+            to { stroke-dashoffset: 0; }
+        }
+
         .watermark {
             position: fixed;
             top: 50%;
@@ -67,7 +81,6 @@
             }
         }
     </style>
-    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="watermark">NOT VALID FOR COURT OR LEGAL PURPOSE</div>
@@ -147,8 +160,29 @@
                 Payment Terms: <input type="text" id="paymentTerms" placeholder="Enter Payment Terms">
             </div>
             <div class="signature-right">
-                <p class="auto-signature">Ehtasham</p>
-                <p>(EHTASHAM BILAL)</p>
+                <div class="signature-heading">Authorized Signature</div>
+                <svg width="200" height="80" viewBox="0 0 300 120" xmlns="http://www.w3.org/2000/svg">
+                    <path class="signature-path" d="
+                        M50,40 
+                        C30,10 80,10 60,40 
+                        C40,70 20,60 30,90 
+                        C40,110 70,100 80,80
+                        L90,30
+                        L80,120
+                        M80,70 L110,60
+                        L120,20 L115,130
+                        C115,130 120,90 130,80
+                        C135,70 140,100 145,90
+                        C150,80 155,100 160,90
+                        C165,80 170,100 175,90
+                        C180,80 185,100 190,90
+                        C195,80 200,100 205,90
+                        C210,80 215,100 220,90
+                        C225,80 230,100 235,90
+                        C240,80 245,100 250,90
+                        L280,70
+                    " />
+                </svg>
             </div>
         </div>
     </div>
@@ -400,12 +434,10 @@
                 const ledgerEntries = [];
                 
                 // Ledger Entry 1: DR Service Expenses (or Cost of Service) - Gross Total
-                // This will later be offset by the Service Income (Gross Revenue) on the General Sale Invoice.
                 if (grossTotal !== 0) {
                     ledgerEntries.push({
                         date: invoiceDate,
                         doc_number: invoiceNumber,
-                        // Use a general Service Expenses account for simplicity across services
                         account: "Service Expenses", 
                         party: partyName,
                         debit: grossTotal,
@@ -436,7 +468,6 @@
                     ledgerEntries.push({
                         date: invoiceDate,
                         doc_number: invoiceNumber,
-                        // Vendor is tracked in Accounts Payable
                         account: partyName, 
                         party: partyName,
                         debit: 0,
