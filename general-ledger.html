@@ -481,9 +481,22 @@
                 snapshot.forEach(doc => {
                     rawEntries.push(doc.data());
                 });
-
-                // 1. Apply de-duplication
-                allLedgerEntries = removeDuplicateEntries(rawEntries);
+                
+                // 1. **CRITICAL FIX: Filter out orphaned entries**
+                // Only include entries that have a document number AND a document type.
+                // If you deleted the source document, these fields become undefined/empty,
+                // making them orphans that must be excluded to reflect the current state.
+                const filteredEntries = rawEntries.filter(entry => 
+                    entry.doc_number && String(entry.doc_number).trim() !== '' &&
+                    entry.doc_type && String(entry.doc_type).trim() !== ''
+                );
+                
+                if (rawEntries.length !== filteredEntries.length) {
+                    console.warn(`Filtered ${rawEntries.length - filteredEntries.length} orphaned entries.`);
+                }
+                
+                // 2. Apply de-duplication (on the already filtered set)
+                allLedgerEntries = removeDuplicateEntries(filteredEntries);
 
                 uniqueAccounts.clear();
                 allLedgerEntries.forEach(data => {
@@ -493,7 +506,7 @@
                     }
                 });
 
-                // 2. CRITICAL FIX: Sort entries by TRANSACTION DATE (DD/MM/YYYY), then by CREATION TIMESTAMP
+                // 3. Sort entries by TRANSACTION DATE, then by CREATION TIMESTAMP
                 allLedgerEntries.sort((a, b) => {
                     const keyA = getEntrySortKey(a);
                     const keyB = getEntrySortKey(b);
