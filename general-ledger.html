@@ -457,8 +457,8 @@
                     }
                 } else {
                     // Include entries without doc_number/doc_type, as we can't reliably deduplicate them
+                    // This is an imperfect solution, but required if valid documents are missing keys.
                     uniqueEntries.push(entry);
-                    if (!docNumber) console.warn("Ledger entry without doc_number found.", entry);
                 }
             }
             if (duplicatesRemoved > 0) {
@@ -482,17 +482,30 @@
                     rawEntries.push(doc.data());
                 });
                 
-                // 1. **CRITICAL FIX: Filter out orphaned entries**
-                // Only include entries that have a document number AND a document type.
-                // If you deleted the source document, these fields become undefined/empty,
-                // making them orphans that must be excluded to reflect the current state.
-                const filteredEntries = rawEntries.filter(entry => 
-                    entry.doc_number && String(entry.doc_number).trim() !== '' &&
-                    entry.doc_type && String(entry.doc_type).trim() !== ''
-                );
+                // 1. **CRITICAL FIX (Final Attempt): Filter out orphaned (deleted) entries**
+                // An entry for a valid transaction MUST have both a doc_number AND a doc_type.
+                // Reverting to the strict check to eliminate deleted entries reliably.
+                const filteredEntries = rawEntries.filter(entry => {
+                    const docNumberPresent = entry.doc_number && String(entry.doc_number).trim() !== '';
+                    const docTypePresent = entry.doc_type && String(entry.doc_type).trim() !== '';
+                    
+                    // Keep the entry only if both document reference fields are present
+                    return docNumberPresent && docTypePresent;
+                });
                 
                 if (rawEntries.length !== filteredEntries.length) {
-                    console.warn(`Filtered ${rawEntries.length - filteredEntries.length} orphaned entries.`);
+                    const removedCount = rawEntries.length - filteredEntries.length;
+                    console.warn(`Filtered ${removedCount} orphaned/deleted entries by checking for missing Doc # or Doc Type.`);
+                    // Log the first few removed entries for internal diagnostics
+                    rawEntries.filter(entry => !filteredEntries.includes(entry)).slice(0, 5).forEach(removedEntry => {
+                        console.log("Orphaned Entry Removed:", {
+                            doc_number: removedEntry.doc_number,
+                            doc_type: removedEntry.doc_type,
+                            debit: removedEntry.debit,
+                            credit: removedEntry.credit,
+                            description: removedEntry.description
+                        });
+                    });
                 }
                 
                 // 2. Apply de-duplication (on the already filtered set)
