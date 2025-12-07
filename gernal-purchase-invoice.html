@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>General Purchase Invoice - BET</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; color: #000; }
+        .header { display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+        .company-info { text-align: right; }
+        .company-info h2 { margin: 0; color: #003366; }
+        .invoice-heading { font-size: 28px; font-weight: bold; color: #2e6da4; line-height: 1.5; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        table, th, td { border: 2px solid #000; }
+        th, td { padding: 10px; text-align: center; }
+        .totals { margin-top: 20px; width: 100%; }
+        .totals td { padding: 8px; }
+        .totals .label { text-align: right; font-weight: bold; }
+        .action-buttons button { padding: 10px; margin: 10px 5px 10px 0; cursor: pointer; background-color: #2e6da4; color: white; border: none; }
+        .action-buttons button:hover { background-color: #245a8e; }
+        .delete-button { background-color: #cc0000 !important; }
+        .delete-button:hover { background-color: #aa0000 !important; }
+        input { border: none; width: 100%; text-align: center; background: transparent; }
+        input:focus { outline: none; background: #e6f0fa; }
+        .total-amount-input { text-align: right !important; }
+        .payment-method { margin-bottom: 15px; }
+        
+        /* Signature Section Styles */
+        .signature { display: flex; justify-content: space-between; margin-top: 50px; padding: 0 10px; align-items: flex-end; }
+        .signature-right { text-align: center; width: 200px; }
+        .signature-heading { 
+            font-weight: bold; 
+            margin-bottom: 5px; 
+            border-bottom: 1px solid #ccc; 
+            display: inline-block;
+            width: 100%;
+        }
+        
+        /* SVG Signature Path Animation */
+        .signature-path {
+            fill: none;
+            stroke: #000;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+            animation: drawSignature 2s ease-out forwards;
+        }
+        
+        @keyframes drawSignature {
+            to { stroke-dashoffset: 0; }
+        }
+
+        .watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 32px;
+            color: rgba(200, 0, 0, 0.12);
+            font-weight: 600;
+            white-space: nowrap;
+            pointer-events: none;
+            z-index: 1000;
+            user-select: none;
+            letter-spacing: 2px;
+        }
+        @media print {
+            .action-buttons { display: none; }
+            .watermark {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%) rotate(-45deg);
+                font-size: 32px;
+                color: rgba(200, 0, 0, 0.12);
+                font-weight: 600;
+                white-space: nowrap;
+                z-index: 1000;
+                letter-spacing: 2px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="watermark">NOT VALID FOR COURT OR LEGAL PURPOSE</div>
+    
+    <div class="action-buttons" style="max-width: 800px; margin: 0 auto 20px;">
+        <button onclick="saveInvoice()">Save/Update Invoice</button>
+        <button onclick="deleteInvoice()" id="deleteButton" class="delete-button" style="display: none;">Delete Invoice</button>
+        <button onclick="generatePDF()">Generate PDF</button>
+        <button onclick="window.print()">Print</button>
+        <button onclick="window.location.href='documents.html'">View All Documents</button>
+    </div>
+    <div style="max-width: 800px; margin: 0 auto;" id="invoice-content">
+        <div class="header">
+            <div class="invoice-heading">
+                GENERAL PURCHASE INVOICE <br>
+                Invoice Number: <input type="text" id="invoiceNumber" placeholder="e.g., GPI-00001" style="width: 170px;" readonly><br>
+                Date: <input type="date" id="invoiceDate" style="width: 150px;"><br>
+                Party Name: <input type="text" id="partyName" placeholder="Enter Party Name">
+            </div>
+            <div class="company-info">
+                <h2>(BET) Bilal Ehtasham Traders</h2>
+                <p><i>We deal in all kinds of Cotton and Polyester Yarn</i></p>
+                <p>Cell: (+92)-324-2479096</p>
+                <p>Email: bilalehtashamtraders@gmail.com</p>
+            </div>
+        </div>
+
+        <div class="payment-method">
+            <label for="paymentMethod">Payment Method:</label>
+            <select id="paymentMethod">
+                <option value="Bank Transfer">Bank Transfer</option>
+                <option value="Cash">Cash</option>
+                <option value="Cheque">Cheque</option>
+            </select>
+        </div>
+
+        <button onclick="addRow()">Add New Row</button>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Quantity</th>
+                    <th>Description</th>
+                    <th>Weight (kg)</th>
+                    <th>Price</th>
+                    <th>Gross Amount</th>
+                </tr>
+            </thead>
+            <tbody id="invoice-body">
+                <tr>
+                    <td><input type="text" class="quantity" value="0"></td>
+                    <td><input type="text" class="description"></td>
+                    <td><input type="text" class="weightKg" value="0.00"></td>
+                    <td><input type="text" class="price" value="0"></td>
+                    <td><input type="text" class="amount total-amount-input" value="0.00/="></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <table class="totals">
+            <tr>
+                <td class="label" style="width: 80%;">Gross Total:</td>
+                <td><input type="text" id="grossTotal" class="total-amount-input" style="font-weight:bold;" readonly></td>
+            </tr>
+            <tr>
+                <td class="label">Cartage:</td>
+                <td><input type="text" id="cartage" class="total-amount-input" value="0/="></td>
+            </tr>
+            <tr>
+                <td class="label"><b>Net Total:</b></td>
+                <td><input type="text" id="netTotal" class="total-amount-input" style="font-weight:bold;" readonly></td>
+            </tr>
+        </table>
+
+        <div class="signature">
+            <div class="signature-left">
+                Payment Terms: <input type="text" id="paymentTerms" placeholder="Enter Payment Terms">
+            </div>
+            <div class="signature-right">
+                <div class="signature-heading">Authorized Signature</div>
+                <svg width="200" height="80" viewBox="0 0 300 120" xmlns="http://www.w3.org/2000/svg">
+                    <path class="signature-path" d="
+                        M50,40 
+                        C30,10 80,10 60,40 
+                        C40,70 20,60 30,90 
+                        C40,110 70,100 80,80
+                        L90,30
+                        L80,120
+                        M80,70 L110,60
+                        L120,20 L115,130
+                        C115,130 120,90 130,80
+                        C135,70 140,100 145,90
+                        C150,80 155,100 160,90
+                        C165,80 170,100 175,90
+                        C180,80 185,100 190,90
+                        C195,80 200,100 205,90
+                        C210,80 215,100 220,90
+                        C225,80 230,100 235,90
+                        C240,80 245,100 250,90
+                        L280,70
+                    " />
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
+            authDomain: "bet-acc-software.firebaseapp.com",
+            projectId: "bet-acc-software",
+            storageBucket: "bet-acc-software.firebasestorage.app",
+            messagingSenderId: "879522152449",
+            appId: "1:879522152449:web:73b8ef899d5c1cbfd90000"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        let isEditing = false;
+        let originalDocNumber = null;
+        const DEFAULT_STARTING_NUMBER = 0;
+
+        function formatCurrency(value) {
+            const num = parseFloat(value) || 0;
+            return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '/=';
+        }
+
+        function parseCurrency(value) {
+            return parseFloat(String(value).replace(/,/g, '').replace('/=', '')) || 0;
+        }
+
+        async function getNextInvoiceNumber() {
+            try {
+                const q = query(collection(db, "generalPurchaseInvoices"), orderBy("numericNumber", "desc"), limit(1));
+                const snapshot = await getDocs(q);
+                
+                let lastNumber = DEFAULT_STARTING_NUMBER;
+                if (!snapshot.empty) {
+                    const lastDoc = snapshot.docs[0].data();
+                    lastNumber = parseInt(lastDoc.numericNumber, 10);
+                }
+                return 'GPI-' + String(lastNumber + 1).padStart(5, '0');
+            } catch (error) {
+                console.error("Error getting next invoice number:", error);
+                return 'GPI-' + String(DEFAULT_STARTING_NUMBER + 1).padStart(5, '0');
+            }
+        }
+
+        function calculateManualTotals() {
+            let grossTotal = 0;
+            document.querySelectorAll('.amount').forEach(amountInput => {
+                grossTotal += parseCurrency(amountInput.value);
+            });
+
+            const cartage = parseCurrency(document.getElementById('cartage').value);
+            const netTotal = grossTotal + cartage;
+
+            document.getElementById('grossTotal').value = formatCurrency(grossTotal);
+            document.getElementById('netTotal').value = formatCurrency(netTotal);
+        }
+        
+        // Function to format currency input (retains the manual entry capability)
+        function formatInputAsCurrency(event) {
+            const input = event.target;
+            let value = input.value.replace(/,/g, '').replace('/=', '').replace(/[^0-9.]/g, '');
+            
+            if (value === '') {
+                input.value = '0.00/=';
+            } else {
+                let parsedValue = parseFloat(value);
+                if (isNaN(parsedValue)) { 
+                    input.value = '0.00/='; 
+                } else {
+                    input.value = formatCurrency(parsedValue);
+                }
+            }
+            calculateManualTotals();
+        }
+
+        function attachManualListeners(row) {
+            // Only attach currency formatter to the Amount field
+            const amountInput = row.querySelector('.amount');
+            if (amountInput) {
+                amountInput.removeEventListener('blur', formatInputAsCurrency);
+                amountInput.addEventListener('blur', formatInputAsCurrency);
+                amountInput.removeEventListener('input', calculateManualTotals); // Recalculate totals on input change
+                amountInput.addEventListener('input', calculateManualTotals);
+            }
+            
+            // All inputs recalculate totals on input
+            const inputs = row.querySelectorAll('.quantity, .description, .weightKg, .price');
+            inputs.forEach(input => {
+                input.removeEventListener('input', calculateManualTotals);
+                input.addEventListener('input', calculateManualTotals);
+            });
+        }
+
+        window.addRow = function() {
+            const newRow = document.createElement('tr');
+            newRow.innerHTML = `
+                <td><input type="text" class="quantity" value="0"></td>
+                <td><input type="text" class="description"></td>
+                <td><input type="text" class="weightKg" value="0.00"></td>
+                <td><input type="text" class="price" value="0"></td>
+                <td><input type="text" class="amount total-amount-input" value="0.00/="></td>
+            `;
+            document.getElementById('invoice-body').appendChild(newRow);
+            attachManualListeners(newRow);
+            calculateManualTotals();
+        };
+        
+        function populateForm(doc) {
+            document.getElementById('invoiceNumber').value = doc.number;
+            document.getElementById('invoiceDate').value = doc.date;
+            document.getElementById('partyName').value = doc.party;
+            document.getElementById('paymentMethod').value = doc.paymentMethod;
+            document.getElementById('paymentTerms').value = doc.paymentTerms || '';
+
+            const tbody = document.getElementById('invoice-body');
+            tbody.innerHTML = '';
+
+            doc.lineItems.forEach(item => {
+                const newRow = document.createElement('tr');
+                newRow.innerHTML = `
+                    <td><input type="text" class="quantity" value="${item.quantity}"></td>
+                    <td><input type="text" class="description" value="${item.description}"></td>
+                    <td><input type="text" class="weightKg" value="${item.weightKg}"></td>
+                    <td><input type="text" class="price" value="${item.price}"></td>
+                    <td><input type="text" class="amount total-amount-input" value="${formatCurrency(item.amount)}"></td>
+                `;
+                tbody.appendChild(newRow);
+                attachManualListeners(newRow);
+            });
+            
+            // Cartage formatting and listener
+            const cartageInput = document.getElementById('cartage');
+            cartageInput.value = formatCurrency(doc.cartage || 0);
+            cartageInput.removeEventListener('blur', formatInputAsCurrency);
+            cartageInput.addEventListener('blur', formatInputAsCurrency);
+            cartageInput.removeEventListener('input', calculateManualTotals);
+            cartageInput.addEventListener('input', calculateManualTotals);
+
+            calculateManualTotals();
+        }
+
+        function getLineItemsData() {
+            const lineItems = [];
+            document.querySelectorAll('#invoice-body tr').forEach(row => {
+                const quantityInput = row.querySelector('.quantity');
+                const descriptionInput = row.querySelector('.description');
+                const weightKgInput = row.querySelector('.weightKg');
+                const priceInput = row.querySelector('.price');
+                const amountInput = row.querySelector('.amount');
+                
+                const amount = parseCurrency(amountInput.value);
+
+                if (descriptionInput.value.trim() !== '' || amount !== 0) {
+                    lineItems.push({
+                        quantity: quantityInput.value,
+                        description: descriptionInput.value,
+                        weightKg: weightKgInput.value,
+                        price: priceInput.value,
+                        amount: amount
+                    });
+                }
+            });
+            return lineItems;
+        }
+        
+        window.saveInvoice = async function() {
+            const invoiceNumber = document.getElementById('invoiceNumber').value;
+            const invoiceDate = document.getElementById('invoiceDate').value;
+            const partyName = document.getElementById('partyName').value;
+            const paymentMethod = document.getElementById('paymentMethod').value;
+            const paymentTerms = document.getElementById('paymentTerms').value;
+            
+            calculateManualTotals();
+
+            const cartage = parseCurrency(document.getElementById('cartage').value);
+            const grossTotal = parseCurrency(document.getElementById('grossTotal').value);
+            const netTotal = parseCurrency(document.getElementById('netTotal').value);
+            const lineItems = getLineItemsData();
+
+            if (!invoiceNumber || !invoiceDate || !partyName) {
+                alert("Please fill in Invoice Number, Date, and Party Name.");
+                return;
+            }
+            if (netTotal === 0 && lineItems.length === 0) {
+                if (!confirm("The net total is zero and there are no line items. Do you want to save this invoice?")) {
+                    return;
+                }
+            }
+
+            try {
+                const numericNumber = parseInt(invoiceNumber.replace('GPI-', ''), 10);
+                const baseTimestamp = Date.now();
+
+                let itemDescriptions = lineItems.map(item => item.description).filter(d => d.trim() !== '');
+                let goodsSummary = "Services Purchased";
+                if (itemDescriptions.length > 0) {
+                    if (itemDescriptions.length === 1) {
+                        goodsSummary = itemDescriptions[0];
+                    } else if (itemDescriptions.length === 2) {
+                        goodsSummary = `${itemDescriptions[0]} and ${itemDescriptions[1]}`;
+                    } else {
+                        goodsSummary = `${itemDescriptions[0]} & ${itemDescriptions.length - 1} other items`;
+                    }
+                }
+                const purchaseDescription = `Service purchase from ${partyName}: ${goodsSummary}`;
+                
+                const invoiceData = {
+                    type: 'General Purchase Invoice',
+                    number: invoiceNumber,
+                    numericNumber: numericNumber,
+                    date: invoiceDate,
+                    party: partyName,
+                    paymentMethod: paymentMethod,
+                    paymentTerms: paymentTerms,
+                    lineItems: lineItems,
+                    cartage: cartage,
+                    grossTotal: grossTotal,
+                    netTotal: netTotal, // Renamed from grandTotal for consistency
+                    timestamp: new Date(baseTimestamp).toISOString()
+                };
+
+                await setDoc(doc(db, "generalPurchaseInvoices", invoiceNumber), invoiceData);
+                console.log("✓ General Purchase Invoice saved to generalPurchaseInvoices collection");
+
+                if (isEditing && originalDocNumber && originalDocNumber !== invoiceNumber) {
+                    await deleteDoc(doc(db, "generalPurchaseInvoices", originalDocNumber));
+                    const oldLedgerQuery = query(collection(db, "ledger"), where("doc_number", "==", originalDocNumber));
+                    const oldLedgerSnapshot = await getDocs(oldLedgerQuery);
+                    for (const docSnap of oldLedgerSnapshot.docs) {
+                        await deleteDoc(doc(db, "ledger", docSnap.id));
+                    }
+                    console.log("✓ Old invoice and related ledger entries deleted");
+                }
+
+                const existingLedgerQuery = query(collection(db, "ledger"), where("doc_number", "==", invoiceNumber));
+                const existingLedgerSnapshot = await getDocs(existingLedgerQuery);
+                for (const docSnap of existingLedgerSnapshot.docs) {
+                    await deleteDoc(doc(db, "ledger", docSnap.id));
+                }
+                console.log("✓ Existing ledger entries cleared");
+                
+                const ledgerEntries = [];
+                
+                // Ledger Entry 1: DR Service Expenses (or Cost of Service) - Gross Total
+                if (grossTotal !== 0) {
+                    ledgerEntries.push({
+                        date: invoiceDate,
+                        doc_number: invoiceNumber,
+                        account: "Service Expenses", 
+                        party: partyName,
+                        debit: grossTotal,
+                        credit: 0,
+                        description: `Service expenses paid to ${partyName} for job/dying.`,
+                        goods_summary: goodsSummary,
+                        timestamp: new Date(baseTimestamp).toISOString()
+                    });
+                }
+               
+                // Ledger Entry 2: DR Cartage Expense
+                if (cartage > 0) {
+                    ledgerEntries.push({
+                        date: invoiceDate,
+                        doc_number: invoiceNumber,
+                        account: "Cartage Expense",
+                        party: partyName,
+                        debit: cartage,
+                        credit: 0,
+                        description: `Cartage expense paid to ${partyName}.`,
+                        goods_summary: "Cartage",
+                        timestamp: new Date(baseTimestamp + 1).toISOString()
+                    });
+                }
+
+                // Ledger Entry 3: CR Accounts Payable (Vendor) - Net Total
+                if (netTotal !== 0) {
+                    ledgerEntries.push({
+                        date: invoiceDate,
+                        doc_number: invoiceNumber,
+                        account: partyName, 
+                        party: partyName,
+                        debit: 0,
+                        credit: netTotal,
+                        description: purchaseDescription,
+                        goods_summary: goodsSummary,
+                        timestamp: new Date(baseTimestamp + 2).toISOString()
+                    });
+                }
+
+                for (let i = 0; i < ledgerEntries.length; i++) {
+                    const entry = ledgerEntries[i];
+                    const ledgerDocRef = doc(collection(db, "ledger"));
+                    await setDoc(ledgerDocRef, entry);
+                }
+                console.log("✓ All ledger entries saved successfully");
+
+                alert(isEditing ? `General Purchase Invoice ${invoiceNumber} updated successfully!` : `New General Purchase Invoice ${invoiceNumber} saved successfully!`);
+                window.location.href = 'documents.html';
+            } catch (error) {
+                console.error("❌ Error saving invoice:", error);
+                alert("Error saving invoice: " + error.message);
+            }
+        };
+
+        window.deleteInvoice = async function() {
+            const invoiceNumber = document.getElementById('invoiceNumber').value;
+            if (!confirm(`Are you sure you want to delete General Purchase Invoice ${invoiceNumber}? This action cannot be undone.`)) {
+                return;
+            }
+
+            try {
+                const ledgerQuery = query(collection(db, "ledger"), where("doc_number", "==", invoiceNumber));
+                const ledgerSnapshot = await getDocs(ledgerQuery);
+                for (const docSnap of ledgerSnapshot.docs) {
+                    await deleteDoc(doc(db, "ledger", docSnap.id));
+                }
+                console.log(`✓ All ${ledgerSnapshot.size} ledger entries deleted`);
+                
+                await deleteDoc(doc(db, "generalPurchaseInvoices", invoiceNumber));
+                console.log(`✓ General Purchase Invoice document deleted`);
+
+                alert(`General Purchase Invoice ${invoiceNumber} and all related ledger entries deleted successfully.`);
+                window.location.href = 'documents.html';
+            } catch (error) {
+                console.error("❌ Error deleting invoice:", error);
+                alert("Error deleting invoice: " + error.message);
+            }
+        };
+
+        window.generatePDF = function() {
+            const element = document.getElementById('invoice-content');
+            const opt = {
+                margin: 0.5,
+                filename: `General-Purchase-Invoice-${document.getElementById('invoiceNumber').value}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true, logging: false },
+                jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+            };
+
+            const watermarkDiv = document.querySelector('.watermark');
+            if (watermarkDiv) {
+                watermarkDiv.style.position = 'absolute';
+                watermarkDiv.style.zIndex = '1';
+            }
+
+            html2pdf().set(opt).from(element).save().then(() => {
+                if (watermarkDiv) {
+                    watermarkDiv.style.position = 'fixed';
+                    watermarkDiv.style.zIndex = '1000';
+                }
+            });
+        };
+
+        document.addEventListener('DOMContentLoaded', async function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const editNumber = urlParams.get('edit');
+
+            // Set date in YYYY-MM-DD format for date input
+            const today = new Date();
+            const formattedDate = today.toISOString().split('T')[0];
+            document.getElementById('invoiceDate').value = formattedDate;
+
+            if (editNumber) {
+                const cleanNumber = editNumber; 
+                try {
+                    const docRef = doc(db, "generalPurchaseInvoices", cleanNumber);
+                    const docSnap = await getDoc(docRef);
+                    
+                    if (docSnap.exists()) {
+                        populateForm(docSnap.data());
+                        isEditing = true;
+                        originalDocNumber = cleanNumber;
+                        document.getElementById('deleteButton').style.display = 'inline-block';
+                    } else {
+                        alert("General Purchase Invoice not found.");
+                        window.location.href = 'documents.html';
+                    }
+                } catch (error) {
+                    console.error("Error loading invoice:", error);
+                    alert("Error loading invoice.");
+                }
+            } else {
+                const nextNumber = await getNextInvoiceNumber();
+                document.getElementById('invoiceNumber').value = nextNumber;
+                
+                document.getElementById('deleteButton').style.display = 'none';
+            }
+
+            // Initial setup of listeners for cartage and existing rows
+            const cartageInput = document.getElementById('cartage');
+            cartageInput.addEventListener('blur', formatInputAsCurrency);
+            cartageInput.addEventListener('input', calculateManualTotals);
+            
+            document.querySelectorAll('#invoice-body tr').forEach(row => attachManualListeners(row));
+            
+            calculateManualTotals();
+        });
+    </script>
+</body>
+</html>
