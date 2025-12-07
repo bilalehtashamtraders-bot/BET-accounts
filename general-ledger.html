@@ -457,7 +457,6 @@
                     }
                 } else {
                     // Include entries without doc_number/doc_type, as we can't reliably deduplicate them
-                    // This is an imperfect solution, but required if valid documents are missing keys.
                     uniqueEntries.push(entry);
                 }
             }
@@ -482,30 +481,33 @@
                     rawEntries.push(doc.data());
                 });
                 
-                // 1. **CRITICAL FIX (Final Attempt): Filter out orphaned (deleted) entries**
-                // An entry for a valid transaction MUST have both a doc_number AND a doc_type.
-                // Reverting to the strict check to eliminate deleted entries reliably.
+                // 1. **CRITICAL FIX: Targeted Hybrid Filter**
+                // Keep if:
+                // 1. It has a COMPLETE document reference (Fixes deleted entries that lose value/account).
+                // OR
+                // 2. It has a non-zero VALUE AND a valid ACCOUNT NAME (Fixes new entries missing ref keys).
                 const filteredEntries = rawEntries.filter(entry => {
                     const docNumberPresent = entry.doc_number && String(entry.doc_number).trim() !== '';
                     const docTypePresent = entry.doc_type && String(entry.doc_type).trim() !== '';
                     
-                    // Keep the entry only if both document reference fields are present
-                    return docNumberPresent && docTypePresent;
+                    const hasCompleteReference = docNumberPresent && docTypePresent;
+                    
+                    // Check if entry has any financial value
+                    const debit = parseFloat(entry.debit || 0) || 0;
+                    const credit = parseFloat(entry.credit || 0) || 0;
+                    const hasValue = debit !== 0 || credit !== 0;
+
+                    // Check for a usable account name
+                    const accountName = getAccountName(entry);
+                    const hasValidAccountName = accountName && accountName !== 'Unknown';
+
+                    // Final Condition: Keep if fully referenced OR if it is a transaction with a value AND an account
+                    return hasCompleteReference || (hasValue && hasValidAccountName);
                 });
                 
                 if (rawEntries.length !== filteredEntries.length) {
                     const removedCount = rawEntries.length - filteredEntries.length;
-                    console.warn(`Filtered ${removedCount} orphaned/deleted entries by checking for missing Doc # or Doc Type.`);
-                    // Log the first few removed entries for internal diagnostics
-                    rawEntries.filter(entry => !filteredEntries.includes(entry)).slice(0, 5).forEach(removedEntry => {
-                        console.log("Orphaned Entry Removed:", {
-                            doc_number: removedEntry.doc_number,
-                            doc_type: removedEntry.doc_type,
-                            debit: removedEntry.debit,
-                            credit: removedEntry.credit,
-                            description: removedEntry.description
-                        });
-                    });
+                    console.warn(`Filtered ${removedCount} orphaned/zero-value entries using the targeted hybrid check (Doc Ref OR Value+Account).`);
                 }
                 
                 // 2. Apply de-duplication (on the already filtered set)
