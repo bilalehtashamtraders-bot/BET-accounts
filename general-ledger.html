@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>General Ledger - Bilal Ehtasham Traders</title>
     <style>
-        /* [Existing Styles remain here] */
+        /* ... (CSS remains the same) ... */
         body {
             font-family: Arial, sans-serif;
             margin: 0;
@@ -331,109 +331,71 @@
         let uniqueAccounts = new Set();
 
         /**
-         * @description Corrected and Enhanced Date parsing function to handle multiple formats 
-         * and return a consistent millisecond value for sorting (midnight UTC).
-         * @param {string} dateStr The date string from the ledger entry.
-         * @returns {number} UTC milliseconds since epoch (midnight of the date), or 0 if parsing fails.
+         * Parses the date string and returns consistent millisecond value for sorting.
          */
         function parseDateToMillis(dateStr) {
             if (!dateStr) return 0;
-            
-            // 1. Check if it's already a Date object (e.g., from Firestore Timestamp/Date field)
             if (dateStr instanceof Date) {
-                // Normalize to midnight UTC for transaction date sorting
                 return Date.UTC(dateStr.getFullYear(), dateStr.getMonth(), dateStr.getDate());
             }
-
-            // 2. Handle YYYY-MM-DD format (new standard format)
             if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
                 const [year, month, day] = dateStr.split('-');
-                // We parse to a Date object set to midnight UTC for consistent date comparison
                 const date = new Date(Date.UTC(year, parseInt(month, 10) - 1, day));
                 if (!isNaN(date.getTime())) return date.getTime();
             }
-            
-            // 3. Handle DD-MM-YYYY format (old format)
             const parts = dateStr.split(/[-/]/);
             if (parts.length === 3) {
                 const day = parseInt(parts[0], 10);
-                const month = parseInt(parts[1], 10) - 1; // Months are 0-indexed
+                const month = parseInt(parts[1], 10) - 1; 
                 const year = parseInt(parts[2], 10);
-                
                 if (day > 0 && month >= 0 && month <= 11 && year > 1900) {
-                    // Use UTC for consistent date comparison
                     const date = new Date(Date.UTC(year, month, day));
                     if (!isNaN(date.getTime())) return date.getTime();
                 }
             }
-            
-            // 4. Fallback: Try parsing as-is and normalizing to midnight UTC
             const fallbackDate = new Date(dateStr);
             if (!isNaN(fallbackDate.getTime())) {
                  return Date.UTC(fallbackDate.getFullYear(), fallbackDate.getMonth(), fallbackDate.getDate());
             }
-
-            return 0; // Return 0 for invalid dates
+            return 0;
         }
 
         /**
-         * @description Formats the date string into the requested DD/MM/YYYY format.
-         * @param {string} dateStr The date string from the ledger entry.
-         * @returns {string} The formatted date string.
+         * Formats the date string into the requested DD/MM/YYYY format.
          */
         function formatDateForDisplay(dateStr) {
-            // Get the normalized millisecond value for the date
             const dateMillis = parseDateToMillis(dateStr); 
-            if (dateMillis === 0) return 'N/A'; // If parsing failed
-
-            // Create a Date object from the UTC milliseconds
+            if (dateMillis === 0) return 'N/A';
             const date = new Date(dateMillis);
-            
-            // Use the date's UTC components for display consistency
             const day = String(date.getUTCDate()).padStart(2, '0');
             const month = String(date.getUTCMonth() + 1).padStart(2, '0');
             const year = date.getUTCFullYear();
-            
-            // **Required format: DD/MM/YYYY**
             return `${day}/${month}/${year}`; 
         }
 
         /**
-         * @description Generates sort keys for an entry.
-         * @param {object} entry The ledger entry object.
-         * @returns {{dateMillis: number, fullTimestampMillis: number}} Sort keys.
+         * Generates sort keys for an entry.
          */
         function getEntrySortKey(entry) {
-            // Primary sort key: Transaction Date (dateMillis)
             const dateMillis = parseDateToMillis(entry.date); 
-            
-            // Secondary sort key: Creation Time (full UTC timestamp)
             let fullTimestampMillis = 0;
             if (entry.timestamp) {
-                // Assuming entry.timestamp is a valid date/timestamp string or object
                 const timestampDate = new Date(entry.timestamp);
                 if (!isNaN(timestampDate.getTime())) {
                     fullTimestampMillis = timestampDate.getTime();
                 }
             }
-            
-            // If the date is invalid (dateMillis === 0), use the creation time for a stable sort
-            // Otherwise, prioritize the dateMillis.
             const primarySortValue = dateMillis > 0 ? dateMillis : 0;
             const secondarySortValue = fullTimestampMillis > 0 ? fullTimestampMillis : 0;
-
             return { dateMillis: primarySortValue, fullTimestampMillis: secondarySortValue };
         }
 
         function getAccountName(entry) {
-            // Priority: Account > accountType > doc_type (as a last resort)
             return entry.account || entry.accountType || entry.doc_type || 'Unknown';
         }
         
         /**
-         * @description Removes duplicate entries based on Doc # and Doc Type.
-         * @param {Array<object>} entries The list of raw ledger entries.
-         * @returns {Array<object>} The list of unique ledger entries.
+         * Removes duplicate entries based on Doc # and Doc Type.
          */
         function removeDuplicateEntries(entries) {
             const seen = new Set();
@@ -444,10 +406,8 @@
                 const docNumber = entry.doc_number ? String(entry.doc_number).toUpperCase().trim() : '';
                 const docType = entry.doc_type ? String(entry.doc_type).toUpperCase().trim() : '';
 
-                // A composite key for uniqueness
                 const key = `${docNumber}-${docType}`;
 
-                // Only check for duplicates if both doc_number and doc_type are present
                 if (docNumber && docType) {
                     if (!seen.has(key)) {
                         seen.add(key);
@@ -456,7 +416,6 @@
                         duplicatesRemoved++;
                     }
                 } else {
-                    // Include entries without doc_number/doc_type, as we can't reliably deduplicate them
                     uniqueEntries.push(entry);
                 }
             }
@@ -478,19 +437,18 @@
                 
                 let rawEntries = [];
                 snapshot.forEach(doc => {
-                    rawEntries.push(doc.data());
+                    // Add the Firestore Document ID to the entry for potential exclusion if needed later
+                    const data = doc.data();
+                    data.doc_id = doc.id; 
+                    rawEntries.push(data);
                 });
                 
-                // 1. **CRITICAL FIX: Targeted Hybrid Filter**
-                // Keep if:
-                // 1. It has a COMPLETE document reference (Fixes deleted entries that lose value/account).
-                // OR
-                // 2. It has a non-zero VALUE AND a valid ACCOUNT NAME (Fixes new entries missing ref keys).
+                // 1. **FINAL STRIKE FILTER: Targeted Hybrid Filter with simple Doc# exclusion**
                 const filteredEntries = rawEntries.filter(entry => {
-                    const docNumberPresent = entry.doc_number && String(entry.doc_number).trim() !== '';
+                    const docNumber = String(entry.doc_number || '').trim();
                     const docTypePresent = entry.doc_type && String(entry.doc_type).trim() !== '';
                     
-                    const hasCompleteReference = docNumberPresent && docTypePresent;
+                    const hasCompleteReference = docNumber !== '' && docTypePresent;
                     
                     // Check if entry has any financial value
                     const debit = parseFloat(entry.debit || 0) || 0;
@@ -501,13 +459,30 @@
                     const accountName = getAccountName(entry);
                     const hasValidAccountName = accountName && accountName !== 'Unknown';
 
-                    // Final Condition: Keep if fully referenced OR if it is a transaction with a value AND an account
+                    // === Exclusion Check for Corrupted Entries ===
+                    
+                    // Check if doc_number is *only* numeric and short (e.g., "00003")
+                    const isSimpleNumericDoc = /^\d+$/.test(docNumber) && docNumber.length <= 5;
+
+                    // If an entry is incomplete (missing doc_type) AND looks like a simple, old, numeric ID, 
+                    // we assume it is a deleted/corrupt entry and filter it out.
+                    const isPotentiallyCorruptOldEntry = !docTypePresent && isSimpleNumericDoc;
+
+                    if (isPotentiallyCorruptOldEntry) {
+                        return false; // Exclude entries lacking doc_type AND having a simple numeric ID
+                    }
+                    
+                    // === Inclusion Check ===
+                    // Keep if:
+                    // 1. Fully referenced (ideal document entry)
+                    // OR
+                    // 2. Has value AND a valid account (Allows incomplete new journal entries/transactions)
                     return hasCompleteReference || (hasValue && hasValidAccountName);
                 });
                 
                 if (rawEntries.length !== filteredEntries.length) {
                     const removedCount = rawEntries.length - filteredEntries.length;
-                    console.warn(`Filtered ${removedCount} orphaned/zero-value entries using the targeted hybrid check (Doc Ref OR Value+Account).`);
+                    console.warn(`Filtered ${removedCount} orphaned/corrupt entries using the document reference + simple Doc# exclusion check.`);
                 }
                 
                 // 2. Apply de-duplication (on the already filtered set)
@@ -521,17 +496,14 @@
                     }
                 });
 
-                // 3. Sort entries by TRANSACTION DATE, then by CREATION TIMESTAMP
+                // 3. Sort entries
                 allLedgerEntries.sort((a, b) => {
                     const keyA = getEntrySortKey(a);
                     const keyB = getEntrySortKey(b);
                     
-                    // **Primary Sort: Transaction Date (ascending - oldest first)**
                     if (keyA.dateMillis !== keyB.dateMillis) {
                         return keyA.dateMillis - keyB.dateMillis;
                     }
-                    
-                    // **Secondary Sort: Creation Timestamp (ascending)** for same-day entries
                     return keyA.fullTimestampMillis - keyB.fullTimestampMillis;
                 });
                 
@@ -547,6 +519,9 @@
             }
         }
 
+        // ... (Functions populateAccountFilter, displayLedger, filterLedger, resetFilterState, 
+        // resetLedger, viewDocument, and generatePDF remain the same) ...
+        
         function populateAccountFilter() {
             const accountFilter = document.getElementById('account-filter');
             accountFilter.innerHTML = '<option value="">All Accounts</option>';
@@ -578,7 +553,6 @@
 
             entries.forEach((entry) => {
                 const row = ledgerBody.insertRow();
-                // Ensure debit/credit are treated as numbers, defaulting to 0
                 const debit = parseFloat(entry.debit || 0) || 0;
                 const credit = parseFloat(entry.credit || 0) || 0;
                 
@@ -588,10 +562,9 @@
                 const docNumber = entry.doc_number || '';
                 const docCellContent = docNumber ? 
                     `<span class="doc-link" onclick="window.viewDocument('${docNumber}', '${entry.doc_type || ''}')">${docNumber}</span>` : 
-                    'N/A'; // Pass doc_type for better targeting
+                    'N/A'; 
                 
                 const displayDescription = entry.description || '';
-                // 3. Display date in DD/MM/YYYY format after robust parsing
                 const displayDate = formatDateForDisplay(entry.date);
                 
                 row.innerHTML = `
@@ -640,17 +613,13 @@
                 });
             }
             
-            // Re-sort the filtered subset using the established logic
             filteredEntries.sort((a, b) => {
                 const keyA = getEntrySortKey(a);
                 const keyB = getEntrySortKey(b);
                 
-                // Primary sort by Transaction Date (dateMillis)
                 if (keyA.dateMillis !== keyB.dateMillis) {
                     return keyA.dateMillis - keyB.dateMillis;
                 }
-                
-                // Secondary sort by Creation Timestamp (fullTimestampMillis)
                 return keyA.fullTimestampMillis - keyB.fullTimestampMillis;
             });
 
@@ -682,7 +651,6 @@
             const upperDoc = docNumber.toUpperCase();
             const upperDocType = docType.toUpperCase();
             
-            // Priority 1: Map based on explicit docType
             if (upperDocType.includes('RECEIPT') || upperDoc.startsWith('CR-')) {
                 targetURL = `receipt.html?edit=${docNumber}`;
             } else if (upperDocType.includes('VENDOR_PAYMENT') || upperDoc.startsWith('VP-')) {
@@ -698,7 +666,6 @@
             } else if (upperDocType.includes('JOURNAL') || upperDoc.startsWith('JE-')) {
                 targetURL = `journal-entry.html?edit=${docNumber}`;
             } 
-            // Fallback for older/unprefixed Sale Invoices
             else if (!isNaN(parseInt(upperDoc)) && upperDoc.length >= 5) {
                 targetURL = `invoice.html?edit=${upperDoc}`;
             }
