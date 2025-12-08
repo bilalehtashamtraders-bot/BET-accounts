@@ -392,8 +392,11 @@
                 const docNumber = entry.doc_number ? String(entry.doc_number).toUpperCase().trim() : '';
                 const docType = entry.doc_type ? String(entry.doc_type).toUpperCase().trim() : '';
                 const account = getAccountName(entry);
+                const debit = parseFloat(entry.debit || 0);
+                const credit = parseFloat(entry.credit || 0);
 
-                const key = `${docNumber}-${docType}-${account}`;
+                // Create unique key including account, amount and debit/credit direction
+                const key = `${docNumber}-${docType}-${account}-${debit}-${credit}`;
 
                 if (docNumber && docType) {
                     if (!seen.has(key)) {
@@ -401,6 +404,7 @@
                         uniqueEntries.push(entry);
                     } else {
                         duplicatesRemoved++;
+                        console.warn(`Duplicate removed: ${key}`);
                     }
                 } else {
                     uniqueEntries.push(entry);
@@ -453,6 +457,7 @@
                     console.warn(`Filtered ${removedCount} potentially corrupt/orphaned entries.`);
                 }
                 
+                // Remove duplicates with enhanced key
                 allLedgerEntries = removeDuplicateEntries(filteredEntries);
 
                 uniqueAccounts.clear();
