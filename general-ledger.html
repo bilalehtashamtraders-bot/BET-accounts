@@ -437,18 +437,15 @@
                 
                 let rawEntries = [];
                 snapshot.forEach(doc => {
-                    // Add the Firestore Document ID to the entry for potential exclusion if needed later
                     const data = doc.data();
                     data.doc_id = doc.id; 
                     rawEntries.push(data);
                 });
                 
-                // 1. **FINAL STRIKE FILTER: Targeted Hybrid Filter with simple Doc# exclusion**
+                // 1. **REVISED FILTER: Explicitly keeping receipts and improving general inclusion**
                 const filteredEntries = rawEntries.filter(entry => {
-                    const docNumber = String(entry.doc_number || '').trim();
-                    const docTypePresent = entry.doc_type && String(entry.doc_type).trim() !== '';
-                    
-                    const hasCompleteReference = docNumber !== '' && docTypePresent;
+                    const docNumber = String(entry.doc_number || '').toUpperCase().trim();
+                    const docType = String(entry.doc_type || '').toUpperCase().trim();
                     
                     // Check if entry has any financial value
                     const debit = parseFloat(entry.debit || 0) || 0;
@@ -459,30 +456,46 @@
                     const accountName = getAccountName(entry);
                     const hasValidAccountName = accountName && accountName !== 'Unknown';
 
-                    // === Exclusion Check for Corrupted Entries ===
+                    // === Inclusion Logic ===
                     
-                    // Check if doc_number is *only* numeric and short (e.g., "00003")
-                    const isSimpleNumericDoc = /^\d+$/.test(docNumber) && docNumber.length <= 5;
-
-                    // If an entry is incomplete (missing doc_type) AND looks like a simple, old, numeric ID, 
-                    // we assume it is a deleted/corrupt entry and filter it out.
-                    const isPotentiallyCorruptOldEntry = !docTypePresent && isSimpleNumericDoc;
-
-                    if (isPotentiallyCorruptOldEntry) {
-                        return false; // Exclude entries lacking doc_type AND having a simple numeric ID
+                    // A) Explicitly include Receipt/Vendor Payment/Journal Entries
+                    if (docType.includes('RECEIPT') || docNumber.startsWith('CR-') || 
+                        docType.includes('VENDOR_PAYMENT') || docNumber.startsWith('VP-') ||
+                        docType.includes('JOURNAL') || docNumber.startsWith('JE-')) {
+                        return true; 
                     }
                     
-                    // === Inclusion Check ===
-                    // Keep if:
-                    // 1. Fully referenced (ideal document entry)
-                    // OR
-                    // 2. Has value AND a valid account (Allows incomplete new journal entries/transactions)
-                    return hasCompleteReference || (hasValue && hasValidAccountName);
+                    // B) Include Sales/Purchase if they have a Doc Number (SI, PI, GSI, GPI)
+                    if (docNumber.startsWith('SI-') || docNumber.startsWith('PI-') || 
+                        docNumber.startsWith('GSI-') || docNumber.startsWith('GPI-')) {
+                        return true;
+                    }
+                    
+                    // C) General Inclusion for entries that look like a transaction but might lack a clean doc_type
+                    if (hasValue && hasValidAccountName && docNumber !== '') {
+                        return true;
+                    }
+                    
+                    // D) Last ditch effort: if it has value and a valid account, keep it (this is for older/manual entries)
+                    if (hasValue && hasValidAccountName) {
+                        return true;
+                    }
+
+
+                    // === Exclusion Logic === (Only entries that fail all inclusion checks are removed)
+                    
+                    // Exclusion check: If the entry has NO financial value AND NO document number/type, it is likely corrupt.
+                    if (!hasValue && docNumber === '' && docType === '') {
+                        return false; 
+                    }
+                    
+                    // If it is none of the above, it gets filtered out by default.
+                    return false;
                 });
                 
                 if (rawEntries.length !== filteredEntries.length) {
                     const removedCount = rawEntries.length - filteredEntries.length;
-                    console.warn(`Filtered ${removedCount} orphaned/corrupt entries using the document reference + simple Doc# exclusion check.`);
+                    console.warn(`Filtered ${removedCount} potentially corrupt/orphaned entries.`);
                 }
                 
                 // 2. Apply de-duplication (on the already filtered set)
@@ -519,9 +532,7 @@
             }
         }
 
-        // ... (Functions populateAccountFilter, displayLedger, filterLedger, resetFilterState, 
-        // resetLedger, viewDocument, and generatePDF remain the same) ...
-        
+
         function populateAccountFilter() {
             const accountFilter = document.getElementById('account-filter');
             accountFilter.innerHTML = '<option value="">All Accounts</option>';
