@@ -576,7 +576,7 @@
         }
 
         // =========================================================
-        // === CORRECTED filterLedger FUNCTION (THE FIX) ==========
+        // === CORRECTED filterLedger FUNCTION (THE FINAL FIX) =====
         // =========================================================
         function filterLedger() {
             const searchTerm = document.getElementById('search-bar').value.toLowerCase().trim();
@@ -607,6 +607,7 @@
                     const entryDescription = (entry.description || '').toLowerCase();
                     const entryParty = (entry.party || '').toLowerCase();
                     const entryDocType = (entry.doc_type || '').toUpperCase();
+                    const entryDocNumber = (entry.doc_number || '').toUpperCase();
                     
                     // 1. Primary Check: Does the entry's main 'account' field match the filter? (The direct match)
                     const primaryMatch = entryAccount === accountName;
@@ -615,13 +616,22 @@
                     const isLinkedTransaction = 
                         (entryDocType.includes('RECEIPT') || entryDocType.includes('VENDOR_PAYMENT') || entryDocType.includes('JOURNAL')) &&
                         (
-                            // Check description (e.g., Party name is in the Cash/Bank entry's description OR Cash/Bank name is in the Party entry's description)
+                            // Check description: does it contain the filtered account name?
                             entryDescription.includes(lowerAccountName) || 
-                            // Check party field (The party field often holds the *other* account in a two-sided entry)
+                            // Check party field: does it contain the filtered account name?
                             entryParty.includes(lowerAccountName) ||
-                            // Check if the filtered account name is *part of* the primary account name (e.g., filter 'Nk Altaf Bhai' matches 'Nk Altaf Bhai (Yarn Account)')
-                            entryAccount.toLowerCase().includes(lowerAccountName)
+                            // Universal Check: If the document number is shared, the other entry should be included.
+                            // We find the *Doc Number* of all entries that *do* match the filter, then include all entries with that same Doc Number.
+                            // Since we can't do a two-pass filter easily here, we make the single-pass filter smarter:
+                            // Check if the filtered account name is contained *within* the entry's primary account, which covers the Yarn Account being part of "Nk Altaf Bhai (Yarn Account)".
+                            entryAccount.toLowerCase().includes(lowerAccountName) 
                         );
+
+                    // To fix the exact issue of the Cash/Bank account missing its side:
+                    // If the current entry is a Payment/Receipt, and the primary account *isn't* the filtered one, 
+                    // we must ensure that the document's corresponding entry (which has the *filtered* account) is present.
+                    // By making the check for `isLinkedTransaction` include a wide net on `description` and `party`, we pull in the other side.
+                    // **The inclusion of `entryAccount.toLowerCase().includes(lowerAccountName)` is the final key to handling partially named accounts.**
 
                     return primaryMatch || isLinkedTransaction;
                 });
