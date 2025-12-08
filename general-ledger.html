@@ -445,7 +445,7 @@
                 // 1. **REVISED FILTER: Explicitly keeping receipts and improving general inclusion**
                 const filteredEntries = rawEntries.filter(entry => {
                     const docNumber = String(entry.doc_number || '').toUpperCase().trim();
-                    const docType = String(entry.doc_type || '').toUpperCase().trim();
+                    const docType = String(entry.doc_type || '').toUpperCase();
                     
                     // Check if entry has any financial value
                     const debit = parseFloat(entry.debit || 0) || 0;
@@ -599,6 +599,7 @@
         function filterLedger() {
             const searchTerm = document.getElementById('search-bar').value.toLowerCase().trim();
             const accountName = document.getElementById('account-filter').value;
+            const lowerAccountName = accountName.toLowerCase();
 
             let filteredEntries = allLedgerEntries;
 
@@ -620,7 +621,27 @@
 
             if (accountName) {
                 filteredEntries = filteredEntries.filter(entry => {
-                    return getAccountName(entry) === accountName;
+                    const entryAccount = getAccountName(entry);
+                    const entryDescription = (entry.description || '').toLowerCase();
+                    const entryDocType = (entry.doc_type || '').toUpperCase();
+                    
+                    // --- FIX FOR MISSING LINKED ENTRIES ---
+                    // 1. Primary Check: Does the entry's primary account match the filter?
+                    const primaryMatch = entryAccount === accountName;
+
+                    // 2. Secondary Check: Is this a linked Cash/Bank entry for a party transaction?
+                    // This logic attempts to catch the other side of a payment/receipt by checking the description.
+                    const isLinkedPaymentOrReceipt = 
+                        (entryDocType.includes('RECEIPT') || entryDocType.includes('VENDOR_PAYMENT')) &&
+                        entryDescription.includes(lowerAccountName); 
+
+                    // 3. Journal Entry Check: Does the description suggest the account is involved?
+                    // This helps catch the other side of a journal entry line.
+                    const isLinkedJournalEntry = 
+                        entryDocType.includes('JOURNAL') &&
+                        entryDescription.includes(lowerAccountName);
+
+                    return primaryMatch || isLinkedPaymentOrReceipt || isLinkedJournalEntry;
                 });
             }
             
