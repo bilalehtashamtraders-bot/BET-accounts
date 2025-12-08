@@ -334,10 +334,10 @@
         let lineItems = [];
         const DEFAULT_STARTING_NUMBER = 1000;
         
-        // **CODE CHANGE 1: ENHANCED FIXED_ACCOUNTS LIST**
+        // **CODE CHANGE 1: ENHANCED FIXED_ACCOUNTS LIST WITH CORRECT NAME**
         const FIXED_ACCOUNTS = [
-            "Cash", // Added for clarity
-            "Bank (HBL)", // Added for clarity
+            "Cash",
+            "Bank (HBL)",
             "Capital",
             "Drawings",
             "Drawings SadaPay (10% Account)",
@@ -347,7 +347,7 @@
             "Commission Income Account",
             "Commission Earned",
             "Service Income",
-            "Altaf Bhai fabric commission", // <-- NEW COMMISSION ACCOUNT
+            "Nk Altaf Bhai Fabric Commission", // <-- CORRECTED NAME
             // ------------------------------------
 
             "Bank Charges",
@@ -357,7 +357,7 @@
             "Office Supplies",
             "Transportation Expense",
             "Miscellaneous Expense",
-            "Unearned Revenue" // Added for completeness
+            "Unearned Revenue"
         ];
 
         // Fetch unique accounts from ledger and merge with fixed accounts
@@ -394,7 +394,7 @@
                 const sortedAccounts = Array.from(uniqueAccounts).sort();
                 
                 // Clear and populate dropdown
-                selectEl.innerHTML = '<option value="">-- Select Account --</option>'; // Added default placeholder
+                selectEl.innerHTML = '<option value="">-- Select Account --</option>'; 
                 
                 if (sortedAccounts.length === 0) {
                     selectEl.innerHTML = '<option value="">No accounts found</option>';
@@ -545,11 +545,11 @@
             document.getElementById('total-credit').textContent = totalCredit.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         }
 
-        // Helper function to determine the Party name from the account name
+        // **CODE CHANGE 2: UPDATED HELPER FUNCTION FOR NEW NAME**
         function getPartyNameFromAccount(account) {
             // If the account is a specific commission ledger, treat it as the party (for filtering)
-            if (account === "Altaf Bhai fabric commission") {
-                return "Altaf Bhai"; // Or the full account name if you prefer
+            if (account === "Nk Altaf Bhai Fabric Commission") {
+                return "Nk Altaf Bhai"; // Party name for easy filtering
             }
             
             // If the account is a generic income/expense type, leave party blank
@@ -621,19 +621,12 @@
                     console.log(`✓ Deleted ${ledgerSnapshot.size} old ledger entries`);
                 }
 
-                // **CODE CHANGE 2: IMPROVED LEDGER ENTRY SAVING**
+                // **CODE CHANGE 3: LEDGER ENTRY SAVING USES UPDATED LOGIC**
                 for (let i = 0; i < lineItems.length; i++) {
                     const item = lineItems[i];
                     
-                    // Determine which field to use for Party/Account depending on the transaction line
                     const itemAccount = item.account;
                     const itemParty = getPartyNameFromAccount(itemAccount);
-                    
-                    // If it's a specific commission ledger, we want the account name to be the specific commission name
-                    // If it's a payment/receipt to Cash/Bank/Party, we want the account to be Cash/Bank/Party.
-                    
-                    // The GL report uses the 'account' field for the main ledger name. 
-                    // When tracking 'Altaf Bhai fabric commission', the 'account' MUST be "Altaf Bhai fabric commission".
                     
                     const ledgerEntry = {
                         date: displayDate,
@@ -779,7 +772,7 @@
         window.saveJournalEntry = saveJournalEntry;
         window.deleteJournalEntry = deleteJournalEntry;
         window.generatePDF = generatePDF;
-        window.getPartyNameFromAccount = getPartyNameFromAccount; // Expose if needed elsewhere
+        window.getPartyNameFromAccount = getPartyNameFromAccount;
     </script>
 </body>
 </html>
