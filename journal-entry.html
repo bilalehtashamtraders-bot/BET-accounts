@@ -334,21 +334,30 @@
         let lineItems = [];
         const DEFAULT_STARTING_NUMBER = 1000;
         
-        // Fixed accounts that should always appear in the dropdown
+        // **CODE CHANGE 1: ENHANCED FIXED_ACCOUNTS LIST**
         const FIXED_ACCOUNTS = [
+            "Cash", // Added for clarity
+            "Bank (HBL)", // Added for clarity
             "Capital",
             "Drawings",
             "Drawings SadaPay (10% Account)",
             "Drawings Askari Bank (Savings)",
+            
+            // --- Commission/Service Accounts ---
+            "Commission Income Account",
             "Commission Earned",
             "Service Income",
+            "Altaf Bhai fabric commission", // <-- NEW COMMISSION ACCOUNT
+            // ------------------------------------
+
             "Bank Charges",
             "Rent Expense",
             "Utilities Expense",
             "Salaries Expense",
             "Office Supplies",
             "Transportation Expense",
-            "Miscellaneous Expense"
+            "Miscellaneous Expense",
+            "Unearned Revenue" // Added for completeness
         ];
 
         // Fetch unique accounts from ledger and merge with fixed accounts
@@ -374,12 +383,12 @@
                     const accountKey = data.account || '';
                     
                     // Only add non-empty, non-default accounts
-                    if (accountKey && accountKey.trim() !== '' && accountKey !== 'Unknown') {
+                    if (accountKey && accountKey.trim() !== '' && accountKey !== 'Unknown' && !FIXED_ACCOUNTS.includes(accountKey)) {
                         uniqueAccounts.add(accountKey);
                     }
                 });
 
-                console.log(`Found ${uniqueAccounts.size} unique accounts (including ${FIXED_ACCOUNTS.length} fixed accounts)`);
+                console.log(`Found ${uniqueAccounts.size} unique accounts (including fixed accounts)`);
                 
                 // Convert to sorted array
                 const sortedAccounts = Array.from(uniqueAccounts).sort();
@@ -406,14 +415,6 @@
 
         async function getNextJENumber() {
             try {
-                // Query the collection, filter for documents starting with 'JE-', order by number, and take the last one
-                // Firestore doesn't support complex string querying like 'startsWith' or numerical comparison on non-numeric fields easily.
-                // The most reliable way is to fetch all JE documents and find the highest number manually, or rely on a helper field 'number' if available.
-                
-                // Assuming the documents are stored with a document ID of 'JE-XXXXX' and have a field 'number' with value 'JE-XXXXX'
-                // We'll query by the 'number' field, ordering descendingly for string comparison.
-                // This approach works best if the padded JE number (e.g., JE-01001) is used for the 'number' field.
-                
                 const q = query(
                     collection(db, "journalEntries"), 
                     orderBy("number", "desc"), 
@@ -427,7 +428,6 @@
                     const lastDoc = snapshot.docs[0].data();
                     const lastNumberStr = (lastDoc.number || lastDoc.id || '').replace('JE-', '');
                     
-                    // Attempt to parse the number part
                     const parsedNumber = parseInt(lastNumberStr, 10);
                     
                     if (!isNaN(parsedNumber) && parsedNumber > highestNumber) {
@@ -440,7 +440,6 @@
                 
             } catch (error) {
                 console.error("Error getting next JE number:", error);
-                // Fallback in case of error
                 return `JE-${String(DEFAULT_STARTING_NUMBER + 1).padStart(5, '0')}`;
             }
         }
@@ -451,7 +450,6 @@
             
             const parts = value.split('.');
             if (parts.length > 2) {
-                // Keep the first dot, remove the rest
                 value = parts[0] + '.' + parts.slice(1).join('');
             }
 
@@ -461,7 +459,6 @@
         async function populateForm(doc) {
             document.getElementById('je-no').value = doc.number;
             
-            // Convert date from DD-MM-YYYY to YYYY-MM-DD for date input
             if (doc.date) {
                 const dateParts = doc.date.split('-');
                 if (dateParts.length === 3) {
@@ -508,8 +505,7 @@
                 });
                 displayLineItems();
                 
-                // Clear inputs for next line
-                document.getElementById('line-account-type').value = ''; // Reset dropdown
+                document.getElementById('line-account-type').value = '';
                 document.getElementById('line-description').value = '';
                 document.getElementById('line-debit').value = '';
                 document.getElementById('line-credit').value = '';
@@ -549,9 +545,31 @@
             document.getElementById('total-credit').textContent = totalCredit.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         }
 
+        // Helper function to determine the Party name from the account name
+        function getPartyNameFromAccount(account) {
+            // If the account is a specific commission ledger, treat it as the party (for filtering)
+            if (account === "Altaf Bhai fabric commission") {
+                return "Altaf Bhai"; // Or the full account name if you prefer
+            }
+            
+            // If the account is a generic income/expense type, leave party blank
+            const genericAccounts = ["Commission Income Account", "Commission Earned", "Service Income", 
+                                     "Bank Charges", "Rent Expense", "Utilities Expense", "Salaries Expense", 
+                                     "Office Supplies", "Transportation Expense", "Miscellaneous Expense", 
+                                     "Capital", "Drawings", "Unearned Revenue"];
+            
+            if (genericAccounts.includes(account)) {
+                return '';
+            }
+            
+            // Otherwise, assume the account name is the Party name (e.g., Cash, Bank, or Customer/Supplier name from the ledger)
+            return account;
+        }
+
+
         async function saveJournalEntry() {
             const docNumber = document.getElementById('je-no').value;
-            const dateValue = document.getElementById('entry-date').value; // YYYY-MM-DD format
+            const dateValue = document.getElementById('entry-date').value;
             const narration = document.getElementById('entry-narration').value;
             
             if (!dateValue || !narration.trim() || !docNumber) {
@@ -559,14 +577,12 @@
                 return;
             }
 
-            // Convert YYYY-MM-DD to DD-MM-YYYY for storage
             const [year, month, day] = dateValue.split('-');
             const displayDate = `${day}-${month}-${year}`;
             
             const totalDebit = parseFloat(document.getElementById('total-debit').textContent.replace(/,/g, '')) || 0;
             const totalCredit = parseFloat(document.getElementById('total-credit').textContent.replace(/,/g, '')) || 0;
 
-            // Check for balance, allowing for minor floating point errors
             if (Math.abs(totalDebit - totalCredit) > 0.01) { 
                 alert(`Journal Entry is unbalanced! Total Debit (${totalDebit.toLocaleString('en-US')}) must equal Total Credit (${totalCredit.toLocaleString('en-US')}). Difference: ${Math.abs(totalDebit - totalCredit).toFixed(2)} Rs.`);
                 return;
@@ -581,7 +597,7 @@
             
             const newJournal = {
                 number: docNumber, 
-                date: displayDate, // Store in DD-MM-YYYY format
+                date: displayDate,
                 narration: narration.trim(),
                 lineItems: lineItems,
                 totalDebit: parseFloat(totalDebit.toFixed(2)),
@@ -605,20 +621,30 @@
                     console.log(`✓ Deleted ${ledgerSnapshot.size} old ledger entries`);
                 }
 
-                // Create new ledger entries
+                // **CODE CHANGE 2: IMPROVED LEDGER ENTRY SAVING**
                 for (let i = 0; i < lineItems.length; i++) {
                     const item = lineItems[i];
+                    
+                    // Determine which field to use for Party/Account depending on the transaction line
+                    const itemAccount = item.account;
+                    const itemParty = getPartyNameFromAccount(itemAccount);
+                    
+                    // If it's a specific commission ledger, we want the account name to be the specific commission name
+                    // If it's a payment/receipt to Cash/Bank/Party, we want the account to be Cash/Bank/Party.
+                    
+                    // The GL report uses the 'account' field for the main ledger name. 
+                    // When tracking 'Altaf Bhai fabric commission', the 'account' MUST be "Altaf Bhai fabric commission".
+                    
                     const ledgerEntry = {
-                        date: displayDate, // Store in DD-MM-YYYY format
+                        date: displayDate,
                         description: `${item.description} (JE: ${narration.trim()})`,
-                        account: item.account,
-                        party: '', // No party for journal entries
+                        account: itemAccount, // This is the main ledger name for the GL Report
+                        party: itemParty, // This helps filter the party ledger if you create one
                         debit: item.debit || 0,
                         credit: item.credit || 0,
                         doc_number: docNumber,
                         doc_type: 'Journal Entry',
-                        goods_summary: '', // No goods for journal entries
-                        // Ensure unique timestamp for sorting in general ledger
+                        goods_summary: '',
                         timestamp: new Date(baseTimestamp + i).toISOString() 
                     };
                     
@@ -646,7 +672,6 @@
                 await deleteDoc(doc(db, "journalEntries", docNumber));
                 console.log(`✓ Main Journal Entry ${docNumber} deleted`);
 
-                // Delete associated ledger entries
                 const ledgerQuery = query(collection(db, "ledger"), where("doc_number", "==", docNumber));
                 const ledgerSnapshot = await getDocs(ledgerQuery);
                 
@@ -714,16 +739,13 @@
                         originalDocNumber = editId;
                         document.getElementById('deleteButton').style.display = 'inline-block';
                     } else {
-                        // If edit ID is provided but document doesn't exist, start a new one
                         window.location.href = 'journal-entry.html'; 
                         return;
                     }
                 } else {
-                    // New entry mode
                     const nextNumber = await getNextJENumber();
                     document.getElementById('je-no').value = nextNumber;
                     
-                    // Auto-set today's date in YYYY-MM-DD format for date input
                     const today = new Date();
                     const formattedDate = today.toISOString().split('T')[0];
                     document.getElementById('entry-date').value = formattedDate;
@@ -733,10 +755,9 @@
                     }, 100);
                     
                     document.getElementById('deleteButton').style.display = 'none';
-                    displayLineItems(); // Show empty table
+                    displayLineItems();
                 }
 
-                // Attach formatting/blur listeners
                 document.getElementById('line-debit').addEventListener('input', formatInput);
                 document.getElementById('line-credit').addEventListener('input', formatInput);
                 
@@ -758,6 +779,7 @@
         window.saveJournalEntry = saveJournalEntry;
         window.deleteJournalEntry = deleteJournalEntry;
         window.generatePDF = generatePDF;
+        window.getPartyNameFromAccount = getPartyNameFromAccount; // Expose if needed elsewhere
     </script>
 </body>
 </html>
