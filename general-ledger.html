@@ -442,55 +442,34 @@
                     rawEntries.push(data);
                 });
                 
-                // 1. **REVISED FILTER: Explicitly keeping receipts and improving general inclusion**
+                // 1. **Data Filtering: Removing potentially corrupt/orphaned entries**
                 const filteredEntries = rawEntries.filter(entry => {
                     const docNumber = String(entry.doc_number || '').toUpperCase().trim();
                     const docType = String(entry.doc_type || '').toUpperCase();
                     
-                    // Check if entry has any financial value
                     const debit = parseFloat(entry.debit || 0) || 0;
                     const credit = parseFloat(entry.credit || 0) || 0;
                     const hasValue = debit !== 0 || credit !== 0;
 
-                    // Check for a usable account name
                     const accountName = getAccountName(entry);
                     const hasValidAccountName = accountName && accountName !== 'Unknown';
 
-                    // === Inclusion Logic ===
-                    
-                    // A) Explicitly include Receipt/Vendor Payment/Journal Entries
-                    if (docType.includes('RECEIPT') || docNumber.startsWith('CR-') || 
-                        docType.includes('VENDOR_PAYMENT') || docNumber.startsWith('VP-') ||
-                        docType.includes('JOURNAL') || docNumber.startsWith('JE-')) {
+                    // Inclusion Logic: Keep entries that are clearly a transaction
+                    if (hasValue && hasValidAccountName) {
                         return true; 
                     }
                     
-                    // B) Include Sales/Purchase if they have a Doc Number (SI, PI, GSI, GPI)
-                    if (docNumber.startsWith('SI-') || docNumber.startsWith('PI-') || 
-                        docNumber.startsWith('GSI-') || docNumber.startsWith('GPI-')) {
+                    // Inclusion Logic: Keep entries that have a document number (even if zero value, like a cancelled transaction)
+                    if (docNumber !== '') {
                         return true;
                     }
                     
-                    // C) General Inclusion for entries that look like a transaction but might lack a clean doc_type
-                    if (hasValue && hasValidAccountName && docNumber !== '') {
-                        return true;
-                    }
-                    
-                    // D) Last ditch effort: if it has value and a valid account, keep it (this is for older/manual entries)
-                    if (hasValue && hasValidAccountName) {
-                        return true;
-                    }
-
-
-                    // === Exclusion Logic === (Only entries that fail all inclusion checks are removed)
-                    
-                    // Exclusion check: If the entry has NO financial value AND NO document number/type, it is likely corrupt.
-                    if (!hasValue && docNumber === '' && docType === '') {
+                    // Exclusion Logic: Remove entries that have no financial value, no document number, and no valid account.
+                    if (!hasValue && docNumber === '' && !hasValidAccountName) {
                         return false; 
                     }
                     
-                    // If it is none of the above, it gets filtered out by default.
-                    return false;
+                    return true;
                 });
                 
                 if (rawEntries.length !== filteredEntries.length) {
@@ -498,7 +477,7 @@
                     console.warn(`Filtered ${removedCount} potentially corrupt/orphaned entries.`);
                 }
                 
-                // 2. Apply de-duplication (on the already filtered set)
+                // 2. Apply de-duplication
                 allLedgerEntries = removeDuplicateEntries(filteredEntries);
 
                 uniqueAccounts.clear();
@@ -596,6 +575,9 @@
             document.getElementById('final-balance').textContent = runningBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
 
+        // =========================================================
+        // === CORRECTED filterLedger FUNCTION (THE FIX) ==========
+        // =========================================================
         function filterLedger() {
             const searchTerm = document.getElementById('search-bar').value.toLowerCase().trim();
             const accountName = document.getElementById('account-filter').value;
@@ -623,25 +605,25 @@
                 filteredEntries = filteredEntries.filter(entry => {
                     const entryAccount = getAccountName(entry);
                     const entryDescription = (entry.description || '').toLowerCase();
+                    const entryParty = (entry.party || '').toLowerCase();
                     const entryDocType = (entry.doc_type || '').toUpperCase();
                     
-                    // --- FIX FOR MISSING LINKED ENTRIES ---
-                    // 1. Primary Check: Does the entry's primary account match the filter?
+                    // 1. Primary Check: Does the entry's main 'account' field match the filter? (The direct match)
                     const primaryMatch = entryAccount === accountName;
 
-                    // 2. Secondary Check: Is this a linked Cash/Bank entry for a party transaction?
-                    // This logic attempts to catch the other side of a payment/receipt by checking the description.
-                    const isLinkedPaymentOrReceipt = 
-                        (entryDocType.includes('RECEIPT') || entryDocType.includes('VENDOR_PAYMENT')) &&
-                        entryDescription.includes(lowerAccountName); 
+                    // 2. Secondary Check (Linked Transaction Fix): Is this the 'other' side of a Receipt, Payment, or Journal?
+                    const isLinkedTransaction = 
+                        (entryDocType.includes('RECEIPT') || entryDocType.includes('VENDOR_PAYMENT') || entryDocType.includes('JOURNAL')) &&
+                        (
+                            // Check description (e.g., Party name is in the Cash/Bank entry's description OR Cash/Bank name is in the Party entry's description)
+                            entryDescription.includes(lowerAccountName) || 
+                            // Check party field (The party field often holds the *other* account in a two-sided entry)
+                            entryParty.includes(lowerAccountName) ||
+                            // Check if the filtered account name is *part of* the primary account name (e.g., filter 'Nk Altaf Bhai' matches 'Nk Altaf Bhai (Yarn Account)')
+                            entryAccount.toLowerCase().includes(lowerAccountName)
+                        );
 
-                    // 3. Journal Entry Check: Does the description suggest the account is involved?
-                    // This helps catch the other side of a journal entry line.
-                    const isLinkedJournalEntry = 
-                        entryDocType.includes('JOURNAL') &&
-                        entryDescription.includes(lowerAccountName);
-
-                    return primaryMatch || isLinkedPaymentOrReceipt || isLinkedJournalEntry;
+                    return primaryMatch || isLinkedTransaction;
                 });
             }
             
@@ -665,6 +647,8 @@
             document.getElementById('current-ledger-title').textContent = titleText;
             displayLedger(filteredEntries);
         }
+        // =========================================================
+        // =========================================================
 
         function resetFilterState() {
             document.getElementById('search-bar').value = '';
