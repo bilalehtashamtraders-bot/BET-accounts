@@ -425,7 +425,7 @@
             return uniqueEntries;
         }
 
-
+        // --- CORE CHANGE IN loadLedgerData ---
         async function loadLedgerData() {
             document.getElementById('loading').style.display = 'block';
             document.getElementById('mainContent').style.display = 'none';
@@ -437,18 +437,15 @@
                 
                 let rawEntries = [];
                 snapshot.forEach(doc => {
-                    // Add the Firestore Document ID to the entry for potential exclusion if needed later
                     const data = doc.data();
                     data.doc_id = doc.id; 
                     rawEntries.push(data);
                 });
                 
-                // 1. **FINAL STRIKE FILTER: Targeted Hybrid Filter with simple Doc# exclusion**
+                // 1. **REVISED FILTER: More permissive to ensure recent JE transactions are kept**
                 const filteredEntries = rawEntries.filter(entry => {
                     const docNumber = String(entry.doc_number || '').trim();
-                    const docTypePresent = entry.doc_type && String(entry.doc_type).trim() !== '';
-                    
-                    const hasCompleteReference = docNumber !== '' && docTypePresent;
+                    const docType = String(entry.doc_type || '').toUpperCase().trim();
                     
                     // Check if entry has any financial value
                     const debit = parseFloat(entry.debit || 0) || 0;
@@ -459,30 +456,33 @@
                     const accountName = getAccountName(entry);
                     const hasValidAccountName = accountName && accountName !== 'Unknown';
 
-                    // === Exclusion Check for Corrupted Entries ===
+                    // === Inclusion Logic ===
+                    // KEEP the entry if:
                     
-                    // Check if doc_number is *only* numeric and short (e.g., "00003")
-                    const isSimpleNumericDoc = /^\d+$/.test(docNumber) && docNumber.length <= 5;
-
-                    // If an entry is incomplete (missing doc_type) AND looks like a simple, old, numeric ID, 
-                    // we assume it is a deleted/corrupt entry and filter it out.
-                    const isPotentiallyCorruptOldEntry = !docTypePresent && isSimpleNumericDoc;
-
-                    if (isPotentiallyCorruptOldEntry) {
-                        return false; // Exclude entries lacking doc_type AND having a simple numeric ID
+                    // A) It is a Journal Entry (JE-)
+                    if (docType.includes('JOURNAL') || docNumber.startsWith('JE-')) {
+                        return true; 
                     }
                     
-                    // === Inclusion Check ===
-                    // Keep if:
-                    // 1. Fully referenced (ideal document entry)
-                    // OR
-                    // 2. Has value AND a valid account (Allows incomplete new journal entries/transactions)
-                    return hasCompleteReference || (hasValue && hasValidAccountName);
+                    // B) It has a financial value AND a valid account name (Catches valid purchase/sale lines)
+                    if (hasValue && hasValidAccountName) {
+                        return true;
+                    }
+                    
+                    // C) It has a complete reference (doc number and doc type)
+                    const docTypePresent = docType !== '';
+                    const hasCompleteReference = docNumber !== '' && docTypePresent;
+                    if (hasCompleteReference) {
+                        return true;
+                    }
+                    
+                    // Default exclusion for orphaned/corrupt entries
+                    return false;
                 });
                 
                 if (rawEntries.length !== filteredEntries.length) {
                     const removedCount = rawEntries.length - filteredEntries.length;
-                    console.warn(`Filtered ${removedCount} orphaned/corrupt entries using the document reference + simple Doc# exclusion check.`);
+                    console.warn(`Filtered ${removedCount} potentially corrupt/orphaned entries.`);
                 }
                 
                 // 2. Apply de-duplication (on the already filtered set)
@@ -518,10 +518,9 @@
                 document.getElementById('loading').innerHTML = 'Error loading ledger data. Please check your Firebase connection.';
             }
         }
+        // --- END OF loadLedgerData CHANGE ---
 
-        // ... (Functions populateAccountFilter, displayLedger, filterLedger, resetFilterState, 
-        // resetLedger, viewDocument, and generatePDF remain the same) ...
-        
+
         function populateAccountFilter() {
             const accountFilter = document.getElementById('account-filter');
             accountFilter.innerHTML = '<option value="">All Accounts</option>';
