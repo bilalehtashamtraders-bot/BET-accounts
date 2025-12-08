@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>General Ledger - Bilal Ehtasham Traders</title>
     <style>
-        /* ... (CSS remains the same) ... */
         body {
             font-family: Arial, sans-serif;
             margin: 0;
@@ -314,7 +313,6 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, collection, getDocs, query } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // IMPORTANT: Replace this with your ACTUAL Firebase Config
         const firebaseConfig = {
             apiKey: "AIzaSyCm_tjninuNgd11f0c4t6Qy9eDrq4KaCD4",
             authDomain: "bet-acc-software.firebaseapp.com",
@@ -330,9 +328,6 @@
         let allLedgerEntries = [];
         let uniqueAccounts = new Set();
 
-        /**
-         * Parses the date string and returns consistent millisecond value for sorting.
-         */
         function parseDateToMillis(dateStr) {
             if (!dateStr) return 0;
             if (dateStr instanceof Date) {
@@ -360,9 +355,6 @@
             return 0;
         }
 
-        /**
-         * Formats the date string into the requested DD/MM/YYYY format.
-         */
         function formatDateForDisplay(dateStr) {
             const dateMillis = parseDateToMillis(dateStr); 
             if (dateMillis === 0) return 'N/A';
@@ -373,9 +365,6 @@
             return `${day}/${month}/${year}`; 
         }
 
-        /**
-         * Generates sort keys for an entry.
-         */
         function getEntrySortKey(entry) {
             const dateMillis = parseDateToMillis(entry.date); 
             let fullTimestampMillis = 0;
@@ -394,9 +383,6 @@
             return entry.account || entry.accountType || entry.doc_type || 'Unknown';
         }
         
-        /**
-         * Removes duplicate entries based on Doc # and Doc Type.
-         */
         function removeDuplicateEntries(entries) {
             const seen = new Set();
             const uniqueEntries = [];
@@ -405,8 +391,9 @@
             for (const entry of entries) {
                 const docNumber = entry.doc_number ? String(entry.doc_number).toUpperCase().trim() : '';
                 const docType = entry.doc_type ? String(entry.doc_type).toUpperCase().trim() : '';
+                const account = getAccountName(entry);
 
-                const key = `${docNumber}-${docType}`;
+                const key = `${docNumber}-${docType}-${account}`;
 
                 if (docNumber && docType) {
                     if (!seen.has(key)) {
@@ -425,7 +412,6 @@
             return uniqueEntries;
         }
 
-
         async function loadLedgerData() {
             document.getElementById('loading').style.display = 'block';
             document.getElementById('mainContent').style.display = 'none';
@@ -442,33 +428,23 @@
                     rawEntries.push(data);
                 });
                 
-                // 1. **Data Filtering: Removing potentially corrupt/orphaned entries**
                 const filteredEntries = rawEntries.filter(entry => {
                     const docNumber = String(entry.doc_number || '').toUpperCase().trim();
-                    const docType = String(entry.doc_type || '').toUpperCase();
-                    
                     const debit = parseFloat(entry.debit || 0) || 0;
                     const credit = parseFloat(entry.credit || 0) || 0;
                     const hasValue = debit !== 0 || credit !== 0;
-
                     const accountName = getAccountName(entry);
                     const hasValidAccountName = accountName && accountName !== 'Unknown';
 
-                    // Inclusion Logic: Keep entries that are clearly a transaction
                     if (hasValue && hasValidAccountName) {
                         return true; 
                     }
-                    
-                    // Inclusion Logic: Keep entries that have a document number (even if zero value, like a cancelled transaction)
                     if (docNumber !== '') {
                         return true;
                     }
-                    
-                    // Exclusion Logic: Remove entries that have no financial value, no document number, and no valid account.
                     if (!hasValue && docNumber === '' && !hasValidAccountName) {
                         return false; 
                     }
-                    
                     return true;
                 });
                 
@@ -477,7 +453,6 @@
                     console.warn(`Filtered ${removedCount} potentially corrupt/orphaned entries.`);
                 }
                 
-                // 2. Apply de-duplication
                 allLedgerEntries = removeDuplicateEntries(filteredEntries);
 
                 uniqueAccounts.clear();
@@ -488,7 +463,6 @@
                     }
                 });
 
-                // 3. Sort entries
                 allLedgerEntries.sort((a, b) => {
                     const keyA = getEntrySortKey(a);
                     const keyB = getEntrySortKey(b);
@@ -510,7 +484,6 @@
                 document.getElementById('loading').innerHTML = 'Error loading ledger data. Please check your Firebase connection.';
             }
         }
-
 
         function populateAccountFilter() {
             const accountFilter = document.getElementById('account-filter');
@@ -575,13 +548,9 @@
             document.getElementById('final-balance').textContent = runningBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
 
-        // =========================================================
-        // === CORRECTED filterLedger FUNCTION (THE FINAL FIX) =====
-        // =========================================================
         function filterLedger() {
             const searchTerm = document.getElementById('search-bar').value.toLowerCase().trim();
             const accountName = document.getElementById('account-filter').value;
-            const lowerAccountName = accountName.toLowerCase();
 
             let filteredEntries = allLedgerEntries;
 
@@ -602,38 +571,21 @@
             }
 
             if (accountName) {
+                const relatedDocNumbers = new Set();
+                
+                allLedgerEntries.forEach(entry => {
+                    const entryAccount = getAccountName(entry);
+                    if (entryAccount === accountName && entry.doc_number) {
+                        relatedDocNumbers.add(entry.doc_number);
+                    }
+                });
+
                 filteredEntries = filteredEntries.filter(entry => {
                     const entryAccount = getAccountName(entry);
-                    const entryDescription = (entry.description || '').toLowerCase();
-                    const entryParty = (entry.party || '').toLowerCase();
-                    const entryDocType = (entry.doc_type || '').toUpperCase();
-                    const entryDocNumber = (entry.doc_number || '').toUpperCase();
+                    const directMatch = entryAccount === accountName;
+                    const linkedMatch = entry.doc_number && relatedDocNumbers.has(entry.doc_number);
                     
-                    // 1. Primary Check: Does the entry's main 'account' field match the filter? (The direct match)
-                    const primaryMatch = entryAccount === accountName;
-
-                    // 2. Secondary Check (Linked Transaction Fix): Is this the 'other' side of a Receipt, Payment, or Journal?
-                    const isLinkedTransaction = 
-                        (entryDocType.includes('RECEIPT') || entryDocType.includes('VENDOR_PAYMENT') || entryDocType.includes('JOURNAL')) &&
-                        (
-                            // Check description: does it contain the filtered account name?
-                            entryDescription.includes(lowerAccountName) || 
-                            // Check party field: does it contain the filtered account name?
-                            entryParty.includes(lowerAccountName) ||
-                            // Universal Check: If the document number is shared, the other entry should be included.
-                            // We find the *Doc Number* of all entries that *do* match the filter, then include all entries with that same Doc Number.
-                            // Since we can't do a two-pass filter easily here, we make the single-pass filter smarter:
-                            // Check if the filtered account name is contained *within* the entry's primary account, which covers the Yarn Account being part of "Nk Altaf Bhai (Yarn Account)".
-                            entryAccount.toLowerCase().includes(lowerAccountName) 
-                        );
-
-                    // To fix the exact issue of the Cash/Bank account missing its side:
-                    // If the current entry is a Payment/Receipt, and the primary account *isn't* the filtered one, 
-                    // we must ensure that the document's corresponding entry (which has the *filtered* account) is present.
-                    // By making the check for `isLinkedTransaction` include a wide net on `description` and `party`, we pull in the other side.
-                    // **The inclusion of `entryAccount.toLowerCase().includes(lowerAccountName)` is the final key to handling partially named accounts.**
-
-                    return primaryMatch || isLinkedTransaction;
+                    return directMatch || linkedMatch;
                 });
             }
             
@@ -657,8 +609,6 @@
             document.getElementById('current-ledger-title').textContent = titleText;
             displayLedger(filteredEntries);
         }
-        // =========================================================
-        // =========================================================
 
         function resetFilterState() {
             document.getElementById('search-bar').value = '';
