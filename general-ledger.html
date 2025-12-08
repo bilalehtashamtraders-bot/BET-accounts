@@ -1,3 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>General Ledger - Bilal Ehtasham Traders</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            color: #000;
+        }
+        .report-container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            border: 1px solid #ccc;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            box-sizing: border-box;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #2e6da4;
+            padding-bottom: 10px;
+        }
+        .header h1 {
+            font-size: 28px;
+            margin: 0;
+            color: #2e6da4;
+        }
+        .business-info {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .business-info h2 {
+            margin: 0;
+            color: #2e6da4;
+        }
+        .business-info p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+        .ledger-title {
+            text-align: left;
+            font-size: 20px;
+            font-weight: bold;
+            color: #2e6da4;
+            margin: 20px 0 15px 0;
+            padding: 8px;
+            background-color: #f0f8ff;
+            border-left: 4px solid #2e6da4;
+        }
+        .controls {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .controls input[type="text"], .controls select {
+            padding: 8px;
+            width: 45%;
+            margin: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            background: transparent;
+        }
+        .controls input[type="text"]:focus, .controls select:focus {
+            outline: none;
+            background: #e6f0fa;
+        }
+        .controls button {
+            padding: 10px;
+            margin: 5px;
+            background-color: #2e6da4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .controls button:hover {
+            background-color: #245a8e;
+        }
+        .filter-section {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .table-wrapper {
+            overflow-x: auto;
+            margin-top: 20px;
+        }
+        table {
+            width: 100%;
+            min-width: 750px;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 2px solid #000;
+            padding: 8px 4px;
+            text-align: left;
+            font-size: 12px;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        #ledger-table th:nth-child(1), #ledger-table td:nth-child(1) { width: 9%; }
+        #ledger-table th:nth-child(2), #ledger-table td:nth-child(2) { width: 18%; }
+        #ledger-table th:nth-child(3), #ledger-table td:nth-child(3) { 
+            width: 32%;
+            word-wrap: break-word;
+            max-width: 250px;
+        }
+        #ledger-table th:nth-child(4), #ledger-table td:nth-child(4) { width: 8%; }
+        #ledger-table th:nth-child(5), #ledger-table td:nth-child(5) { width: 11%; }
+        #ledger-table th:nth-child(6), #ledger-table td:nth-child(6) { width: 11%; }
+        #ledger-table th:nth-child(7), #ledger-table td:nth-child(7) { width: 11%; }
+        tfoot td {
+            font-weight: bold;
+            background-color: #e6e6ff;
+        }
+        .debit-amount, .credit-amount, .balance-column {
+            text-align: right;
+            font-family: 'Courier New', monospace;
+        }
+        .balance-column {
+            font-weight: bold;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #2e6da4;
+        }
+        .doc-link {
+            color: #2e6da4;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+        .doc-link:hover {
+            color: #245a8e;
+        }
+        .watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 26px;
+            color: rgba(255, 0, 0, 0.15);
+            font-weight: bold;
+            white-space: nowrap;
+            pointer-events: none;
+            z-index: 1000;
+            user-select: none;
+            letter-spacing: 2px;
+            max-width: 85vw;
+            text-align: center;
+        }
+        @media print {
+            @page {
+                size: A4 landscape;
+                margin: 8mm;
+            }
+            body {
+                padding: 0;
+                margin: 0;
+            }
+            .controls, .filter-section {
+                display: none !important;
+            }
+            .report-container {
+                border: none;
+                box-shadow: none;
+                padding: 5px;
+                max-width: 100%;
+            }
+            .header h1 {
+                font-size: 22px;
+                margin: 5px 0;
+            }
+            .business-info h2 {
+                font-size: 18px;
+                margin: 3mm 0;
+            }
+            .business-info p {
+                font-size: 11px;
+                margin: 2mm 0;
+            }
+            .ledger-title {
+                font-size: 16px;
+                margin: 10px 0;
+                padding: 5px;
+            }
+            .watermark {
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%) rotate(-45deg);
+                font-size: 26px;
+                color: rgba(255, 0, 0, 0.15);
+                font-weight: bold;
+                white-space: nowrap;
+                z-index: 1000;
+                letter-spacing: 2px;
+            }
+            .header { 
+                border-bottom: 2px solid #2e6da4;
+                page-break-after: avoid;
+            }
+            .business-info h2 { 
+                color: #2e6da4;
+            }
+            table {
+                page-break-inside: auto;
+                font-size: 10px;
+                min-width: 100%;
+            }
+            th, td {
+                padding: 4px 3px;
+                font-size: 10px;
+                word-wrap: break-word;
+                overflow-wrap: break-word;
+            }
+            tr {
+                page-break-inside: avoid;
+                page-break-after: auto;
+            }
+            thead {
+                display: table-header-group;
+            }
+            tfoot {
+                display: table-footer-group;
+            }
+            #ledger-table th:nth-child(3), #ledger-table td:nth-child(3) { 
+                max-width: 200px;
+            }
+        }
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+            .controls input[type="text"], .controls select { width: 100%; }
+            .filter-section { flex-direction: column; }
+            .controls button { width: 45%; }
+            table, th, td { font-size: 11px; padding: 3px; }
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+    <div class="watermark">NOT VALID FOR COURT OR LEGAL PURPOSE</div>
+    <div class="loading" id="loading">Loading ledger data...</div>
+    <div class="report-container" style="display: none;" id="mainContent">
+        <div class="header">
+            <h1>General Ledger Report</h1>
+        </div>
+        <div class="business-info">
+            <h2>(BET) Bilal Ehtasham Traders</h2>
+            <p><i>We deal in all kinds of Cotton and Polyester Yarn</i></p>
+            <p>Email: bilalehtashamtraders@gmail.com</p>
+            <p>Cell: (+92)-324-2479096</p>
+        </div>
+
+        <div class="controls">
+            <div class="filter-section">
+                <input type="text" id="search-bar" placeholder="Search by account name or description...">
+                <select id="account-filter">
+                    <option value="">All Accounts</option>
+                </select>
+            </div>
+            <div>
+                <button onclick="filterLedger()">Filter</button>
+                <button onclick="resetLedger()">Show All</button>
+                <button onclick="generatePDF()">Generate PDF</button>
+                <button onclick="window.print()">Print</button>
+                <button onclick="loadLedgerData()">Refresh Ledger</button>
+                <button onclick="window.location.href='documents.html'">Back to Documents</button>
+            </div>
+        </div>
+
+        <div class="ledger-title" id="current-ledger-title">All Transactions</div>
+        
+        <div class="table-wrapper">
+            <table id="ledger-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Account</th>
+                        <th>Description</th>
+                        <th>Doc #</th>
+                        <th>Debit (Rs.)</th>
+                        <th>Credit (Rs.)</th>
+                        <th class="balance-column">Balance (Rs.)</th>
+                    </tr>
+                </thead>
+                <tbody id="ledger-body">
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="4">Total</td>
+                        <td id="total-debit" class="debit-amount">0</td>
+                        <td id="total-credit" class="credit-amount">0</td>
+                        <td class="balance-column" id="final-balance">0</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, collection, getDocs, query } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
@@ -79,14 +390,14 @@
         }
 
         function getAccountName(entry) {
-            // Check for the new dedicated account field first
+            // Check for the new dedicated account field first (used in augmented entries)
             if (entry.ledger_account) return entry.ledger_account;
             // Fallback to existing fields
             return entry.account || entry.accountType || entry.doc_type || 'Unknown';
         }
         
         /**
-         * Removes duplicate entries based on Doc # and Doc Type.
+         * Removes duplicate entries based on Doc #, Doc Type, and the Account name.
          */
         function removeDuplicateEntries(entries) {
             const seen = new Set();
@@ -96,12 +407,12 @@
             for (const entry of entries) {
                 const docNumber = entry.doc_number ? String(entry.doc_number).toUpperCase().trim() : '';
                 const docType = entry.doc_type ? String(entry.doc_type).toUpperCase().trim() : '';
-                const ledgerAccount = entry.ledger_account ? String(entry.ledger_account).toUpperCase().trim() : '';
+                const ledgerAccount = getAccountName(entry) ? String(getAccountName(entry)).toUpperCase().trim() : 'NO_ACCOUNT';
 
                 // Key includes the account to differentiate between the two legs of a transaction with the same Doc #
                 const key = `${docNumber}-${docType}-${ledgerAccount}`;
 
-                if (docNumber && docType && ledgerAccount) {
+                if (docNumber && docType) {
                     if (!seen.has(key)) {
                         seen.add(key);
                         uniqueEntries.push(entry);
@@ -172,63 +483,77 @@
                 // =========================================================
                 // === START FIX: Generating Missing Counter Entries =====
                 // =========================================================
-                const augmentedEntries = [...filteredEntries];
+                const augmentedEntries = [];
 
                 filteredEntries.forEach(entry => {
                     const docType = (entry.doc_type || '').toUpperCase();
-                    
-                    // **Case 1: Customer Payment Receipt (CR-...)**
-                    if (docType.includes('RECEIPT') && entry.paidToAccountID && (entry.amountReceived || entry.debit)) {
-                        // The existing entry in Firestore is likely the DEBIT side to the BANK/CASH (paidToAccountID)
-                        const amount = parseFloat(entry.amountReceived || entry.debit || 0);
-
-                        // We need to create the CREDIT side for the CUSTOMER (businessLedger/receivedFrom)
-                        if (entry.businessLedger && amount > 0) {
-                            // Create the customer's CREDIT entry
-                            const customerCreditEntry = { ...entry }; // Clone the entry
-                            customerCreditEntry.ledger_account = entry.businessLedger; // Set CUSTOMER as the account
-                            customerCreditEntry.doc_type = `CUST_PAYMENT_${docType}`;
-                            customerCreditEntry.description = `Customer Payment Received from ${entry.businessLedger} via ${entry.paidToAccountID}`;
-                            customerCreditEntry.debit = 0;
-                            customerCreditEntry.credit = amount;
-                            // Update the main entry's account for consistency
-                            entry.ledger_account = entry.paidToAccountID; 
-                            entry.description = `Customer Payment Received from ${entry.businessLedger}`;
-                            
-                            augmentedEntries.push(customerCreditEntry);
-                            uniqueAccounts.add(entry.businessLedger);
-                        }
-                    } 
-                    
-                    // **Case 2: Vendor Payment (VP-...)**
-                    else if (docType.includes('VENDOR_PAYMENT') && entry.paidFromAccountID && (entry.amountPaid || entry.credit)) {
-                        // The existing entry in Firestore is likely the DEBIT side to the VENDOR (paidTo)
-                        const amount = parseFloat(entry.amountPaid || entry.credit || 0);
-
-                        // We need to create the CREDIT side for the BANK/CASH (paidFromAccountID)
-                        if (entry.paidFromAccountID && amount > 0) {
-                            // Create the bank/cash CREDIT entry
-                            const bankCreditEntry = { ...entry }; // Clone the entry
-                            bankCreditEntry.ledger_account = entry.paidFromAccountID; // Set BANK/CASH as the account
-                            bankCreditEntry.doc_type = `BANK_PAYMENT_${docType}`;
-                            bankCreditEntry.description = `Vendor Payment Paid to ${entry.paidTo} from ${entry.paidFromAccountID}`;
-                            bankCreditEntry.debit = 0;
-                            bankCreditEntry.credit = amount;
-                            // Update the main entry's account for consistency
-                            entry.ledger_account = entry.paidTo; 
-                            entry.description = `Vendor Payment Paid to ${entry.paidTo}`;
-
-                            augmentedEntries.push(bankCreditEntry);
-                            uniqueAccounts.add(entry.paidFromAccountID);
-                        }
-                    }
                     
                     // Ensure all original entries have the account name explicitly set for de-duplication
                     if (!entry.ledger_account) {
                         entry.ledger_account = getAccountName(entry);
                     }
                     
-                    uniqueAccounts.add(entry.ledger_account);
+                    // **Case 1: Customer Payment Receipt (CR-...)**
+                    if (docType.includes('RECEIPT') && entry.paidToAccountID && (entry.amountReceived || entry.debit)) {
+                        const amount = parseFloat(entry.amountReceived || entry.debit || 0);
+
+                        // A. The Bank/Cash (Destination) DEBIT Entry (Existing, but renamed/updated)
+                        const bankDebitEntry = { ...entry }; 
+                        bankDebitEntry.ledger_account = entry.paidToAccountID; 
+                        bankDebitEntry.doc_type = entry.doc_type; // Keep original doc type
+                        bankDebitEntry.description = `Customer Payment Received from ${entry.businessLedger}`;
+                        bankDebitEntry.debit = amount;
+                        bankDebitEntry.credit = 0;
+                        augmentedEntries.push(bankDebitEntry);
+
+                        // B. The Customer (Source) CREDIT Entry (The missing entry)
+                        if (entry.businessLedger && amount > 0) {
+                            const customerCreditEntry = { ...entry }; 
+                            customerCreditEntry.ledger_account = entry.businessLedger; // Set CUSTOMER as the account
+                            customerCreditEntry.doc_type = `CUST_CREDIT_ENTRY_FOR_${entry.doc_type}`; // New doc type to prevent conflicts
+                            customerCreditEntry.description = `Customer Payment Receipt via ${entry.paidToAccountID}`;
+                            customerCreditEntry.debit = 0;
+                            customerCreditEntry.credit = amount;
+                            augmentedEntries.push(customerCreditEntry);
+                            uniqueAccounts.add(entry.businessLedger);
+                        }
+                        uniqueAccounts.add(entry.paidToAccountID);
+                    } 
+                    
+                    // **Case 2: Vendor Payment (VP-...)**
+                    else if (docType.includes('VENDOR_PAYMENT') && entry.paidFromAccountID && (entry.amountPaid || entry.credit)) {
+                        const amount = parseFloat(entry.amountPaid || entry.credit || 0);
+
+                        // A. The Vendor (Destination) DEBIT Entry (Existing, but renamed/updated)
+                        const vendorDebitEntry = { ...entry }; 
+                        vendorDebitEntry.ledger_account = entry.paidTo;
+                        vendorDebitEntry.doc_type = entry.doc_type; // Keep original doc type
+                        vendorDebitEntry.description = `Vendor Payment Paid to ${entry.paidTo}`;
+                        vendorDebitEntry.debit = amount;
+                        vendorDebitEntry.credit = 0;
+                        augmentedEntries.push(vendorDebitEntry);
+
+                        // B. The Bank/Cash (Source) CREDIT Entry (The missing entry)
+                        if (entry.paidFromAccountID && amount > 0) {
+                            const bankCreditEntry = { ...entry }; 
+                            bankCreditEntry.ledger_account = entry.paidFromAccountID; // Set BANK/CASH as the account
+                            bankCreditEntry.doc_type = `BANK_CREDIT_ENTRY_FOR_${entry.doc_type}`; // New doc type to prevent conflicts
+                            bankCreditEntry.description = `Vendor Payment to ${entry.paidTo}`;
+                            bankCreditEntry.debit = 0;
+                            bankCreditEntry.credit = amount;
+                            augmentedEntries.push(bankCreditEntry);
+                            uniqueAccounts.add(entry.paidFromAccountID);
+                        }
+                        uniqueAccounts.add(entry.paidTo);
+                    }
+                    
+                    // **Case 3: General Entries (Invoices, Journals, or other single entries)**
+                    else {
+                        // For all other entries, push the original filtered entry
+                        augmentedEntries.push(entry);
+                        uniqueAccounts.add(entry.ledger_account);
+                    }
+
                 });
 
                 // Update the main entries array
@@ -338,13 +663,14 @@
             document.getElementById('final-balance').textContent = runningBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
 
-        // =========================================================
-        // === CORRECTED filterLedger FUNCTION (Minor cleanup/fix) =
-        // =========================================================
+        /**
+         * Filters the ledger based on search term and selected account.
+         * Now that loadLedgerData creates two explicit entries per transaction, 
+         * the account filtering is much simpler and more accurate.
+         */
         function filterLedger() {
             const searchTerm = document.getElementById('search-bar').value.toLowerCase().trim();
             const accountName = document.getElementById('account-filter').value;
-            const lowerAccountName = accountName.toLowerCase();
 
             let filteredEntries = allLedgerEntries;
 
@@ -365,13 +691,9 @@
             }
 
             if (accountName) {
-                // Now that loadLedgerData is creating two explicit entries (one for each account), 
-                // the filter logic can be much simpler: only check the entry's main account.
                 filteredEntries = filteredEntries.filter(entry => {
                     const entryAccount = getAccountName(entry);
-                    
-                    // The entry's ledger account must exactly match the filtered account name.
-                    // This works because loadLedgerData has created explicit entries for both customer/vendor and bank/cash.
+                    // Direct match works because augmented entries are explicitly created for the other leg.
                     return entryAccount === accountName;
                 });
             }
@@ -396,8 +718,6 @@
             document.getElementById('current-ledger-title').textContent = titleText;
             displayLedger(filteredEntries);
         }
-        // =========================================================
-        // =========================================================
 
         function resetFilterState() {
             document.getElementById('search-bar').value = '';
@@ -416,8 +736,8 @@
             const upperDoc = docNumber.toUpperCase();
             const upperDocType = docType.toUpperCase();
             
-            // Check for the original document type, ignoring the simulated one
-            const originalDocType = upperDocType.replace('CUST_PAYMENT_', '').replace('BANK_PAYMENT_', '');
+            // Remove the temporary prefixes used for the augmented entries to link back to the original document
+            const originalDocType = upperDocType.replace('CUST_CREDIT_ENTRY_FOR_', '').replace('BANK_CREDIT_ENTRY_FOR_', '');
 
             if (originalDocType.includes('RECEIPT') || upperDoc.startsWith('CR-')) {
                 targetURL = `receipt.html?edit=${docNumber}`;
@@ -486,3 +806,5 @@
         window.loadLedgerData = loadLedgerData;
         window.viewDocument = viewDocument;
     </script>
+</body>
+</html>
